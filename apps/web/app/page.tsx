@@ -82,7 +82,6 @@ export default function DashboardPage() {
       const { data, total: t } = await res.json()
       setJobs(data ?? [])
       setTotal(t ?? 0)
-      setLastUpdated(Date.now())
     } catch (err) {
       console.error('fetchJobs failed:', err)
       setJobs([])
@@ -150,6 +149,7 @@ export default function DashboardPage() {
           await loadStats()
           await fetchJobs(page)
           setPolling(false)
+          setLastUpdated(Date.now())
           setTimeout(() => { loadStats(); fetchJobs(page) }, 30_000)
         }
       } catch {
@@ -250,6 +250,9 @@ export default function DashboardPage() {
         <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
           className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >New jobs</button>
+        <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
+          className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+        >Applied</button>
         <span className="text-muted-foreground/20 mx-1">|</span>
         <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
           className={`text-xs px-2 py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
@@ -276,8 +279,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
-      <div className={scrolled ? 'sticky top-[45px] z-40 -mx-6 px-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
-          <div className="py-2 flex items-center gap-1">
+      <div className={scrolled ? 'sticky top-[45px] z-40 -mx-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
+          <div className="max-w-7xl mx-auto px-6 py-2 flex items-center gap-1">
             {/* Priority chips */}
             {[
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
@@ -300,6 +303,9 @@ export default function DashboardPage() {
             <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
               className={`text-xs px-2 py-1 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >New jobs</button>
+            <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
+              className={`text-xs px-2 py-1 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >Applied</button>
             <span className="text-muted-foreground/20 mx-0.5">|</span>
             {/* Search */}
             <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}

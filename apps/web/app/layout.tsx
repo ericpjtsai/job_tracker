@@ -17,16 +17,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} ${spaceGrotesk.variable}`}>
         <div className="min-h-screen bg-background">
           {/* Nav */}
-          <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl px-6 py-3 flex items-center gap-6">
-            <Link href="/" className="font-semibold text-sm tracking-tight text-foreground hover:text-foreground/80">
-              Job Tracker
-            </Link>
-            <Link href="/resume" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Resume
-            </Link>
-            <Link href="/sources" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Sources
-            </Link>
+          <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl">
+            <div className="max-w-7xl mx-auto px-6 py-3 flex items-center gap-6">
+              <Link href="/" className="font-semibold text-sm tracking-tight text-foreground hover:text-foreground/80">
+                Job Tracker
+              </Link>
+              <Link href="/resume" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Resume
+              </Link>
+              <Link href="/sources" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Sources
+              </Link>
+            </div>
           </nav>
 
           <main className="max-w-7xl mx-auto px-6 py-6">{children}</main>
