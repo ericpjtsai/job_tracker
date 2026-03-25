@@ -240,19 +240,43 @@ export default function DashboardPage() {
       </div>
 
       {/* Date tabs + New + Search + Update — all one row */}
-      <div className="flex items-center gap-1">
-        {dateTabs.map((tab) => (
-          <button key={tab.value} type="button" onClick={() => setSince(tab.value)}
-            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-          >{tab.label}</button>
-        ))}
-        <span className="text-muted-foreground/20 mx-1">|</span>
-        <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
-          className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-        >New jobs</button>
-        <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
-          className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-        >Applied</button>
+      <div className="flex items-center gap-2">
+        {/* Desktop: buttons */}
+        <div className="hidden lg:contents">
+          {dateTabs.map((tab) => (
+            <button key={tab.value} type="button" onClick={() => setSince(tab.value)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >{tab.label}</button>
+          ))}
+          <span className="text-muted-foreground/20 mx-1">|</span>
+          <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >New</button>
+          <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >Applied</button>
+        </div>
+        {/* Mobile/tablet: dropdowns */}
+        <div className="contents lg:hidden">
+          <select
+            aria-label="Time range"
+            value={since}
+            onChange={(e) => setSince(e.target.value)}
+            className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+          >
+            {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
+          </select>
+          <select
+            aria-label="Status filter"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+          >
+            <option value="all">All</option>
+            <option value="new">New</option>
+            <option value="applied">Applied</option>
+          </select>
+        </div>
         <span className="text-muted-foreground/20 mx-1">|</span>
         <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
           className={`text-xs px-2 py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
@@ -292,20 +316,26 @@ export default function DashboardPage() {
               >{s.label}:{s.value}{growthLabel(s.growth) && <span className={`ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}</button>
             ))}
             <span className="text-muted-foreground/20 mx-1">|</span>
-            {/* Date tabs */}
-            {dateTabs.map((tab) => (
-              <button key={tab.value} type="button" onClick={() => setSince(tab.value)}
-                className={`text-xs px-2 py-1 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              >{tab.label}</button>
-            ))}
-            <span className="text-muted-foreground/20 mx-1">|</span>
-            {/* New jobs */}
-            <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            >New jobs</button>
-            <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            >Applied</button>
+            {/* Date dropdown */}
+            <select
+              aria-label="Time range"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              className="text-xs px-2 pr-6 py-1 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            >
+              {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
+            </select>
+            {/* Status dropdown */}
+            <select
+              aria-label="Status filter"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="text-xs px-2 pr-6 py-1 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            >
+              <option value="all">All</option>
+              <option value="new">New</option>
+              <option value="applied">Applied</option>
+            </select>
             <span className="text-muted-foreground/20 mx-0.5">|</span>
             {/* Search */}
             <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
@@ -381,10 +411,10 @@ export default function DashboardPage() {
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
-                <TableRow key={job.id} className={job.status === 'new' ? 'bg-white' : 'bg-muted/30 text-muted-foreground'}>
+                <TableRow key={job.id} className={job.status === 'new' ? '' : 'bg-muted/40'}>
                   <TableCell className="pl-2 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
                   <TableCell>
-                    <Link href={`/jobs/${job.id}`} className={`hover:underline font-medium block truncate max-w-full ${job.status !== 'new' ? 'text-muted-foreground' : 'text-foreground'}`} onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
+                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium block truncate max-w-full text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
                     <span className="text-muted-foreground text-xs">
@@ -488,7 +518,7 @@ function StatCard({ label, value, active, change, changeColor, onClick }: {
       <div className="space-y-1">
         <div className="text-sm text-muted-foreground">{label}</div>
         <div className="flex items-baseline gap-2">
-          <span className={`text-3xl font-semibold font-mono tabular-nums tracking-tight ${active ? 'text-primary' : 'text-foreground'}`}>
+          <span className={`text-3xl font-semibold font-mono tabular-nums tracking-[-0.02em] ${active ? 'text-primary' : 'text-foreground'}`}>
             {value.toLocaleString()}
           </span>
           {change && (

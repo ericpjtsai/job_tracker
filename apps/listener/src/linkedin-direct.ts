@@ -61,9 +61,10 @@ function httpsGet(url: string): Promise<string> {
 
 // ─── Poll (max 10 requests per invocation) ────────────────────────────────────
 
-export async function pollLinkedInDirect(): Promise<void> {
+export async function pollLinkedInDirect(): Promise<number> {
   console.log('⚠️  [LinkedIn Direct] Emergency fallback scraper activated')
   let requestCount = 0
+  let totalProcessed = 0
   const MAX_REQUESTS = 10
 
   for (const query of QUERIES) {
@@ -100,6 +101,7 @@ export async function pollLinkedInDirect(): Promise<void> {
             description: `[Incomplete — direct scrape] ${title} at ${company}`,
             source: 'linkedin-direct',
           })
+          totalProcessed++
         }
 
         console.log(`  [LinkedIn Direct] ${query} @ ${location}: ${cards.length} cards found`)
@@ -114,7 +116,8 @@ export async function pollLinkedInDirect(): Promise<void> {
     if (requestCount >= MAX_REQUESTS) break
   }
 
-  console.log(`✅ LinkedIn Direct complete (${requestCount} requests made)`)
+  console.log(`✅ LinkedIn Direct complete (${requestCount} requests made, ${totalProcessed} jobs processed)`)
+  return totalProcessed
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

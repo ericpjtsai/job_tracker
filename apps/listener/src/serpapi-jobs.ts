@@ -60,15 +60,16 @@ function getSupabase() {
 
 // ─── Poll ─────────────────────────────────────────────────────────────────────
 
-export async function pollSerpApi(): Promise<void> {
+export async function pollSerpApi(): Promise<number> {
   const apiKey = process.env.SERPAPI_API_KEY
   if (!apiKey) {
     console.log('  [SerpApi] SERPAPI_API_KEY not set — skipping')
-    return
+    return 0
   }
 
   console.log('🔍 SerpApi Google Jobs poll starting...')
   const supabase = getSupabase()
+  let totalProcessed = 0
 
   for (const query of SERPAPI_QUERIES) {
     try {
@@ -121,13 +122,15 @@ export async function pollSerpApi(): Promise<void> {
           source: 'linkedin-serpapi',
           publishedAt: undefined,
         })
+        totalProcessed++
       }
     } catch (err) {
       console.error(`  [SerpApi] Error for "${query}":`, err instanceof Error ? err.message : err)
     }
   }
 
-  console.log('✅ SerpApi poll complete')
+  console.log(`✅ SerpApi poll complete (${totalProcessed} jobs processed)`)
+  return totalProcessed
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

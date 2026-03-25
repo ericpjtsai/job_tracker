@@ -50,7 +50,7 @@ export function withHealthTracking(
       health.status = 'healthy'
       health.consecutiveFailures = 0
       health.lastError = null
-      if (typeof result === 'number') health.jobsFound = result
+      if (typeof result === 'number') health.jobsFound += result
     } catch (err) {
       health.status = 'error'
       health.lastErrorAt = Date.now()

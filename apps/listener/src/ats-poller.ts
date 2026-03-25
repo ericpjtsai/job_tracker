@@ -206,7 +206,7 @@ async function pollSmartRecruiters(company: AtsCompany): Promise<number> {
 
 // ─── Main poll loop ───────────────────────────────────────────────────────────
 
-async function pollCompany(company: AtsCompany): Promise<void> {
+async function pollCompany(company: AtsCompany): Promise<number> {
   let count = 0
   switch (company.ats) {
     case 'greenhouse':    count = await pollGreenhouse(company); break
@@ -217,6 +217,7 @@ async function pollCompany(company: AtsCompany): Promise<void> {
   if (count > 0) {
     console.log(`  [ATS] ${company.name} (${company.ats}): ${count} design role(s) processed`)
   }
+  return count
 }
 
 // ─── Poll progress (read by control server) ──────────────────────────────────
@@ -225,18 +226,19 @@ async function pollCompany(company: AtsCompany): Promise<void> {
 
 export const pollStatus = { running: false, current: 0, total: 0 }
 
-export async function pollAllAts(): Promise<void> {
+export async function pollAllAts(): Promise<number> {
   if (pollStatus.running) {
     console.log('⚠️  ATS poll already in progress, skipping')
-    return
+    return 0
   }
   console.log('🔄 ATS poll starting...')
   pollStatus.running = true
   pollStatus.current = 0
   pollStatus.total = ATS_COMPANIES.length
+  let totalFound = 0
   for (const company of ATS_COMPANIES) {
     try {
-      await pollCompany(company)
+      totalFound += await pollCompany(company)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       // 404 = company not on this ATS slug, skip silently
@@ -248,7 +250,8 @@ export async function pollAllAts(): Promise<void> {
     pollStatus.current++
   }
   pollStatus.running = false
-  console.log(`✅ ATS poll complete (${ATS_COMPANIES.length} companies checked)`)
+  console.log(`✅ ATS poll complete (${ATS_COMPANIES.length} companies checked, ${totalFound} jobs found)`)
+  return totalFound
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

@@ -124,9 +124,28 @@ export interface InsertJobOpts {
   publishedAt?: string  // ISO string; defaults to now
 }
 
+// ─── Processor stats (in-memory, reset on restart) ──────────────────────────
+
+export const processorStats = {
+  received: 0,
+  titleBlocked: 0,
+  locationBlocked: 0,
+  companyBlocked: 0,
+  articleBlocked: 0,
+  deduplicated: 0,
+  seniorityExcluded: 0,
+  resumeFitZero: 0,
+  inserted: 0,
+  nonJobBoard: 0,
+}
+
+export function getProcessorStats() {
+  return { ...processorStats }
+}
+
 // ─── Pre-insert filters ───────────────────────────────────────────────────────
 
-const BLOCKED_TITLE_WORDS = /\b(senior|sr\.?|lead|principal|staff|intern(ship)?|scholarship|researcher|design\s+engineer)\b/i
+const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship)\b/i
 
 const BLOCKED_COMPANIES = new Set(['lensa'])
 
@@ -164,21 +183,26 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   const supabase = getSupabase()
   const normalizedUrl = normalizeUrl(opts.url)
   const urlHash = sha256(normalizedUrl)
+  processorStats.received++
 
   // ── Title & location pre-filters (before dedup to save DB calls) ──────────
   if (isTitleBlocked(opts.title)) {
+    processorStats.titleBlocked++
     console.log(`  ↷ Title blocked: ${opts.title}`)
     return
   }
   if (isLocationBlocked(opts.location)) {
+    processorStats.locationBlocked++
     console.log(`  ↷ Location blocked (${opts.location}): ${opts.title}`)
     return
   }
   if (isCompanyBlocked(opts.company)) {
+    processorStats.companyBlocked++
     console.log(`  ↷ Company blocked: ${opts.company}`)
     return
   }
   if (isArticleTitle(opts.title)) {
+    processorStats.articleBlocked++
     console.log(`  ↷ Article/blog blocked: ${opts.title}`)
     return
   }
@@ -191,6 +215,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     .maybeSingle()
 
   if (existing) {
+    processorStats.deduplicated++
     await supabase
       .from('job_postings')
       .update({ last_seen: new Date().toISOString() })
@@ -208,6 +233,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   })
 
   if (result.excluded) {
+    processorStats.seniorityExcluded++
     console.log(`  ↷ Skipped (seniority excluded): ${opts.title || normalizedUrl}`)
     return
   }
@@ -221,6 +247,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
 
   // Skip if resume is active and this job has zero keyword overlap — it's irrelevant
   if (resumeKeywords.length > 0 && resumeFit === 0) {
+    processorStats.resumeFitZero++
     console.log(`  ↷ Skipped (0% resume fit): ${opts.title || normalizedUrl}`)
     return
   }
@@ -265,6 +292,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     return
   }
 
+  processorStats.inserted++
   const emoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '⚪'
   console.log(`${emoji} [${priority.toUpperCase()} fit:${resumeFit ?? '-'}% score:${result.total}] ${opts.title} — ${opts.company} | ${normalizedUrl}`)
 }
@@ -299,6 +327,7 @@ export async function processEvent(event: FirehoseUpdateEvent): Promise<void> {
   const normalizedUrl = normalizeUrl(doc.url)
 
   if (!isJobBoardUrl(normalizedUrl)) {
+    processorStats.nonJobBoard++
     console.log(`  ↷ Non-job-board URL skipped: ${normalizedUrl}`)
     return
   }
