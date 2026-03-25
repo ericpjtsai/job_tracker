@@ -1,0 +1,306 @@
+// Firehose SSE listener — multi-tap concurrent streaming
+
+import http from 'http'
+import EventSource from 'eventsource'
+import { createClient } from '@supabase/supabase-js'
+import { syncAllTaps, TAP_CONFIGS, type TapInfo } from './rules'
+import { processEvent, type FirehoseUpdateEvent } from './processor'
+
+// ─── Import sources + their DataSource registrations ─────────────────────────
+import { pollAllAts, pollStatus, atsSource } from './ats-poller'
+import { pollMantiks, lastMantikPollAt, mantikSource } from './linkedin-mantiks'
+import { pollLinkedIn, scraperStatus, scraperSource } from './linkedin-scraper'
+import { pollSerpApi, serpApiSource } from './serpapi-jobs'
+import { pollLinkedInDirect, linkedinDirectSource } from './linkedin-direct'
+import { pollIndeed, pollGlassdoor, indeedSource, glassdoorSource } from './hasdata-jobs'
+
+import { registerSource } from './sources/registry'
+import { getSource, getSourcesStatus } from './sources/registry'
+import { createHealth, type DataSource } from './sources/types'
+
+// Force registration (importing the modules should trigger it, but ensure explicitly)
+void atsSource
+void mantikSource
+void scraperSource
+void serpApiSource
+void linkedinDirectSource
+void indeedSource
+void glassdoorSource
+
+const FIREHOSE_STREAM_URL = 'https://api.firehose.com/v1/stream'
+const RECONNECT_DELAY_MS = 5_000
+
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set')
+  return createClient(url, key)
+}
+
+// ─── Per-tap offset persistence ───────────────────────────────────────────────
+
+function offsetKey(tapName: string): string {
+  return `last_event_id:${tapName}`
+}
+
+async function loadOffset(tapName: string): Promise<string | null> {
+  const supabase = getSupabase()
+  const { data } = await supabase
+    .from('listener_state')
+    .select('value')
+    .eq('key', offsetKey(tapName))
+    .single()
+  return data?.value ?? null
+}
+
+async function saveOffset(tapName: string, eventId: string): Promise<void> {
+  const supabase = getSupabase()
+  await supabase
+    .from('listener_state')
+    .upsert({ key: offsetKey(tapName), value: eventId })
+}
+
+// ─── Firehose SSE source registration ────────────────────────────────────────
+
+const firehoseHealth = createHealth()
+
+const firehoseSource: DataSource = {
+  id: 'firehose',
+  name: 'Firehose SSE',
+  type: 'stream',
+  schedule: 'Real-time',
+  cost: 'Firehose subscription',
+  envVars: ['FIREHOSE_MANAGEMENT_KEY'],
+  triggerPath: null,
+  health: firehoseHealth,
+  poll: async () => {}, // no-op for stream
+  stop: () => {
+    for (const es of activeSources) es.close()
+  },
+}
+
+registerSource(firehoseSource)
+
+// ─── SSE connection (one per tap) ─────────────────────────────────────────────
+
+let isShuttingDown = false
+const activeSources: InstanceType<typeof EventSource>[] = []
+
+async function connectTap(tap: TapInfo): Promise<void> {
+  if (isShuttingDown) return
+
+  const lastEventId = await loadOffset(tap.name)
+
+  const url = new URL(FIREHOSE_STREAM_URL)
+  url.searchParams.set('timeout', '300')
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${tap.token}`,
+  }
+  if (lastEventId) {
+    headers['Last-Event-ID'] = lastEventId
+    console.log(`[${tap.name}] Resuming from offset ${lastEventId}`)
+  } else {
+    console.log(`[${tap.name}] Starting live stream (no saved offset)`)
+  }
+
+  const es = new EventSource(url.toString(), { headers })
+  activeSources.push(es)
+
+  es.addEventListener('connected', () => {
+    console.log(`[${tap.name}] ✅ Connected`)
+    firehoseHealth.status = 'connected'
+  })
+
+  es.addEventListener('update', async (e: MessageEvent) => {
+    try {
+      const payload = JSON.parse(e.data) as FirehoseUpdateEvent
+      await processEvent(payload)
+      firehoseHealth.jobsFound++
+      firehoseHealth.lastPollAt = Date.now()
+      if (e.lastEventId) await saveOffset(tap.name, e.lastEventId)
+    } catch (err) {
+      console.error(`[${tap.name}] Error processing event:`, err)
+    }
+  })
+
+  es.addEventListener('error', (e: MessageEvent) => {
+    const msg = e.data ? JSON.parse(e.data)?.message : 'unknown error'
+    console.error(`[${tap.name}] Stream error:`, msg)
+    firehoseHealth.status = 'error'
+    firehoseHealth.lastError = msg
+    firehoseHealth.lastErrorAt = Date.now()
+  })
+
+  es.addEventListener('end', () => {
+    console.log(`[${tap.name}] Stream ended. Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`)
+    es.close()
+    activeSources.splice(activeSources.indexOf(es), 1)
+    setTimeout(() => connectTap(tap), RECONNECT_DELAY_MS)
+  })
+
+  es.onerror = (err: Event) => {
+    if (isShuttingDown) return
+    console.error(`[${tap.name}] SSE error, reconnecting:`, err)
+    es.close()
+    activeSources.splice(activeSources.indexOf(es), 1)
+    setTimeout(() => connectTap(tap), RECONNECT_DELAY_MS)
+  }
+}
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+
+function shutdown() {
+  console.log('\nShutting down...')
+  isShuttingDown = true
+  for (const es of activeSources) es.close()
+  process.exit(0)
+}
+
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
+
+// ─── HTTP control server ──────────────────────────────────────────────────────
+
+function startControlServer() {
+  const port = process.env.CONTROL_PORT ? Number(process.env.CONTROL_PORT) : 3001
+  const server = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+
+    if (req.method === 'GET' && req.url === '/health') {
+      res.end(JSON.stringify({ ok: true }))
+    } else if (req.method === 'GET' && req.url === '/status') {
+      res.end(JSON.stringify(pollStatus))
+    } else if (req.method === 'GET' && req.url === '/sources') {
+      // Return all registered sources with health + Firehose rules metadata
+      const sources = getSourcesStatus()
+      const rules = TAP_CONFIGS.map((t) => ({
+        tapName: t.name,
+        envKey: t.envKey,
+        ruleCount: t.rules.length,
+        rules: t.rules.map((r) => ({ tag: r.tag })),
+      }))
+      res.end(JSON.stringify({ sources, firehoseRules: rules }))
+    } else if (req.method === 'POST' && req.url?.startsWith('/poll')) {
+      // Dynamic dispatch via registry
+      const path = req.url
+      let sourceId: string | null = null
+      if (path === '/poll') sourceId = 'ats'
+      else if (path === '/poll/linkedin') sourceId = 'linkedin-scraper'
+      else if (path === '/poll/mantiks') sourceId = 'linkedin-mantiks'
+      else if (path === '/poll/serpapi') sourceId = 'serpapi'
+      else if (path === '/poll/indeed') sourceId = 'indeed'
+      else if (path === '/poll/glassdoor') sourceId = 'glassdoor'
+      else if (path === '/poll/linkedin-direct') sourceId = 'linkedin-direct'
+
+      if (sourceId) {
+        const source = getSource(sourceId)
+        if (source) {
+          source.poll().catch(console.error)
+          res.end(JSON.stringify({ ok: true, message: `${source.name} poll triggered` }))
+        } else {
+          res.statusCode = 404
+          res.end(JSON.stringify({ error: `Source ${sourceId} not found` }))
+        }
+      } else {
+        res.statusCode = 404
+        res.end(JSON.stringify({ error: 'Unknown poll endpoint' }))
+      }
+    } else {
+      res.statusCode = 404
+      res.end(JSON.stringify({ error: 'Not found' }))
+    }
+  })
+  server.listen(port, () => {
+    console.log(`🎛  Control server listening on port ${port}`)
+  })
+}
+
+// ─── Fixed-time daily scheduler ───────────────────────────────────────────────
+
+function scheduleDailyAt(hours: number[], fn: () => void, label: string) {
+  function scheduleNext() {
+    const now = new Date()
+    const delays = hours.map((h) => {
+      const t = new Date(now)
+      t.setHours(h, 0, 0, 0)
+      if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1)
+      return t.getTime() - now.getTime()
+    })
+    const next = Math.min(...delays)
+    const nextDate = new Date(Date.now() + next)
+    console.log(`⏰ ${label}: next run at ${nextDate.toLocaleTimeString()}`)
+    setTimeout(() => { fn(); scheduleNext() }, next)
+  }
+  scheduleNext()
+}
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+const ATS_POLL_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
+
+async function main() {
+  if (!process.env.FIREHOSE_MANAGEMENT_KEY) {
+    console.error('❌ FIREHOSE_MANAGEMENT_KEY is not set')
+    process.exit(1)
+  }
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('❌ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set')
+    process.exit(1)
+  }
+
+  startControlServer()
+  console.log('🚀 Job Tracker Listener starting...')
+  console.log('Syncing taps and rules...')
+
+  const taps = await syncAllTaps()
+
+  // Use registry-wrapped polls for health tracking
+  const ats = getSource('ats')!
+  await ats.poll()
+  setInterval(() => ats.poll().catch(console.error), ATS_POLL_INTERVAL_MS)
+  console.log(`⏱  ATS polling every ${ATS_POLL_INTERVAL_MS / 60000} min`)
+
+  const mantiks = getSource('linkedin-mantiks')!
+  await mantiks.poll()
+  const MANTIKS_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+  setInterval(() => mantiks.poll().catch(console.error), MANTIKS_INTERVAL_MS)
+  console.log('⏱  Mantiks polling every 7 days')
+
+  const scraper = getSource('linkedin-scraper')!
+  const serpapi = getSource('serpapi')!
+  const indeed = getSource('indeed')!
+  const glassdoor = getSource('glassdoor')!
+
+  scheduleDailyAt([6, 18], () => scraper.poll().catch(console.error), 'LinkedIn scraper')
+  scheduleDailyAt([6, 18], () => serpapi.poll().catch(console.error), 'SerpApi')
+  scheduleDailyAt([6, 18], () => Promise.all([indeed.poll(), glassdoor.poll()]).catch(console.error), 'HasData (Indeed+Glassdoor)')
+
+  // Fallback chain
+  setInterval(() => {
+    const mantiksDead = mantiks.health.lastPollAt !== null && Date.now() - mantiks.health.lastPollAt > 8 * 60 * 60 * 1000
+    const scraperDead = scraper.health.consecutiveFailures >= 3
+
+    if (mantiksDead && scraperDead) {
+      console.warn('⚠️  [Fallback] Mantiks + scraper both down — running SerpApi now')
+      serpapi.poll().catch(console.error)
+    }
+
+    if (mantiksDead && scraperDead && !process.env.SERPAPI_API_KEY) {
+      console.warn('⚠️  [Fallback] All sources down — activating LinkedIn direct scraper')
+      const direct = getSource('linkedin-direct')
+      direct?.poll().catch(console.error)
+    }
+  }, 60 * 60 * 1000)
+
+  console.log(`\nOpening ${taps.length} SSE streams...`)
+  await Promise.all(taps.map(tap => connectTap(tap)))
+}
+
+main().catch((err) => {
+  console.error('Fatal error:', err)
+  process.exit(1)
+})
