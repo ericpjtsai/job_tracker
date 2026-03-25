@@ -180,12 +180,13 @@ export default function DashboardPage() {
   }
 
   async function updateStatus(id: string, newStatus: string) {
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus as any } : j)))
     await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus as any } : j)))
+    setTimeout(() => fetchJobs(page), 300)
   }
 
   function togglePriority(p: string) {
@@ -383,7 +384,7 @@ export default function DashboardPage() {
       )}
 
       {/* Jobs table */}
-      <div className="border rounded-lg">
+      <div className="border rounded-lg min-h-[400px]">
         {loading && jobs.length === 0 ? (
           <div className="text-sm text-muted-foreground py-12 text-center">Loading...</div>
         ) : !loading && jobs.length === 0 ? (
