@@ -18,10 +18,10 @@ export const scraperStatus = { running: false, consecutiveFailures: 0, lastSucce
 
 // ─── Poll ─────────────────────────────────────────────────────────────────────
 
-export async function pollLinkedIn(): Promise<void> {
+export async function pollLinkedIn(): Promise<number> {
   if (scraperStatus.running) {
     console.log('⚠️  LinkedIn scraper already running, skipping')
-    return
+    return 0
   }
 
   let linkedInAPI: any
@@ -30,7 +30,7 @@ export async function pollLinkedIn(): Promise<void> {
   } catch {
     console.error('  [LinkedIn Scraper] linkedin-jobs-api not installed')
     scraperStatus.consecutiveFailures++
-    return
+    return 0
   }
 
   scraperStatus.running = true
@@ -84,6 +84,7 @@ export async function pollLinkedIn(): Promise<void> {
     scraperStatus.lastSuccess = Date.now()
     console.log(`✅ LinkedIn scraper complete (${totalInserted} jobs processed across ${QUERIES.length * LOCATIONS.length} queries)`)
   }
+  return totalInserted
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

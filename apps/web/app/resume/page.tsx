@@ -114,7 +114,7 @@ export default function ResumePage() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <h1 className="text-xl font-semibold">Resume</h1>
+      <h1 className="text-xl font-semibold tracking-[-0.03em]">Resume</h1>
 
       {/* Upload zone */}
       <div
@@ -152,15 +152,15 @@ export default function ResumePage() {
 
       {/* Active resume details */}
       {active && (
-        <div className="bg-card rounded-lg border">
+        <div className="bg-card rounded-lg overflow-hidden border">
           <button
             type="button"
             onClick={() => setDetailsOpen(!detailsOpen)}
-            className="w-full px-7 py-5 flex items-start justify-between text-left hover:bg-muted/30 transition-colors rounded-lg"
+            className="w-full px-4 py-3 flex items-start justify-between text-left hover:bg-muted transition-colors"
           >
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{active.filename ?? 'resume.pdf'}</span>
+                <span className="text-sm font-semibold">{active.filename ?? 'resume.pdf'}</span>
                 <Badge variant="success" className="text-[10px]">Active</Badge>
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
@@ -168,11 +168,11 @@ export default function ResumePage() {
                 <span className="tabular-nums">{active.keywords_extracted?.length ?? 0}</span> keywords extracted
               </div>
             </div>
-            <span className="text-muted-foreground text-sm mt-1">{detailsOpen ? '−' : '+'}</span>
+            <span className="text-muted-foreground/50 text-sm mt-1">{detailsOpen ? '\u2212' : '+'}</span>
           </button>
 
           {detailsOpen && (
-            <div className="px-7 pb-6 space-y-5">
+            <div className="px-4 pb-4 bg-muted/30 space-y-5">
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" aria-label="Download" onClick={() => handleDownload(active.storage_path)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -209,7 +209,7 @@ export default function ResumePage() {
       {/* Upload history */}
       {versions.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Upload History</h2>
+          <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Upload History</h2>
           <div className="border rounded-lg">
             <Table>
               <TableHeader>

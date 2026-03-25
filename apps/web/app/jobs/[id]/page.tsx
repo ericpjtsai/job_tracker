@@ -19,17 +19,28 @@ const STATUSES = ['new', 'reviewed', 'applied', 'skipped']
  * 3. Otherwise return as plain text.
  */
 function prepareContent(raw: string): { html: boolean; content: string } {
+  // Decode HTML entities first (content may be entity-encoded from ATS APIs)
+  let decoded = raw
+  if (/&lt;[a-z/]/i.test(raw)) {
+    decoded = raw
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+  }
+
   // Case 1: real HTML tags present
-  if (/<[a-z][\s\S]*>/i.test(raw)) {
-    return { html: true, content: raw }
+  if (/<[a-z][\s\S]*>/i.test(decoded)) {
+    return { html: true, content: decoded }
   }
 
   // Case 2: stripped tag names (e.g., "strong About Us /strong p At Cloudflare...")
   // Detect by checking for common closing tag patterns like " /p " or " /strong "
-  const hasStrippedTags = /\s\/(?:p|div|strong|h[1-6]|ul|ol|li|span|a|em|b|i|section|article)\b/i.test(raw)
+  const hasStrippedTags = /\s\/(?:p|div|strong|h[1-6]|ul|ol|li|span|a|em|b|i|section|article)\b/i.test(decoded)
 
   if (hasStrippedTags) {
-    let html = raw
+    let html = decoded
       // 1. Entities first
       .replace(/\bnbsp;/g, '&nbsp;')
       .replace(/\bamp;/g, '&amp;')
@@ -66,7 +77,7 @@ function prepareContent(raw: string): { html: boolean; content: string } {
   }
 
   // Case 3: plain text
-  return { html: false, content: raw }
+  return { html: false, content: decoded }
 }
 
 function highlightKeywords(text: string, keywords: string[]): string {

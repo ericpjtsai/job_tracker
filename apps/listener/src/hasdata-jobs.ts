@@ -108,11 +108,11 @@ function hasDataGet(path: string, apiKey: string): Promise<any> {
 
 // ─── Indeed ───────────────────────────────────────────────────────────────────
 
-export async function pollIndeed(): Promise<void> {
+export async function pollIndeed(): Promise<number> {
   const apiKey = process.env.HASDATA_API_KEY
   if (!apiKey) {
     console.log('  [HasData/Indeed] HASDATA_API_KEY not set — skipping')
-    return
+    return 0
   }
 
   console.log('🟡 HasData Indeed poll starting...')
@@ -184,15 +184,16 @@ export async function pollIndeed(): Promise<void> {
   }
 
   console.log(`✅ HasData Indeed poll complete (${totalNew} new jobs)`)
+  return totalNew
 }
 
 // ─── Glassdoor ────────────────────────────────────────────────────────────────
 
-export async function pollGlassdoor(): Promise<void> {
+export async function pollGlassdoor(): Promise<number> {
   const apiKey = process.env.HASDATA_API_KEY
   if (!apiKey) {
     console.log('  [HasData/Glassdoor] HASDATA_API_KEY not set — skipping')
-    return
+    return 0
   }
 
   console.log('🟡 HasData Glassdoor poll starting...')
@@ -264,6 +265,7 @@ export async function pollGlassdoor(): Promise<void> {
   }
 
   console.log(`✅ HasData Glassdoor poll complete (${totalNew} new jobs)`)
+  return totalNew
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

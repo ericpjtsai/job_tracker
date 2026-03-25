@@ -109,11 +109,11 @@ interface MantikCompany {
 
 export let lastMantikPollAt = 0
 
-export async function pollMantiks(): Promise<void> {
+export async function pollMantiks(): Promise<number> {
   const apiKey = process.env.MANTIKS_API_KEY
   if (!apiKey) {
     console.log('  [Mantiks] MANTIKS_API_KEY not set — skipping')
-    return
+    return 0
   }
 
   // Resolve location ID once per process lifetime
@@ -122,7 +122,7 @@ export async function pollMantiks(): Promise<void> {
   }
   if (locationIds.length === 0) {
     console.warn('  [Mantiks] Could not resolve location ID — aborting poll')
-    return
+    return 0
   }
 
   console.log('🔵 Mantiks poll starting...')
@@ -144,14 +144,14 @@ export async function pollMantiks(): Promise<void> {
     data = await mantikGet(`/company/search?${params}`, apiKey)
   } catch (err) {
     console.error('  [Mantiks] Search error:', err instanceof Error ? err.message : err)
-    return
+    return 0
   }
 
   if (data.credits_remaining !== undefined) {
     console.log(`  [Mantiks] Credits remaining: ${data.credits_remaining}`)
     if (data.credits_remaining < 50) {
       console.warn(`⚠️  [Mantiks] Low credits (${data.credits_remaining}) — skipping insert to preserve budget`)
-      return
+      return 0
     }
   }
 
@@ -174,6 +174,7 @@ export async function pollMantiks(): Promise<void> {
 
   lastMantikPollAt = Date.now()
   console.log(`✅ Mantiks poll complete (${totalProcessed} jobs processed)`)
+  return totalProcessed
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

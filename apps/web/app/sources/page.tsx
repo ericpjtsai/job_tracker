@@ -483,15 +483,28 @@ const KEYWORD_GROUPS = [
   },
 ]
 
-const FILTER_PIPELINE = [
-  { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (linkedin, greenhouse, lever, etc.), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/)' },
-  { name: 'Title blocking', scope: 'All sources', description: 'Blocks: senior, sr., lead, principal, staff, intern(ship), scholarship, researcher, design engineer' },
-  { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (60+ cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations' },
-  { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies: Lensa' },
-  { name: 'Article detection', scope: 'All sources', description: 'Blocks content marketing titles: "How to...", "What is...", "Best practices...", "X tips for...", "Guide to...", year prefixes, "deep dive", "case study"' },
-  { name: 'Dedup', scope: 'All sources', description: 'SHA-256 hash of normalized URL (UTM params stripped). Existing entries get last_seen updated, no duplicate insert.' },
-  { name: 'Seniority exclusion', scope: 'All sources', description: 'Blocks: staff, principal, director, VP, vice president, head of design, design manager, manager, lead with 7+yr, 8+ years' },
-  { name: 'Resume fit filter', scope: 'All sources', description: 'If active resume exists AND 0% keyword overlap with the job posting, the job is skipped entirely.' },
+interface ProcessorStats {
+  received: number
+  titleBlocked: number
+  locationBlocked: number
+  companyBlocked: number
+  articleBlocked: number
+  deduplicated: number
+  seniorityExcluded: number
+  resumeFitZero: number
+  inserted: number
+  nonJobBoard: number
+}
+
+const FILTER_PIPELINE: { name: string; scope: string; description: string; statsKey: keyof ProcessorStats | null }[] = [
+  { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (linkedin, greenhouse, lever, etc.), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/)', statsKey: 'nonJobBoard' },
+  { name: 'Title blocking', scope: 'All sources', description: 'Blocks: principal, lead, head, staff, intern(ship), scholarship', statsKey: 'titleBlocked' },
+  { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (60+ cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations', statsKey: 'locationBlocked' },
+  { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies: Lensa', statsKey: 'companyBlocked' },
+  { name: 'Article detection', scope: 'All sources', description: 'Blocks content marketing titles: "How to...", "What is...", "Best practices...", "X tips for...", "Guide to...", year prefixes, "deep dive", "case study"', statsKey: 'articleBlocked' },
+  { name: 'Dedup', scope: 'All sources', description: 'SHA-256 hash of normalized URL (UTM params stripped). Existing entries get last_seen updated, no duplicate insert.', statsKey: 'deduplicated' },
+  { name: 'Seniority exclusion', scope: 'All sources', description: 'Blocks: staff, principal, director, VP, vice president, head of design, design manager, manager, lead with 7+yr, 8+ years', statsKey: 'seniorityExcluded' },
+  { name: 'Resume fit filter', scope: 'All sources', description: 'If active resume exists AND 0% keyword overlap with the job posting, the job is skipped entirely.', statsKey: 'resumeFitZero' },
 ]
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -504,7 +517,7 @@ function Section({ title, badge, defaultOpen = false, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-card rounded-lg overflow-hidden">
+    <div className="bg-card rounded-lg overflow-hidden border">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -523,9 +536,9 @@ function Section({ title, badge, defaultOpen = false, children }: {
 
 function TypeBadge({ type }: { type: 'stream' | 'poll' }) {
   return type === 'stream' ? (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 uppercase tracking-wider">Stream</span>
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 uppercase tracking-[-0.02em]">Stream</span>
   ) : (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-wider">Poll</span>
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-[-0.02em]">Poll</span>
   )
 }
 
@@ -567,14 +580,14 @@ function SourceCard({ source }: { source: Source }) {
         <div className="px-4 pb-4 bg-muted/30 space-y-3 text-xs">
           {/* Endpoint */}
           <div className="pt-3">
-            <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Endpoint</div>
+            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Endpoint</div>
             <div className="text-foreground font-mono text-[11px] break-all">{source.endpoint}</div>
             <div className="text-muted-foreground mt-0.5">Auth: {source.auth}</div>
           </div>
 
           {/* Queries / Keywords */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Search Queries / Keywords</div>
+            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Search Queries / Keywords</div>
             <ul className="space-y-0.5">
               {source.queries.map((q, i) => (
                 <li key={i} className="text-foreground font-mono text-[11px]">{q}</li>
@@ -584,7 +597,7 @@ function SourceCard({ source }: { source: Source }) {
 
           {/* Filters */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Source-level Filters</div>
+            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Source-level Filters</div>
             <ul className="space-y-0.5">
               {source.filters.map((f, i) => (
                 <li key={i} className="text-muted-foreground">{f}</li>
@@ -595,7 +608,7 @@ function SourceCard({ source }: { source: Source }) {
           {/* Env vars */}
           {source.envVars.length > 0 && (
             <div>
-              <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Environment Variables</div>
+              <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Environment Variables</div>
               <div className="flex flex-wrap gap-1">
                 {source.envVars.map((v) => (
                   <span key={v} className="font-mono text-[11px] bg-muted text-foreground px-1.5 py-0.5 rounded">{v}</span>
@@ -606,7 +619,7 @@ function SourceCard({ source }: { source: Source }) {
 
           {/* Notes */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Notes</div>
+            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Notes</div>
             <p className="text-muted-foreground">{source.notes}</p>
           </div>
 
@@ -635,7 +648,7 @@ function AtsCompaniesSection() {
 
   return (
     <div>
-      <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-2">
+      <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-2">
         Companies ({ATS_COMPANIES.length} total)
       </div>
 
@@ -759,6 +772,7 @@ function StatusDot({ status }: { status: LiveSourceHealth['status'] }) {
 export default function SourcesPage() {
   const [liveSources, setLiveSources] = useState<LiveSource[]>([])
   const [liveTaps, setLiveTaps] = useState<LiveTap[]>([])
+  const [procStats, setProcStats] = useState<ProcessorStats | null>(null)
   const [liveError, setLiveError] = useState(false)
   const [lastFetch, setLastFetch] = useState(0)
 
@@ -769,6 +783,7 @@ export default function SourcesPage() {
       const data = await res.json()
       setLiveSources(data.sources ?? [])
       setLiveTaps(data.firehoseRules ?? [])
+      if (data.processorStats) setProcStats(data.processorStats)
       setLiveError(false)
       setLastFetch(Date.now())
     } catch {
@@ -801,7 +816,7 @@ export default function SourcesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Sources</h1>
+          <h1 className="text-xl font-semibold tracking-[-0.03em] text-foreground">Sources</h1>
           <p className="text-xs text-muted-foreground mt-1">
             {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} scoring keywords
           </p>
@@ -817,7 +832,7 @@ export default function SourcesPage() {
 
       {/* ── Source Cards ────────────────────────────────────────────────────── */}
       <div>
-        <h2 className="font-label text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground mb-3">Data Sources</h2>
+        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Data Sources</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {sources.map((s) => (
             <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} />
@@ -825,7 +840,11 @@ export default function SourcesPage() {
         </div>
       </div>
 
-      {/* ── Firehose Rules Browser ──────────────────────────────────────────── */}
+      {/* ── Configuration & Rules ──────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Configuration &amp; Rules</h2>
+        <div className="space-y-3">
+
       <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
         <div className="space-y-3 pt-3">
           {taps.map((tap) => (
@@ -835,22 +854,45 @@ export default function SourcesPage() {
       </Section>
 
       {/* ── Processor Filtering Pipeline ──────────────────────────────────── */}
-      <Section title="Processor Filtering Pipeline" badge={`${FILTER_PIPELINE.length} stages`}>
+      <Section title="Processor Filtering Pipeline" badge={procStats ? `${procStats.received} received · ${procStats.inserted} inserted` : `${FILTER_PIPELINE.length} stages`}>
         <div className="space-y-2 pt-3">
-          {FILTER_PIPELINE.map((f, i) => (
-            <div key={i} className="flex gap-3 text-xs">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-medium mt-0.5">
-                {i + 1}
+          {procStats && (
+            <div className="flex gap-3 text-xs mb-3 px-1">
+              <span className="bg-muted rounded-md px-2 py-1 tabular-nums">
+                <span className="text-muted-foreground">Received:</span> <span className="font-medium">{procStats.received}</span>
               </span>
-              <div>
-                <div className="font-medium text-foreground">
-                  {f.name}
-                  <span className="text-muted-foreground/50 font-normal ml-1.5">{f.scope}</span>
-                </div>
-                <div className="text-muted-foreground mt-0.5">{f.description}</div>
-              </div>
+              <span className="bg-green-50 text-green-800 rounded-md px-2 py-1 tabular-nums">
+                <span className="opacity-70">Inserted:</span> <span className="font-medium">{procStats.inserted}</span>
+              </span>
             </div>
-          ))}
+          )}
+          {FILTER_PIPELINE.map((f, i) => {
+            const count = procStats && f.statsKey ? procStats[f.statsKey] : null
+            return (
+              <div key={i} className="flex gap-3 text-xs">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-medium mt-0.5">
+                  {i + 1}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{f.name}</span>
+                    <span className="text-muted-foreground/50 font-normal">{f.scope}</span>
+                    {count !== null && count > 0 && (
+                      <span className="ml-auto tabular-nums text-[10px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">
+                        {count} blocked
+                      </span>
+                    )}
+                    {count !== null && count === 0 && (
+                      <span className="ml-auto tabular-nums text-[10px] text-muted-foreground/40 px-1.5 py-0.5">
+                        0
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground mt-0.5">{f.description}</div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </Section>
 
@@ -859,7 +901,7 @@ export default function SourcesPage() {
         <div className="space-y-4 pt-3">
           {/* Keyword groups */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">Keyword Groups</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Keyword Groups</div>
             <div className="space-y-2">
               {KEYWORD_GROUPS.map((group) => (
                 <KeywordGroupRow key={group.name} group={group} />
@@ -869,7 +911,7 @@ export default function SourcesPage() {
 
           {/* Company tiers */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">Company Tier Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Company Tier Bonuses</div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="bg-red-50 border rounded p-2">
                 <div className="font-semibold text-red-800">Tier 1: +20</div>
@@ -891,7 +933,7 @@ export default function SourcesPage() {
 
           {/* Seniority */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">Seniority Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Seniority Bonuses</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-green-700">+10</div>
@@ -914,7 +956,7 @@ export default function SourcesPage() {
 
           {/* Location */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">Location Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Location Bonuses</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-green-700">+5</div>
@@ -937,7 +979,7 @@ export default function SourcesPage() {
 
           {/* Priority */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-2">Priority Thresholds</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Priority Thresholds</div>
             <div className="flex gap-3 text-xs">
               <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: score &ge; 50</span>
               <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: score &ge; 30</span>
@@ -948,7 +990,7 @@ export default function SourcesPage() {
 
           {/* Resume fit */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-wider font-medium mb-1">Resume Fit</div>
+            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-1">Resume Fit</div>
             <p className="text-xs text-muted-foreground">
               Percentage of posting&apos;s matched keywords that also appear in the active resume&apos;s keywords. If resume is active and fit = 0%, the job is skipped.
             </p>
@@ -985,6 +1027,9 @@ export default function SourcesPage() {
           </div>
         </div>
       </Section>
+
+        </div>
+      </div>
     </div>
   )
 }
@@ -1012,7 +1057,7 @@ function TapSection({ tap }: { tap: Tap }) {
         <div className="bg-muted/20">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-muted text-[10px] text-muted-foreground uppercase tracking-wider">
+              <tr className="bg-muted text-[10px] text-muted-foreground uppercase tracking-[-0.02em]">
                 <th className="px-3 py-1.5 text-left font-medium">Tag</th>
                 <th className="px-3 py-1.5 text-left font-medium">Target</th>
                 <th className="px-3 py-1.5 text-left font-medium w-16">Type</th>
@@ -1084,7 +1129,7 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
         <div className="px-4 pb-4 bg-muted/30 space-y-3 text-xs">
           {/* Health details */}
           <div className="pt-3">
-            <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Health</div>
+            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Health</div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div><span className="text-muted-foreground">Status:</span> <span className="font-medium capitalize">{h.status}</span></div>
               <div><span className="text-muted-foreground">Last poll:</span> <span className="tabular-nums">{timeAgo(h.lastPollAt)}</span></div>
@@ -1099,7 +1144,7 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
           {/* Env vars */}
           {source.envVars.length > 0 && (
             <div>
-              <div className="font-label text-muted-foreground uppercase tracking-[0.05em] text-[10px] font-medium mb-1">Environment Variables</div>
+              <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Environment Variables</div>
               <div className="flex flex-wrap gap-1">
                 {source.envVars.map((v) => (
                   <span key={v} className="font-mono text-[11px] bg-muted text-foreground px-1.5 py-0.5 rounded">{v}</span>

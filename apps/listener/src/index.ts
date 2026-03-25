@@ -4,7 +4,7 @@ import http from 'http'
 import EventSource from 'eventsource'
 import { createClient } from '@supabase/supabase-js'
 import { syncAllTaps, TAP_CONFIGS, type TapInfo } from './rules'
-import { processEvent, type FirehoseUpdateEvent } from './processor'
+import { processEvent, getProcessorStats, type FirehoseUpdateEvent } from './processor'
 
 // ─── Import sources + their DataSource registrations ─────────────────────────
 import { pollAllAts, pollStatus, atsSource } from './ats-poller'
@@ -183,7 +183,7 @@ function startControlServer() {
         ruleCount: t.rules.length,
         rules: t.rules.map((r) => ({ tag: r.tag })),
       }))
-      res.end(JSON.stringify({ sources, firehoseRules: rules }))
+      res.end(JSON.stringify({ sources, firehoseRules: rules, processorStats: getProcessorStats() }))
     } else if (req.method === 'POST' && req.url?.startsWith('/poll')) {
       // Dynamic dispatch via registry
       const path = req.url
