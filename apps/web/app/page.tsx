@@ -363,28 +363,28 @@ export default function DashboardPage() {
               : 'No jobs yet. The listener will populate this as it finds matches.'}
           </div>
         ) : (
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow className="bg-muted/50 text-xs text-muted-foreground">
-                <TableHead className="whitespace-nowrap">
+                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] pl-2 pr-3 whitespace-nowrap">
                   <SortHeader label="Fit" order={fitOrder} tooltip="How closely your resume keywords match this job's requirements." onSort={() => { setFitOrder(cycleOrder(fitOrder)); setPage(0) }} />
                 </TableHead>
-                <TableHead>Job</TableHead>
-                <TableHead className="hidden lg:table-cell">Location</TableHead>
-                <TableHead className="hidden xl:table-cell">Salary</TableHead>
-                <TableHead className="hidden md:table-cell">
+                <TableHead className="w-auto">Job</TableHead>
+                <TableHead className="hidden lg:table-cell lg:w-[16%]">Location</TableHead>
+                <TableHead className="hidden xl:table-cell xl:w-[9%]">Salary</TableHead>
+                <TableHead className="hidden md:table-cell md:w-[8%] px-2 whitespace-nowrap">
                   <SortHeader label="Seen" order={seenOrder} onSort={() => { setSeenOrder(cycleOrder(seenOrder)); setPage(0) }} />
                 </TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
+                <TableHead className="w-[15%] md:w-[12%] lg:w-[11%] px-2">Status</TableHead>
+                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] px-0 pr-3 text-right"><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
                 <TableRow key={job.id} className={job.status === 'new' ? 'bg-white' : 'bg-muted/30 text-muted-foreground'}>
-                  <TableCell><FitBadge fit={job.resume_fit} /></TableCell>
-                  <TableCell className="max-w-xs">
-                    <Link href={`/jobs/${job.id}`} className={`hover:underline font-medium block truncate ${job.status !== 'new' ? 'text-muted-foreground' : 'text-foreground'}`} onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
+                  <TableCell className="pl-2 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
+                  <TableCell>
+                    <Link href={`/jobs/${job.id}`} className={`hover:underline font-medium block truncate max-w-full ${job.status !== 'new' ? 'text-muted-foreground' : 'text-foreground'}`} onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
                     <span className="text-muted-foreground text-xs">
@@ -392,17 +392,17 @@ export default function DashboardPage() {
                       {job.firehose_rule && <span className="opacity-50">・{job.firehose_rule}</span>}
                     </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell text-xs">{job.location ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground hidden lg:table-cell text-xs truncate">{job.location ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground hidden xl:table-cell text-xs tabular-nums">
                     {formatSalary({ min: job.salary_min, max: job.salary_max }) ?? '—'}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell whitespace-nowrap tabular-nums">
+                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell whitespace-nowrap tabular-nums px-2">
                     {timeAgo(job.first_seen)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-2">
                     <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right px-0 pr-3">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteJob(job.id)} disabled={deletingId === job.id}>
                       {deletingId === job.id
                         ? <span className="text-xs">…</span>
