@@ -1,0 +1,13 @@
+{
+  "name": "job-tracker",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:listener": "npm --workspace apps/listener run dev",
+    "build": "npm --workspace apps/web run build"
+  }
+}

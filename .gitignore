@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Supabase local
+.supabase/
+
+# Data files (raw Firehose events, reports — version control the schema, not the data)
+data/firehose_raw.jsonl
+reports/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,246 @@
+name,ats,slug
+Airtable,greenhouse,airtable
+Amplitude,greenhouse,amplitude
+Anthropic,greenhouse,anthropic
+Cloudflare,greenhouse,cloudflare
+Coinbase,greenhouse,coinbase
+Datadog,greenhouse,datadog
+Deel,greenhouse,deel
+Figma,greenhouse,figma
+GitLab,greenhouse,gitlab
+Grammarly,greenhouse,grammarly
+Gusto,greenhouse,gusto
+Lattice,greenhouse,lattice
+LaunchDarkly,greenhouse,launchdarkly
+MongoDB,greenhouse,mongodb
+Okta,greenhouse,okta
+PagerDuty,greenhouse,pagerduty
+Postman,greenhouse,postmanio
+Samsara,greenhouse,samsara
+Plaid,greenhouse,plaid
+Discord,greenhouse,discord
+Instacart,greenhouse,instacart
+Rippling,greenhouse,rippling
+Stripe,greenhouse,stripe
+HubSpot,greenhouse,hubspot
+Asana,greenhouse,asana
+Intercom,greenhouse,intercom
+Twilio,greenhouse,twilio
+Zendesk,greenhouse,zendesk
+Segment,greenhouse,segment
+Checkr,greenhouse,checkr
+Pendo,greenhouse,pendo
+Procore,greenhouse,procore
+Canva,greenhouse,canva
+Loom,greenhouse,loom
+Dovetail,greenhouse,dovetailapp
+Gong,greenhouse,gong
+Outreach,greenhouse,outreach
+Salesloft,greenhouse,salesloft
+Highspot,greenhouse,highspot
+Apollo,greenhouse,apolloio
+Braze,greenhouse,braze
+Front,greenhouse,front
+Gladly,greenhouse,gladly
+Medallia,greenhouse,medallia
+Mixpanel,greenhouse,mixpanel
+FullStory,greenhouse,fullstory
+Heap,greenhouse,heap
+Fivetran,greenhouse,fivetran
+dbt Labs,greenhouse,dbtlabs
+Confluent,greenhouse,confluentinc
+Productboard,greenhouse,productboard
+UserTesting,greenhouse,usertesting
+Culture Amp,greenhouse,cultureamp
+Leapsome,greenhouse,leapsome
+Mercury,greenhouse,mercury
+Modern Treasury,greenhouse,moderntreasury
+Marqeta,greenhouse,marqeta
+Netlify,greenhouse,netlify
+Sentry,greenhouse,sentry
+Cockroach Labs,greenhouse,cockroachlabs
+Ironclad,greenhouse,ironcladapp
+ClickUp,greenhouse,clickup
+Superhuman,greenhouse,superhuman
+Sprout Social,greenhouse,sproutsocial
+Snyk,greenhouse,snyk
+Wiz,greenhouse,wiz
+Lacework,greenhouse,lacework
+Abnormal Security,greenhouse,abnormalsecurity
+Orca Security,greenhouse,orcasecurity
+1Password,greenhouse,1password
+Vanta,greenhouse,vanta
+Drata,greenhouse,drata
+Harness,greenhouse,harness
+Grafana Labs,greenhouse,grafanalabs
+Temporal,greenhouse,temporal
+Pulumi,greenhouse,pulumi
+Buildkite,greenhouse,buildkite
+Databricks,greenhouse,databricks
+Airbyte,greenhouse,airbyte
+Sigma Computing,greenhouse,sigmacomputing
+ThoughtSpot,greenhouse,thoughtspot
+Collibra,greenhouse,collibra
+Monte Carlo,greenhouse,montecarlodata
+Alation,greenhouse,alation
+Contentsquare,greenhouse,contentsquare
+Quantum Metric,greenhouse,quantummetric
+Klaviyo,greenhouse,klaviyo
+Iterable,greenhouse,iterable
+Attentive,greenhouse,attentive
+Customer.io,greenhouse,customerio
+Optimizely,greenhouse,optimizely
+Sprinklr,greenhouse,sprinklr
+Sprig,greenhouse,sprig
+Appcues,greenhouse,appcues
+WalkMe,greenhouse,walkme
+OpenAI,greenhouse,openai
+Cohere,greenhouse,cohere
+Perplexity,greenhouse,perplexity
+Glean,greenhouse,glean
+Moveworks,greenhouse,moveworks
+Runway,greenhouse,runwayml
+Navan,greenhouse,navan
+Airbase,greenhouse,airbase
+Tipalti,greenhouse,tipalti
+BILL,greenhouse,billcom
+Recharge,greenhouse,rechargepayments
+Eightfold AI,greenhouse,eightfoldai
+Phenom,greenhouse,phenom
+15Five,greenhouse,15five
+Betterworks,greenhouse,betterworks
+Workato,greenhouse,workato
+Toast,greenhouse,toasttab
+ServiceTitan,greenhouse,servicetitan
+Faire,greenhouse,faire
+Flexport,greenhouse,flexport
+nCino,greenhouse,ncino
+Blend,greenhouse,blend
+Clio,greenhouse,clio
+Veeva Systems,greenhouse,veevasystems
+Zuora,greenhouse,zuora
+Box,greenhouse,box
+Qualtrics,greenhouse,qualtrics
+Evisort,greenhouse,evisort
+Metabase,greenhouse,metabase
+Contentstack,greenhouse,contentstack
+Lyra Health,greenhouse,lyrahealth
+Spring Health,greenhouse,springhealth
+Cedar,greenhouse,cedar
+Accolade,greenhouse,accolade
+Palantir,greenhouse,palantir
+UiPath,greenhouse,uipath
+Monday.com,greenhouse,mondaydotcom
+C3.ai,greenhouse,c3ai
+ServiceNow,greenhouse,servicenow
+Zoom,greenhouse,zoom
+CrowdStrike,greenhouse,crowdstrike
+Palo Alto Networks,greenhouse,paloaltonetworks
+Snowflake,greenhouse,snowflake
+Freshworks,greenhouse,freshworks
+Elastic,greenhouse,elastic
+Reddit,greenhouse,reddit
+Intuit,greenhouse,intuit
+Shopify,greenhouse,shopify
+Doximity,greenhouse,doximity
+GoDaddy,greenhouse,godaddy
+Fortinet,greenhouse,fortinet
+Applovin,greenhouse,applovin
+Duolingo,greenhouse,duolingo
+Intapp,greenhouse,intapp
+Teladoc Health,greenhouse,teladoc
+Hims & Hers,greenhouse,forhims
+Weave Communications,greenhouse,weave
+Definitive Healthcare,greenhouse,definitivehealthcare
+Guardant Health,greenhouse,guardanthealth
+Exact Sciences,greenhouse,exactsciences
+Recursion Pharmaceuticals,greenhouse,recursionpharma
+Schrodinger,greenhouse,schrodinger
+Absci,greenhouse,absci
+AbCellera,greenhouse,abcellera
+10x Genomics,greenhouse,10xgenomics
+Illumina,greenhouse,illumina
+Butterfly Network,greenhouse,butterflynetwork
+Nano-X Imaging,greenhouse,nanox
+Ginkgo Bioworks,greenhouse,ginkgobioworks
+GE HealthCare,greenhouse,gehealthcare
+Molina Healthcare,greenhouse,molinahealthcare
+ARM Holdings,greenhouse,arm
+NVIDIA,greenhouse,nvidia
+AMD,greenhouse,amd
+Intel,greenhouse,intel
+Broadcom,greenhouse,broadcom
+Micron,greenhouse,micron
+Arista Networks,greenhouse,arista
+Marvell,greenhouse,marvell
+Vertiv,greenhouse,vertiv
+Super Micro,greenhouse,supermicro
+Amkor Technology,greenhouse,amkor
+ASML,greenhouse,asml
+KLA,greenhouse,kla
+Lam Research,greenhouse,lamresearch
+Applied Materials,greenhouse,appliedmaterials
+Teradyne,greenhouse,teradyne
+Fortive,greenhouse,fortive
+Eaton,greenhouse,eaton
+nVent Electric,greenhouse,nvent
+Carrier Global,greenhouse,carrier
+Trane Technologies,greenhouse,tranetechnologies
+Emerson Electric,greenhouse,emerson
+GE,greenhouse,ge
+Brex,lever,brex
+Linear,lever,linear
+Retool,lever,retool
+Ramp,lever,ramp
+Writer,lever,writerai
+Miro,lever,miro
+Calendly,lever,calendly
+Hex,lever,hex-technologies
+Scale AI,lever,scaleai
+Webflow,lever,webflow
+Coda,lever,coda
+Descript,lever,descript
+Weights & Biases,lever,wandb
+Framer,lever,framer
+Loom,lever,loom
+Gem,lever,gem
+Lob,lever,lob
+TravelPerk,lever,travelperk
+Pitch,lever,pitch
+Maze,lever,mazedesign
+Whimsical,lever,whimsical
+Tome,lever,tome
+Pocus,lever,pocus
+Qualified,lever,qualified
+Gorgias,lever,gorgias
+Superside,lever,superside
+Clay,lever,clay
+Chili Piper,lever,chilipiper
+Loop Returns,lever,loop
+Gamma,lever,gamma
+Stytch,lever,stytch
+Chameleon,lever,chameleon
+ChartMogul,lever,chartmogul
+Notion,ashby,notion
+Vercel,ashby,vercel
+Linear,ashby,linear
+Liveblocks,ashby,liveblocks
+Clerk,ashby,clerk
+PostHog,ashby,posthog
+Resend,ashby,resend
+Raycast,ashby,raycast
+Supabase,ashby,supabase
+Loops,ashby,loops
+Plain,ashby,plain
+WorkOS,ashby,workos
+Sanity,ashby,sanity
+Storyblok,ashby,storyblok
+Neon,ashby,neondatabase
+Knock,ashby,knock
+Trigger.dev,ashby,triggerdev
+Contentful,smartrecruiters,contentful
+Mural,smartrecruiters,mural
+Hootsuite,smartrecruiters,hootsuite
+PandaDoc,smartrecruiters,pandadoc
+Bloomreach,smartrecruiters,bloomreach
+Liferay,smartrecruiters,liferay
