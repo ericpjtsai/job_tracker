@@ -25,8 +25,12 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-  // Deactivate all
-  await supabase.from('resume_versions').update({ is_active: false }).eq('is_active', true)
+  // Get the resume to find its type
+  const { data: target } = await supabase.from('resume_versions').select('resume_type').eq('id', id).single()
+  const resumeType = target?.resume_type ?? 'ats'
+
+  // Deactivate only resumes of the same type
+  await supabase.from('resume_versions').update({ is_active: false }).eq('is_active', true).eq('resume_type', resumeType)
 
   // Activate the selected one
   const { data: resume, error } = await supabase
@@ -38,8 +42,10 @@ export async function PATCH(req: NextRequest) {
 
   if (error || !resume) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 500 })
 
-  // Re-score all jobs with this resume's keywords (background)
-  updateAllResumeFit(supabase, resume.keywords_extracted ?? []).catch(console.error)
+  // Re-score all jobs only if ATS resume changed
+  if (resumeType === 'ats') {
+    updateAllResumeFit(supabase, resume.keywords_extracted ?? []).catch(console.error)
+  }
 
   return NextResponse.json({ ok: true, resume })
 }
@@ -52,6 +58,7 @@ export async function POST(req: NextRequest) {
   // Parse multipart form
   const form = await req.formData()
   const file = form.get('file') as File | null
+  const resumeType = (form.get('resume_type') as string) || 'ats'
 
   if (!file || file.type !== 'application/pdf') {
     return NextResponse.json({ error: 'A PDF file is required' }, { status: 400 })
@@ -91,11 +98,12 @@ export async function POST(req: NextRequest) {
     // Non-fatal — continue without storage if bucket not configured
   }
 
-  // ── Deactivate previous active resume ────────────────────────────────────
+  // ── Deactivate previous active resume of same type ───────────────────────
   await supabase
     .from('resume_versions')
     .update({ is_active: false })
     .eq('is_active', true)
+    .eq('resume_type', resumeType)
 
   // ── Insert new resume version ─────────────────────────────────────────────
   const { data: newResume, error: insertError } = await supabase
@@ -105,6 +113,7 @@ export async function POST(req: NextRequest) {
       storage_path: storagePath,
       keywords_extracted: keywords,
       is_active: true,
+      resume_type: resumeType,
     })
     .select()
     .single()
@@ -113,9 +122,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insertError?.message ?? 'DB insert failed' }, { status: 500 })
   }
 
-  // ── Update resume_fit for all existing job postings (background) ─────────
-  // Fire-and-forget so the response is fast
-  updateAllResumeFit(supabase, keywords).catch(console.error)
+  // ── Update resume_fit for all existing job postings (background, ATS only)
+  if (resumeType === 'ats') {
+    updateAllResumeFit(supabase, keywords).catch(console.error)
+  }
 
   return NextResponse.json({
     id: newResume.id,

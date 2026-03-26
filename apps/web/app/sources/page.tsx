@@ -521,15 +521,15 @@ function Section({ title, badge, defaultOpen = false, children }: {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-muted transition-colors"
+        className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted' : 'hover:bg-muted'}`}
       >
         <span className="text-sm font-semibold flex items-center gap-2">
           {title}
-          {badge && <span className="text-xs font-normal text-muted-foreground/50">{badge}</span>}
+          {badge && <span className="text-xs font-normal text-muted-foreground">{badge}</span>}
         </span>
-        <span className="text-muted-foreground/50 text-sm">{open ? '\u2212' : '+'}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
-      {open && <div className="px-4 pb-4 bg-muted/30">{children}</div>}
+      {open && <div className="px-4 pt-4 pb-4 bg-muted/30">{children}</div>}
     </div>
   )
 }
@@ -572,12 +572,12 @@ function SourceCard({ source }: { source: Source }) {
               <span>{source.cost}</span>
             </div>
           </div>
-          <span className="text-muted-foreground/50 text-sm flex-shrink-0 mt-0.5">{open ? '\u2212' : '+'}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         </div>
       </button>
 
       {open && (
-        <div className="px-4 pb-4 bg-muted/30 space-y-3 text-xs">
+        <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-3 text-xs">
           {/* Endpoint */}
           <div className="pt-3">
             <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Endpoint</div>
@@ -764,7 +764,7 @@ function StatusDot({ status }: { status: LiveSourceHealth['status'] }) {
     disabled: 'bg-muted-foreground/30',
     idle: 'bg-muted-foreground/30',
   }
-  return <span className={`inline-block w-2 h-2 rounded-full ${colors[status] ?? colors.idle}`} />
+  return <span className={`inline-block w-[5px] h-[5px] rounded-full ${colors[status] ?? colors.idle}`} />
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -1051,7 +1051,7 @@ function TapSection({ tap }: { tap: Tap }) {
           <span className="text-muted-foreground/50">&middot;</span>
           <span className="text-muted-foreground/50">{tap.rules.length} rules</span>
         </span>
-        <span className="text-muted-foreground/50">{open ? '\u2212' : '+'}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
       {open && (
         <div className="bg-muted/20">
@@ -1105,7 +1105,7 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full p-4 text-left hover:bg-muted/50 transition-colors"
+        className={`w-full p-4 text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -1114,19 +1114,21 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
               <span className="text-sm font-semibold">{source.name}</span>
               <TypeBadge type={source.type} />
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-              <span>{source.schedule}</span>
-              {source.cost && <span>{source.cost}</span>}
-              {h.lastPollAt && <span>Last: {timeAgo(h.lastPollAt)}</span>}
-              {h.jobsFound > 0 && <span className="tabular-nums">{h.jobsFound} jobs</span>}
+            <div className="text-xs text-muted-foreground">
+              {[
+                source.schedule,
+                source.cost,
+                h.lastPollAt ? `Last: ${timeAgo(h.lastPollAt)}` : null,
+                h.jobsFound > 0 ? `${h.jobsFound} jobs` : null,
+              ].filter(Boolean).join(' ・ ')}
             </div>
           </div>
-          <span className="text-muted-foreground text-sm flex-shrink-0 mt-0.5">{open ? '\u2212' : '+'}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         </div>
       </button>
 
       {open && (
-        <div className="px-4 pb-4 bg-muted/30 space-y-3 text-xs">
+        <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-3 text-xs">
           {/* Health details */}
           <div className="pt-3">
             <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Health</div>
@@ -1186,7 +1188,7 @@ function LiveTapSection({ tap }: { tap: LiveTap }) {
           <span className="text-muted-foreground/50">&middot;</span>
           <span className="text-muted-foreground/50 tabular-nums">{tap.ruleCount} rules</span>
         </span>
-        <span className="text-muted-foreground/50">{open ? '\u2212' : '+'}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
       {open && (
         <div className="px-3 pb-2 bg-muted/20 pt-2 flex flex-wrap gap-1">
@@ -1214,7 +1216,7 @@ function KeywordGroupRow({ group }: { group: typeof KEYWORD_GROUPS[number] }) {
           <span className="text-muted-foreground/50">&middot;</span>
           <span className="text-muted-foreground/50">{group.terms.length} terms</span>
         </span>
-        <span className="text-muted-foreground/50">{open ? '\u2212' : '+'}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
       {open && (
         <div className="px-3 pb-2 bg-muted/20 pt-2 flex flex-wrap gap-1">
