@@ -106,6 +106,7 @@ async function getActiveResumeKeywords(supabase: ReturnType<typeof createClient>
     .from('resume_versions')
     .select('keywords_extracted')
     .eq('is_active', true)
+    .eq('resume_type', 'ats')
     .single()
   cachedResumeKeywords = (data as any)?.keywords_extracted ?? []
   lastResumeFetch = Date.now()

@@ -366,7 +366,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
-      <div className={scrolled ? 'sticky top-[45px] z-40 -mx-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
+      <div className={scrolled ? 'sticky top-[41px] z-40 -mx-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
           <div className="max-w-7xl mx-auto px-6 py-2 flex items-center gap-2">
             {/* Priority chips */}
             {[

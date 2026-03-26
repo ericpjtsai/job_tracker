@@ -10,6 +10,7 @@ export async function POST() {
     .from('resume_versions')
     .select('keywords_extracted')
     .eq('is_active', true)
+    .eq('resume_type', 'ats')
     .single()
 
   if (resumeError || !resume) {

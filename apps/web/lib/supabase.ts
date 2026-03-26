@@ -55,4 +55,5 @@ export interface ResumeVersion {
   storage_path: string | null
   keywords_extracted: string[] | null
   is_active: boolean
+  resume_type: 'ats' | 'hiring_manager'
 }
