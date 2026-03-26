@@ -24,10 +24,21 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ total: 0, high: 0, medium: 0, low: 0, growthHigh: 0, growthMedium: 0, growthLow: 0 })
   const [newCount, setNewCount] = useState(0)
   const [polling, setPolling] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<number>(Date.now())
+  const [lastUpdated, setLastUpdated] = useState<number>(0)
+
+  // Fetch last poll time from backend on mount
+  useEffect(() => {
+    fetch('/api/sources').then(r => r.json()).then(data => {
+      const ats = data.sources?.find((s: any) => s.id === 'ats')
+      if (ats?.health?.lastPollAt) setLastUpdated(ats.health.lastPollAt)
+    }).catch(() => {})
+  }, [])
   const [pollProgress, setPollProgress] = useState({ current: 0, total: 0 })
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastRefreshRef = useRef(0)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef(0)
+  const isPulling = useRef(false)
 
   // ── Jobs table ─────────────────────────────────────────────────────────────
   const [jobs, setJobs] = useState<JobPosting[]>([])
@@ -38,7 +49,7 @@ export default function DashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // ── Filters ────────────────────────────────────────────────────────────────
-  const [priority, setPriority] = useState('all')
+  const [priority, setPriority] = useState('high')
   const [since, setSince] = useState('24h')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
@@ -108,6 +119,42 @@ export default function DashboardPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [page, fetchJobs])
 
+  // Pull-to-refresh
+  useEffect(() => {
+    const THRESHOLD = 80
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0 && !polling) {
+        touchStartY.current = e.touches[0].clientY
+        isPulling.current = true
+      }
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isPulling.current) return
+      const delta = e.touches[0].clientY - touchStartY.current
+      if (delta > 0) {
+        setPullDistance(Math.min(delta, THRESHOLD + 40))
+      } else {
+        isPulling.current = false
+        setPullDistance(0)
+      }
+    }
+    const onTouchEnd = () => {
+      if (isPulling.current && pullDistance >= THRESHOLD && !polling) {
+        handleUpdate()
+      }
+      isPulling.current = false
+      setPullDistance(0)
+    }
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: true })
+    window.addEventListener('touchend', onTouchEnd)
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [polling, pullDistance])
+
   // Realtime
   useEffect(() => {
     const channel = supabase
@@ -136,8 +183,14 @@ export default function DashboardPage() {
     setPolling(true)
     setPollProgress({ current: 0, total: 0 })
     try {
-      const res = await fetch('/api/poll', { method: 'POST' })
-      if (!res.ok) { setPolling(false); return }
+      // Check if backend is already running — resume watching instead of duplicate POST
+      const status = await fetch('/api/poll').then((r) => r.json())
+      if (status.running) {
+        setPollProgress({ current: status.current, total: status.total })
+      } else {
+        const res = await fetch('/api/poll', { method: 'POST' })
+        if (!res.ok) { setPolling(false); return }
+      }
     } catch { setPolling(false); return }
     pollIntervalRef.current = setInterval(async () => {
       try {
@@ -160,7 +213,8 @@ export default function DashboardPage() {
     }, 500)
   }
 
-  function stopPolling() {
+  async function stopPolling() {
+    await fetch('/api/poll', { method: 'DELETE' }).catch(() => {})
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
@@ -231,6 +285,14 @@ export default function DashboardPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
+    {/* Pull-to-refresh indicator */}
+    {pullDistance > 0 && (
+      <div className="flex items-center justify-center py-2 text-xs text-muted-foreground transition-all" style={{ height: pullDistance * 0.5 }}>
+        <span className={`transition-opacity ${pullDistance >= 80 ? 'opacity-100' : 'opacity-50'}`}>
+          {pullDistance >= 80 ? '↻ Release to update' : '↓ Pull to update'}
+        </span>
+      </div>
+    )}
     {(fetching || polling) && <div className="nav-progress-bar" />}
     <div className="space-y-4">
       {/* Stat cards — normal flow, observed for scroll */}
@@ -241,7 +303,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Date tabs + New + Search + Update — all one row */}
-      <div className="flex items-center gap-2">
+      <div className={`flex items-center gap-2 ${scrolled ? 'hidden' : ''}`}>
         {/* Desktop: buttons */}
         <div className="hidden lg:contents">
           {dateTabs.map((tab) => (
@@ -249,7 +311,7 @@ export default function DashboardPage() {
               className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >{tab.label}</button>
           ))}
-          <span className="text-muted-foreground/20 mx-1">|</span>
+          <span className="text-muted-foreground/20">|</span>
           <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
             className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >New</button>
@@ -263,7 +325,7 @@ export default function DashboardPage() {
             aria-label="Time range"
             value={since}
             onChange={(e) => setSince(e.target.value)}
-            className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
           >
             {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
           </select>
@@ -271,16 +333,16 @@ export default function DashboardPage() {
             aria-label="Status filter"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
           >
             <option value="all">All</option>
             <option value="new">New</option>
             <option value="applied">Applied</option>
           </select>
         </div>
-        <span className="text-muted-foreground/20 mx-1">|</span>
+        <span className="text-muted-foreground/20">|</span>
         <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
-          className={`text-xs px-2 py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </button>
@@ -294,18 +356,18 @@ export default function DashboardPage() {
           {polling ? (
             <button type="button" onClick={stopPolling}
               className="text-xs text-destructive border border-destructive/30 rounded-md px-3 py-1.5 hover:bg-destructive/10 transition-colors"
-            >{pollProgress.total > 0 ? `■ Stop (${pollProgress.current}/${pollProgress.total})` : '■ Stop'}</button>
+            ><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 bg-destructive rounded-sm" />{pollProgress.total > 0 ? `Stop (${pollProgress.current}/${pollProgress.total})` : 'Stop'}</span></button>
           ) : (
             <button type="button" onClick={handleUpdate}
-              className="text-xs text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground transition-colors"
-            >↻ Updated {timeAgo(new Date(lastUpdated).toISOString())}</button>
+              className="text-xs text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            ><svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>{lastUpdated ? `Updated ${timeAgo(new Date(lastUpdated).toISOString())}` : 'Update'}</button>
           )}
         </div>
       </div>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
       <div className={scrolled ? 'sticky top-[45px] z-40 -mx-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
-          <div className="max-w-7xl mx-auto px-6 py-2 flex items-center gap-1">
+          <div className="max-w-7xl mx-auto px-6 py-2 flex items-center gap-2">
             {/* Priority chips */}
             {[
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
@@ -316,13 +378,13 @@ export default function DashboardPage() {
                 className={`text-xs px-2 py-1 rounded-md transition-colors tabular-nums ${priority === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
               >{s.label}:{s.value}{growthLabel(s.growth) && <span className={`ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}</button>
             ))}
-            <span className="text-muted-foreground/20 mx-1">|</span>
+            <span className="text-muted-foreground/20">|</span>
             {/* Date dropdown */}
             <select
               aria-label="Time range"
               value={since}
               onChange={(e) => setSince(e.target.value)}
-              className="text-xs px-2 pr-6 py-1 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
             >
               {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
             </select>
@@ -331,16 +393,16 @@ export default function DashboardPage() {
               aria-label="Status filter"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="text-xs px-2 pr-6 py-1 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
             >
               <option value="all">All</option>
               <option value="new">New</option>
               <option value="applied">Applied</option>
             </select>
-            <span className="text-muted-foreground/20 mx-0.5">|</span>
+            <span className="text-muted-foreground/20">|</span>
             {/* Search */}
             <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </button>
@@ -354,11 +416,11 @@ export default function DashboardPage() {
               {polling ? (
                 <button type="button" onClick={stopPolling}
                   className="text-xs text-destructive border border-destructive/30 rounded-md px-2 py-1 hover:bg-destructive/10 transition-colors"
-                >{pollProgress.total > 0 ? `■ Stop (${pollProgress.current}/${pollProgress.total})` : '■ Stop'}</button>
+                ><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 bg-destructive rounded-sm" />{pollProgress.total > 0 ? `Stop (${pollProgress.current}/${pollProgress.total})` : 'Stop'}</span></button>
               ) : (
                 <button type="button" onClick={handleUpdate}
                   className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1 hover:text-foreground transition-colors"
-                >↻ {timeAgo(new Date(lastUpdated).toISOString())}</button>
+                >↻ {lastUpdated ? timeAgo(new Date(lastUpdated).toISOString()) : 'Update'}</button>
               )}
             </div>
           </div>
@@ -397,7 +459,7 @@ export default function DashboardPage() {
           <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow className="bg-muted/50 text-xs text-muted-foreground">
-                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] pl-2 pr-3 whitespace-nowrap">
+                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] pl-3 pr-3 whitespace-nowrap">
                   <SortHeader label="Fit" order={fitOrder} tooltip="How closely your resume keywords match this job's requirements." onSort={() => { setFitOrder(cycleOrder(fitOrder)); setPage(0) }} />
                 </TableHead>
                 <TableHead className="w-auto">Job</TableHead>
@@ -413,7 +475,7 @@ export default function DashboardPage() {
             <TableBody>
               {jobs.map((job) => (
                 <TableRow key={job.id} className={job.status === 'new' ? '' : 'bg-muted/40'}>
-                  <TableCell className="pl-2 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
+                  <TableCell className="pl-3 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
                   <TableCell>
                     <Link href={`/jobs/${job.id}`} className="hover:underline font-medium block truncate max-w-full text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}

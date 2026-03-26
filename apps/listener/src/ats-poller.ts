@@ -224,7 +224,7 @@ async function pollCompany(company: AtsCompany): Promise<number> {
 // Use a const object and mutate properties — ensures the imported reference in
 // index.ts always points to the same object (avoids CJS live-binding issues).
 
-export const pollStatus = { running: false, current: 0, total: 0 }
+export const pollStatus = { running: false, current: 0, total: 0, abort: false }
 
 export async function pollAllAts(): Promise<number> {
   if (pollStatus.running) {
@@ -235,8 +235,13 @@ export async function pollAllAts(): Promise<number> {
   pollStatus.running = true
   pollStatus.current = 0
   pollStatus.total = ATS_COMPANIES.length
+  pollStatus.abort = false
   let totalFound = 0
   for (const company of ATS_COMPANIES) {
+    if (pollStatus.abort) {
+      console.log('⛔ ATS poll aborted by user')
+      break
+    }
     try {
       totalFound += await pollCompany(company)
     } catch (err) {
@@ -250,8 +255,13 @@ export async function pollAllAts(): Promise<number> {
     pollStatus.current++
   }
   pollStatus.running = false
-  console.log(`✅ ATS poll complete (${ATS_COMPANIES.length} companies checked, ${totalFound} jobs found)`)
+  pollStatus.abort = false
+  console.log(`✅ ATS poll complete (${pollStatus.current}/${ATS_COMPANIES.length} companies checked, ${totalFound} jobs found)`)
   return totalFound
+}
+
+export function stopAts() {
+  pollStatus.abort = true
 }
 
 // ─── DataSource registration ──────────────────────────────────────────────────

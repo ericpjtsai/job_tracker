@@ -14,6 +14,16 @@ export async function GET() {
   }
 }
 
+export async function DELETE() {
+  try {
+    const res = await fetch(`${listenerUrl()}/poll/stop`, { method: 'POST' })
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Listener not reachable' }, { status: 503 })
+  }
+}
+
 export async function POST() {
   try {
     const url = listenerUrl()
