@@ -498,7 +498,7 @@ interface ProcessorStats {
 
 const FILTER_PIPELINE: { name: string; scope: string; description: string; statsKey: keyof ProcessorStats | null }[] = [
   { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (linkedin, greenhouse, lever, etc.), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/)', statsKey: 'nonJobBoard' },
-  { name: 'Title blocking', scope: 'All sources', description: 'Blocks: principal, lead, head, staff, intern(ship), scholarship', statsKey: 'titleBlocked' },
+  { name: 'Title blocking', scope: 'All sources', description: 'Blocks: principal, lead, head, staff, intern(ship), scholarship, researcher, strategist, motion designer', statsKey: 'titleBlocked' },
   { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (60+ cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations', statsKey: 'locationBlocked' },
   { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies: Lensa', statsKey: 'companyBlocked' },
   { name: 'Article detection', scope: 'All sources', description: 'Blocks content marketing titles: "How to...", "What is...", "Best practices...", "X tips for...", "Guide to...", year prefixes, "deep dive", "case study"', statsKey: 'articleBlocked' },

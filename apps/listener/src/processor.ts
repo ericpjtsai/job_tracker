@@ -145,7 +145,7 @@ export function getProcessorStats() {
 
 // ─── Pre-insert filters ───────────────────────────────────────────────────────
 
-const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship)\b/i
+const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer)\b/i
 
 const BLOCKED_COMPANIES = new Set(['lensa'])
 

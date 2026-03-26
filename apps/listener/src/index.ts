@@ -7,7 +7,7 @@ import { syncAllTaps, TAP_CONFIGS, type TapInfo } from './rules'
 import { processEvent, getProcessorStats, type FirehoseUpdateEvent } from './processor'
 
 // ─── Import sources + their DataSource registrations ─────────────────────────
-import { pollAllAts, pollStatus, atsSource } from './ats-poller'
+import { pollAllAts, pollStatus, stopAts, atsSource } from './ats-poller'
 import { pollMantiks, lastMantikPollAt, mantikSource } from './linkedin-mantiks'
 import { pollLinkedIn, scraperStatus, scraperSource } from './linkedin-scraper'
 import { pollSerpApi, serpApiSource } from './serpapi-jobs'
@@ -184,6 +184,9 @@ function startControlServer() {
         rules: t.rules.map((r) => ({ tag: r.tag })),
       }))
       res.end(JSON.stringify({ sources, firehoseRules: rules, processorStats: getProcessorStats() }))
+    } else if (req.method === 'POST' && req.url === '/poll/stop') {
+      stopAts()
+      res.end(JSON.stringify({ ok: true, message: 'ATS poll abort requested' }))
     } else if (req.method === 'POST' && req.url?.startsWith('/poll')) {
       // Dynamic dispatch via registry
       const path = req.url
