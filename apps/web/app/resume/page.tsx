@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const KEYWORD_CATEGORIES: Record<string, string[]> = {
-  'B2B / Domain': ['B2B', 'enterprise', 'SaaS', 'CRM', 'dashboard', 'fintech', 'workflow automation', 'developer tools', 'API', 'internal tools'],
+  'B2B / Domain': ['B2B', 'enterprise', 'SaaS', 'CRM', 'dashboard', 'fintech', 'workflow automation', 'developer tools', 'API', 'internal tools', 'ecommerce', 'e-commerce', 'digital ecosystem', 'media', 'editorial', 'content-driven'],
   'AI & Emerging': ['AI-powered', 'LLM', 'generative AI', 'conversational UI', 'human-in-the-loop', 'agentic AI', 'RAG', 'MCP'],
-  'Core Design': ['interaction design', 'design systems', 'design tokens', 'wireframes', 'prototyping', 'information architecture', 'WCAG', 'accessibility'],
-  'Methods': ['user research', 'A/B testing', 'journey mapping', 'usability testing', 'Agile', 'design thinking'],
-  'Soft Skills': ['cross-functional', 'storytelling', 'stakeholder alignment', 'ambiguity', 'strategic'],
-  'Tools': ['Figma', 'Framer', 'Sketch', 'Cursor', 'Jira', 'Miro'],
+  'Core Design': ['product design', 'product designer', 'interaction design', 'design system', 'design systems', 'design tokens', 'wireframes', 'prototyping', 'information architecture', 'WCAG', 'accessibility', 'UX design', 'UX principles', 'visual design', 'user-centered', 'scalable design', 'craft'],
+  'Methods': ['user research', 'A/B testing', 'journey mapping', 'usability testing', 'Agile', 'design thinking', 'iteration', 'iterative', 'test-and-learn', 'design decisions', 'data-driven'],
+  'Soft Skills': ['cross-functional', 'collaboration', 'storytelling', 'stakeholder alignment', 'ambiguity', 'strategic', 'business outcomes', 'fast-paced', 'feedback', 'resilience'],
+  'Tools': ['Figma', 'Framer', 'Sketch', 'Cursor', 'Jira', 'Miro', 'Claude Code'],
 }
 
 function categorize(keywords: string[]): Record<string, string[]> {
