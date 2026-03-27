@@ -126,12 +126,12 @@ export default function JobDetailPage() {
 
   async function updateStatus(newStatus: string) {
     if (!job) return
+    setJob({ ...job, status: newStatus as any, applied_at: newStatus === 'applied' ? new Date().toISOString() : null })
     await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
-    setJob({ ...job, status: newStatus as any })
   }
 
   function handleNotesChange(value: string) {
