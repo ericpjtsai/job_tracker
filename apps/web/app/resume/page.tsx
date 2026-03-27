@@ -134,7 +134,7 @@ export default function ResumePage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="space-y-8">
       <h1 className="text-xl font-semibold tracking-[-0.03em]">Resume</h1>
 
       {error && (

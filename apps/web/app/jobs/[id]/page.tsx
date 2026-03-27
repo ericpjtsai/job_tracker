@@ -162,7 +162,7 @@ export default function JobDetailPage() {
   const nextId = currentIndex >= 0 && currentIndex < jobIds.length - 1 ? jobIds[currentIndex + 1] : null
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="space-y-5">
       {/* Back + Prev/Next */}
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => router.back()} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
