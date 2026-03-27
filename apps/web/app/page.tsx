@@ -93,6 +93,7 @@ export default function DashboardPage() {
       const { data, total: t } = await res.json()
       setJobs(data ?? [])
       setTotal(t ?? 0)
+      if (data?.length) sessionStorage.setItem('jobIds', JSON.stringify(data.map((j: any) => j.id)))
     } catch (err) {
       console.error('fetchJobs failed:', err)
       setJobs([])
