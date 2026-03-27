@@ -46,6 +46,7 @@ export interface JobPosting {
   first_seen: string
   last_seen: string
   status: 'new' | 'reviewed' | 'applied' | 'skipped'
+  applied_at: string | null
 }
 
 export interface ResumeVersion {
