@@ -50,7 +50,7 @@ export default function ResumePage() {
   const [settingActive, setSettingActive] = useState<string | null>(null)
   const atsFileRef = useRef<HTMLInputElement>(null)
   const hmFileRef = useRef<HTMLInputElement>(null)
-  const [atsOpen, setAtsOpen] = useState(true)
+  const [atsOpen, setAtsOpen] = useState(false)
   const [hmOpen, setHmOpen] = useState(false)
 
   async function loadVersions() {
