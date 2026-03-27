@@ -67,50 +67,75 @@
 }
 
 /* ── Job description prose styles ───────────────────────────────────────────── */
+/* Inherits Inter from body. Designed for long-form reading at 14px base. */
 
 .job-description {
+  font-family: inherit !important;
   font-size: 0.875rem;
-  line-height: 1.75;
+  line-height: 1.65;
   color: hsl(var(--foreground));
+  letter-spacing: -0.01em;
 }
 
+.job-description * {
+  font-family: inherit !important;
+}
+
+/* Headings — tighter tracking, clear hierarchy */
 .job-description h1,
 .job-description h2,
 .job-description h3,
 .job-description h4,
 .job-description h5,
 .job-description h6 {
+  font-family: inherit;
   font-weight: 600;
-  margin-top: 1.5em;
+  letter-spacing: -0.02em;
+  margin-top: 1.75em;
   margin-bottom: 0.5em;
-  line-height: 1.3;
+  line-height: 1.25;
+  color: hsl(var(--foreground));
 }
 
-.job-description h1 { font-size: 1.5rem; }
-.job-description h2 { font-size: 1.25rem; }
-.job-description h3 { font-size: 1.125rem; }
-.job-description h4 { font-size: 1rem; }
+.job-description h1 { font-size: 1.25rem; }
+.job-description h2 { font-size: 1.1rem; }
+.job-description h3 { font-size: 0.975rem; }
+.job-description h4 { font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.03em; color: hsl(var(--muted-foreground)); }
 
+/* Paragraphs */
 .job-description p {
-  margin-bottom: 0.75em;
+  margin-bottom: 0.875em;
 }
 
+/* Lists */
 .job-description ul,
 .job-description ol {
-  margin-bottom: 0.75em;
-  padding-left: 1.5em;
+  margin-bottom: 0.875em;
+  padding-left: 1.25em;
 }
 
 .job-description ul { list-style-type: disc; }
 .job-description ol { list-style-type: decimal; }
 
 .job-description li {
-  margin-bottom: 0.25em;
+  margin-bottom: 0.35em;
+  line-height: 1.55;
 }
 
+.job-description li::marker {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Inline styles */
 .job-description strong,
 .job-description b {
   font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.job-description em,
+.job-description i {
+  font-style: italic;
 }
 
 .job-description a {
@@ -123,15 +148,34 @@
   opacity: 0.8;
 }
 
+/* Keyword highlight — matches focus ring amber */
 .job-description mark {
-  background-color: hsl(48 96% 89%);
+  background-color: hsl(38 92% 80%);
   color: hsl(var(--foreground));
   border-radius: 2px;
   padding: 0 2px;
 }
 
+/* Spacing reset */
 .job-description > *:first-child {
   margin-top: 0;
+}
+
+.job-description > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Horizontal rules */
+.job-description hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1.5em 0;
+}
+
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
 }
 
 @keyframes progress-slide {

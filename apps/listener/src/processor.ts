@@ -146,9 +146,9 @@ export function getProcessorStats() {
 
 // ─── Pre-insert filters ───────────────────────────────────────────────────────
 
-const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer)\b/i
+const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer|job trends|salaries)\b/i
 
-const BLOCKED_COMPANIES = new Set(['lensa'])
+const BLOCKED_COMPANIES = new Set(['lensa', 'itjobswatch'])
 
 function isCompanyBlocked(company: string): boolean {
   return BLOCKED_COMPANIES.has(company.toLowerCase().trim())
