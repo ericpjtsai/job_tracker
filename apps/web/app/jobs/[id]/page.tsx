@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 
 import { capitalize } from '@/lib/utils'
+import { marked } from 'marked'
 
 const STATUSES = ['new', 'reviewed', 'applied', 'skipped']
 
@@ -76,7 +77,13 @@ function prepareContent(raw: string): { html: boolean; content: string } {
     return { html: true, content: html }
   }
 
-  // Case 3: plain text
+  // Case 3: markdown (detect ## headings, **bold**, - lists)
+  if (/^#{1,6}\s|^\*\*|^- |\*\*.+\*\*/m.test(decoded)) {
+    const parsed = marked.parse(decoded, { async: false }) as string
+    return { html: true, content: parsed }
+  }
+
+  // Case 4: plain text
   return { html: false, content: decoded }
 }
 
@@ -97,6 +104,12 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [draftDesc, setDraftDesc] = useState('')
+  const [savingDesc, setSavingDesc] = useState(false)
+  const [editingUrl, setEditingUrl] = useState(false)
+  const [draftUrl, setDraftUrl] = useState('')
+  const [savingUrl, setSavingUrl] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -148,10 +161,8 @@ export default function JobDetailPage() {
   const matched = keywords.filter(k => resumeSet.has(k.toLowerCase()))
   const missing = keywords.filter(k => !resumeSet.has(k.toLowerCase()))
 
-  const openUrl = job.url?.includes('glassdoor.com')
-    ? `https://www.google.com/search?q=${encodeURIComponent(`"${job.title}" "${job.company}" site:glassdoor.com`)}`
-    : job.url
-  const openLabel = job.url?.includes('glassdoor.com') ? 'Search on Google' : 'View posting'
+  const openUrl = job.url
+  const openLabel = 'View posting'
 
   const prepared = job.page_content ? prepareContent(job.page_content) : null
 
@@ -168,7 +179,7 @@ export default function JobDetailPage() {
         <button type="button" onClick={() => router.back()} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           ← Back
         </button>
-        {jobIds.length > 0 && (
+        {jobIds.length > 0 && currentIndex >= 0 && (
           <div className="flex items-center gap-2 text-sm">
             <button
               type="button"
@@ -211,7 +222,7 @@ export default function JobDetailPage() {
           )}
         </div>
 
-        {/* Status + Open posting */}
+        {/* Status + Open posting + Delete */}
         <div className="flex items-center gap-3 mt-3">
           <a
             href={openUrl}
@@ -232,6 +243,22 @@ export default function JobDetailPage() {
               <option key={s} value={s}>{capitalize(s)}</option>
             ))}
           </select>
+
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={async () => {
+              if (!confirm('Delete this job posting?')) return
+              await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
+              // Navigate to next job or go back
+              if (nextId) router.push(`/jobs/${nextId}`)
+              else router.back()
+            }}
+            className="text-muted-foreground/50 hover:text-destructive transition-colors"
+            aria-label="Delete job"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
         </div>
       </div>
 
@@ -242,25 +269,97 @@ export default function JobDetailPage() {
         <div className="lg:col-span-2 space-y-5">
 
           {/* Job description */}
-          {prepared && (
-            <div className="bg-card rounded-lg p-6 border">
-              {prepared.html ? (
-                <div
-                  className="job-description"
-                  dangerouslySetInnerHTML={{
-                    __html: highlightKeywords(prepared.content, keywords),
-                  }}
-                />
-              ) : (
-                <div
-                  className="text-sm leading-relaxed text-foreground whitespace-pre-line"
-                  dangerouslySetInnerHTML={{
-                    __html: highlightKeywords(prepared.content, keywords),
-                  }}
-                />
-              )}
+          <div className="bg-card rounded-lg border overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 flex items-center justify-between bg-muted/40">
+              <div className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">Job description</div>
+              <div className="flex items-center gap-2">
+                {editingDesc ? (
+                  <>
+                    <button type="button" disabled={savingDesc} onClick={async () => {
+                      setSavingDesc(true)
+                      const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: draftDesc }) })
+                      const result = await res.json()
+                      setJob({ ...job, page_content: draftDesc, ...(result.score !== undefined ? { score: result.score, priority: result.priority, resume_fit: result.resume_fit, keywords_matched: result.keywords_matched } : {}) })
+                      setEditingDesc(false)
+                      setSavingDesc(false)
+                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">{savingDesc ? 'Saving...' : 'Save'}</button>
+                    <button type="button" onClick={() => { setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => { setDraftDesc(job.page_content ?? ''); setEditingDesc(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Keywords */}
+            {!editingDesc && keywords.length > 0 && (
+              <div className="px-6 py-4 border-b flex flex-wrap gap-1.5">
+                {keywords.map((k) => (
+                  <Badge key={k} variant={resumeSet.has(k.toLowerCase()) ? 'default' : 'secondary'} className="text-xs">{k}</Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="px-6 py-5">
+
+            {editingDesc ? (
+              <div
+                ref={(el) => { if (el && !el.innerHTML && draftDesc) el.innerHTML = prepareContent(draftDesc).content || draftDesc }}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => setDraftDesc((e.target as HTMLDivElement).innerHTML)}
+                className="job-description min-h-[300px] p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                data-placeholder="Paste or edit job description..."
+              />
+            ) : prepared ? (
+              prepared.html ? (
+                <div className="job-description" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
+              ) : (
+                <div className="text-sm leading-relaxed text-foreground whitespace-pre-line" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
+              )
+            ) : (
+              <button type="button" onClick={() => { setDraftDesc(''); setEditingDesc(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add job description</button>
+            )}
+            </div>
+          </div>
+
+          {/* Job posting URL — only show when URL is missing */}
+          {(!job.url || editingUrl) && <div className="bg-card rounded-lg p-5 border space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-muted-foreground">Posting URL</div>
+              <div className="flex items-center gap-2">
+                {editingUrl ? (
+                  <>
+                    <button type="button" disabled={savingUrl} onClick={async () => {
+                      setSavingUrl(true)
+                      await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
+                      setJob({ ...job, url: draftUrl })
+                      setEditingUrl(false)
+                      setSavingUrl(false)
+                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">{savingUrl ? 'Saving...' : 'Save'}</button>
+                    <button type="button" onClick={() => { setEditingUrl(false); setDraftUrl(job.url ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => { setDraftUrl(job.url ?? ''); setEditingUrl(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                )}
+              </div>
+            </div>
+            {editingUrl ? (
+              <input
+                type="url"
+                value={draftUrl}
+                onChange={(e) => setDraftUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background"
+              />
+            ) : job.url ? (
+              <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
+            ) : (
+              <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
+            )}
+          </div>}
 
           {/* Notes */}
           <div className="bg-card rounded-lg p-5 border space-y-3">
