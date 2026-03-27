@@ -45,8 +45,9 @@ export interface JobPosting {
   notes: string | null
   first_seen: string
   last_seen: string
-  status: 'new' | 'reviewed' | 'applied' | 'skipped'
+  status: 'new' | 'reviewed' | 'applied' | 'skipped' | 'unavailable'
   applied_at: string | null
+  source_type: 'auto' | 'manual' | null
 }
 
 export interface ResumeVersion {

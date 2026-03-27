@@ -75,6 +75,8 @@
   line-height: 1.65;
   color: hsl(var(--foreground));
   letter-spacing: -0.01em;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .job-description * {

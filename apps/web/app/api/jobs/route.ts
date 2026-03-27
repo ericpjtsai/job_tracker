@@ -37,27 +37,51 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  // ── New-first sort: two queries, concatenate ────────────────────────────
+  // ── New-first sort: two paginated queries ──────────────────────────────
   if (newFirst && (!status || status === 'all')) {
-    // Query A: new jobs, sorted by fit DESC
-    let qNew = supabase.from('job_postings').select(LIST_COLS, { count: 'exact' }).eq('status', 'new')
-    qNew = applyFilters(qNew)
-    qNew = qNew.order('resume_fit', { ascending: false, nullsFirst: false })
+    // Count new jobs first to calculate pagination offsets
+    let qNewCount = supabase.from('job_postings').select('id', { count: 'exact', head: true }).eq('status', 'new')
+    qNewCount = applyFilters(qNewCount)
+    const { count: newCount } = await qNewCount
+    const totalNew = newCount ?? 0
 
-    // Query B: non-new jobs, sorted by fit DESC
-    let qRest = supabase.from('job_postings').select(LIST_COLS, { count: 'exact' }).neq('status', 'new')
-    qRest = applyFilters(qRest)
-    qRest = qRest.order('resume_fit', { ascending: false, nullsFirst: false })
+    const offset = page * limit
+    let data: any[] = []
 
-    const [resNew, resRest] = await Promise.all([qNew, qRest])
-    if (resNew.error) return NextResponse.json({ error: resNew.error.message }, { status: 500 })
-    if (resRest.error) return NextResponse.json({ error: resRest.error.message }, { status: 500 })
+    if (offset < totalNew) {
+      // Page overlaps with new jobs
+      const newNeeded = Math.min(limit, totalNew - offset)
+      let qNew = supabase.from('job_postings').select(LIST_COLS).eq('status', 'new')
+      qNew = applyFilters(qNew)
+      qNew = qNew.order('resume_fit', { ascending: false, nullsFirst: false }).range(offset, offset + newNeeded - 1)
 
-    const allData = [...(resNew.data ?? []), ...(resRest.data ?? [])]
-    const total = (resNew.count ?? 0) + (resRest.count ?? 0)
-    const paginated = allData.slice(page * limit, (page + 1) * limit)
+      const restNeeded = limit - newNeeded
+      let qRest = restNeeded > 0
+        ? supabase.from('job_postings').select(LIST_COLS).neq('status', 'new')
+        : null
+      if (qRest) {
+        qRest = applyFilters(qRest)
+        qRest = qRest.order('resume_fit', { ascending: false, nullsFirst: false }).range(0, restNeeded - 1)
+      }
 
-    return NextResponse.json({ data: paginated, total, page, limit }, {
+      const [resNew, resRest] = await Promise.all([qNew, qRest ?? Promise.resolve({ data: [] })])
+      data = [...(resNew.data ?? []), ...(resRest as any).data ?? []]
+    } else {
+      // Page is entirely in non-new jobs
+      const restOffset = offset - totalNew
+      let qRest = supabase.from('job_postings').select(LIST_COLS).neq('status', 'new')
+      qRest = applyFilters(qRest)
+      qRest = qRest.order('resume_fit', { ascending: false, nullsFirst: false }).range(restOffset, restOffset + limit - 1)
+      const resRest = await qRest
+      data = resRest.data ?? []
+    }
+
+    // Get total count
+    let qTotal = supabase.from('job_postings').select('id', { count: 'exact', head: true })
+    qTotal = applyFilters(qTotal)
+    const { count: total } = await qTotal
+
+    return NextResponse.json({ data, total: total ?? 0, page, limit }, {
       headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
     })
   }
