@@ -155,12 +155,37 @@ export default function JobDetailPage() {
 
   const prepared = job.page_content ? prepareContent(job.page_content) : null
 
+  // Prev/next navigation from session job list
+  const jobIds: string[] = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('jobIds') ?? '[]') : []
+  const currentIndex = jobIds.indexOf(id)
+  const prevId = currentIndex > 0 ? jobIds[currentIndex - 1] : null
+  const nextId = currentIndex >= 0 && currentIndex < jobIds.length - 1 ? jobIds[currentIndex + 1] : null
+
   return (
     <div className="max-w-4xl space-y-5">
-      {/* Back */}
-      <button onClick={() => router.back()} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-        ← Back
-      </button>
+      {/* Back + Prev/Next */}
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => router.back()} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          ← Back
+        </button>
+        {jobIds.length > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              disabled={!prevId}
+              onClick={() => prevId && router.push(`/jobs/${prevId}`)}
+              className={`px-2 py-1 rounded-md transition-colors ${prevId ? 'text-muted-foreground hover:text-foreground hover:bg-muted' : 'text-muted-foreground/30 cursor-not-allowed'}`}
+            >← Prev</button>
+            <span className="text-xs text-muted-foreground tabular-nums">{currentIndex + 1}/{jobIds.length}</span>
+            <button
+              type="button"
+              disabled={!nextId}
+              onClick={() => nextId && router.push(`/jobs/${nextId}`)}
+              className={`px-2 py-1 rounded-md transition-colors ${nextId ? 'text-muted-foreground hover:text-foreground hover:bg-muted' : 'text-muted-foreground/30 cursor-not-allowed'}`}
+            >Next →</button>
+          </div>
+        )}
+      </div>
 
       {/* ── Header card ──────────────────────────────────────────────────── */}
       <div className="bg-card rounded-lg p-6 border">
@@ -193,6 +218,7 @@ export default function JobDetailPage() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center"
+            onClick={() => { if (job.status !== 'applied') updateStatus('applied') }}
           >{openLabel} ↗</a>
 
           <select
