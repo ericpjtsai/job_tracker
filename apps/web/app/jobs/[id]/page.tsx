@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { capitalize } from '@/lib/utils'
 import { marked } from 'marked'
 
-const STATUSES = ['new', 'reviewed', 'applied', 'skipped']
+const STATUSES = ['new', 'reviewed', 'applied', 'skipped', 'unavailable']
 
 /**
  * Prepare page_content for display.
@@ -31,9 +31,13 @@ function prepareContent(raw: string): { html: boolean; content: string } {
       .replace(/&#39;/g, "'")
   }
 
-  // Case 1: real HTML tags present
+  // Case 1: real HTML tags present — strip inline font styles for consistency
   if (/<[a-z][\s\S]*>/i.test(decoded)) {
-    return { html: true, content: decoded }
+    const cleaned = decoded
+      .replace(/font-family\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/font-size\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/style="\s*"/gi, '')
+    return { html: true, content: cleaned }
   }
 
   // Case 2: stripped tag names (e.g., "strong About Us /strong p At Cloudflare...")
