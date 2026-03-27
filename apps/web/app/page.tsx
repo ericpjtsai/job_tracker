@@ -368,7 +368,7 @@ export default function DashboardPage() {
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
       <div className={scrolled ? 'sticky top-[42px] z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
-          <div className="max-w-7xl mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2">
+          <div className="max-w-[1128px] mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2">
             {/* Priority chips */}
             {[
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },

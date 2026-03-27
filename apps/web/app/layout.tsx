@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} ${spaceGrotesk.variable}`}>
         <div className="min-h-screen bg-background">
           <Nav />
-          <main className="max-w-7xl mx-auto px-6 py-6">{children}</main>
+          <main className="max-w-[1128px] mx-auto px-6 py-6">{children}</main>
         </div>
       </body>
     </html>

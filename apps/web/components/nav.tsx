@@ -13,7 +13,7 @@ export function Nav() {
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-6 py-3 flex items-center gap-6">
+      <div className="max-w-[1128px] mx-auto px-6 py-3 flex items-center gap-6">
         <Link href="/" className="font-semibold text-sm tracking-[-0.02em] text-foreground hover:text-foreground/80">
           Job Tracker
         </Link>
