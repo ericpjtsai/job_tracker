@@ -28,9 +28,14 @@ export async function PATCH(
   const supabase = createServerClient()
   const body = await req.json()
 
-  // Only allow updating status, notes, and page_content
-  const updates: Record<string, string> = {}
-  if (typeof body.status === 'string') updates.status = body.status
+  // Only allow updating status, notes, page_content, and url
+  const updates: Record<string, string | null> = {}
+  if (typeof body.status === 'string') {
+    updates.status = body.status
+    // Track when job was applied
+    if (body.status === 'applied') updates.applied_at = new Date().toISOString()
+    else updates.applied_at = null
+  }
   if (typeof body.notes === 'string') updates.notes = body.notes
   if (typeof body.page_content === 'string') updates.page_content = body.page_content
   if (typeof body.url === 'string') updates.url = body.url
@@ -46,10 +51,12 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Re-score if page_content changed
+  // Re-score if page_content changed (parallel queries)
   if (updates.page_content) {
-    const { data: job } = await supabase.from('job_postings').select('title, company, location, url').eq('id', id).single()
-    const { data: resume } = await supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single()
+    const [{ data: job }, { data: resume }] = await Promise.all([
+      supabase.from('job_postings').select('title, company, location, url').eq('id', id).single(),
+      supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single(),
+    ])
 
     if (job) {
       const result = scorePosting({ text: updates.page_content, title: job.title ?? '', company: job.company ?? '', location: job.location ?? '', url: job.url })

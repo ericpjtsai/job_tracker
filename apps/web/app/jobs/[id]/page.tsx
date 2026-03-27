@@ -260,6 +260,10 @@ export default function JobDetailPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </button>
         </div>
+
+        {job.applied_at && (
+          <div className="text-xs text-muted-foreground mt-2">Applied on {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+        )}
       </div>
 
       {/* ── Content area — 2 columns on large screens ────────────────── */}
@@ -310,7 +314,24 @@ export default function JobDetailPage() {
                 contentEditable
                 suppressContentEditableWarning
                 onInput={(e) => setDraftDesc((e.target as HTMLDivElement).innerHTML)}
-                className="job-description min-h-[300px] p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    const el = e.target as HTMLDivElement
+                    setDraftDesc(el.innerHTML)
+                    // Trigger save
+                    ;(async () => {
+                      setSavingDesc(true)
+                      const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: el.innerHTML }) })
+                      const result = await res.json()
+                      setJob({ ...job!, page_content: el.innerHTML, ...(result.score !== undefined ? { score: result.score, priority: result.priority, resume_fit: result.resume_fit, keywords_matched: result.keywords_matched } : {}) })
+                      setEditingDesc(false)
+                      setSavingDesc(false)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    })()
+                  }
+                }}
+                className="job-description min-h-[300px] max-h-[600px] overflow-y-auto p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 data-placeholder="Paste or edit job description..."
               />
             ) : prepared ? (
