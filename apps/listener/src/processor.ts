@@ -146,7 +146,7 @@ export function getProcessorStats() {
 
 // ─── Pre-insert filters ───────────────────────────────────────────────────────
 
-const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer)\b/i
+const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer)\b/i
 
 const BLOCKED_COMPANIES = new Set(['lensa'])
 
@@ -182,7 +182,7 @@ function isLocationBlocked(location: string): boolean {
 
 export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   const supabase = getSupabase()
-  const normalizedUrl = normalizeUrl(opts.url)
+  const normalizedUrl = canonicalLinkedInUrl(opts.url)
   const urlHash = sha256(normalizedUrl)
   processorStats.received++
 
@@ -222,6 +222,25 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
       .update({ last_seen: new Date().toISOString() })
       .eq('id', existing.id)
     return
+  }
+
+  // ── Title+company dedup (catches cross-source duplicates) ───────────────
+  if (opts.title && opts.company) {
+    const { data: titleMatch } = await supabase
+      .from('job_postings')
+      .select('id')
+      .ilike('title', opts.title)
+      .ilike('company', opts.company)
+      .maybeSingle()
+
+    if (titleMatch) {
+      processorStats.deduplicated++
+      await supabase
+        .from('job_postings')
+        .update({ last_seen: new Date().toISOString() })
+        .eq('id', titleMatch.id)
+      return
+    }
   }
 
   // ── Score ────────────────────────────────────────────────────────────────

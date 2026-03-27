@@ -43,6 +43,7 @@ const TYPE_LABELS: Record<string, string> = { ats: 'ATS', hiring_manager: 'Hirin
 export default function ResumePage() {
   const [versions, setVersions] = useState<ResumeVersion[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [rescoring, setRescoring] = useState(false)
   const [rescoreResult, setRescoreResult] = useState<{ updated: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +73,7 @@ export default function ResumePage() {
       return
     }
     setUploading(resumeType)
+    setUploadProgress(0)
     setError(null)
     setRescoreResult(null)
 
@@ -79,17 +81,31 @@ export default function ResumePage() {
     form.append('file', file)
     form.append('resume_type', resumeType)
 
-    const res = await fetch('/api/resume', { method: 'POST', body: form })
-    const data = await res.json()
+    try {
+      const data = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 90))
+        }
+        xhr.onload = () => {
+          setUploadProgress(100)
+          try { resolve(JSON.parse(xhr.responseText)) } catch { reject(new Error('Invalid response')) }
+        }
+        xhr.onerror = () => reject(new Error('Upload failed'))
+        xhr.open('POST', '/api/resume')
+        xhr.send(form)
+      })
 
-    if (!res.ok) {
-      setError(data.error ?? 'Upload failed')
-      setUploading(null)
-      return
+      if (data.error) {
+        setError(data.error)
+      } else {
+        loadVersions()
+      }
+    } catch (err: any) {
+      setError(err.message ?? 'Upload failed')
     }
-
     setUploading(null)
-    loadVersions()
+    setUploadProgress(0)
   }
 
   async function handleRescore() {
@@ -156,6 +172,18 @@ export default function ResumePage() {
               </div>
             </div>
 
+            {uploading === 'ats' && (
+              <div className="mx-4 mb-1 mt-1 space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{uploadProgress < 90 ? 'Uploading...' : 'Extracting keywords...'}</span>
+                  <span className="tabular-nums">{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
+            )}
+
             {rescoreResult && (
               <div className="mx-4 mb-3 text-xs text-green-600 bg-green-500/10 rounded-md px-3 py-2">
                 Updated resume fit score for <span className="tabular-nums">{rescoreResult.updated}</span> jobs.
@@ -184,7 +212,13 @@ export default function ResumePage() {
             className="rounded-xl p-6 text-center cursor-pointer transition-colors border-2 border-dashed border-border hover:border-primary/50 bg-card"
           >
             {uploading === 'ats' ? (
-              <div className="text-sm text-muted-foreground">Uploading and extracting keywords...</div>
+              <div className="w-full max-w-xs mx-auto space-y-2">
+                <div className="text-sm text-muted-foreground">{uploadProgress < 90 ? 'Uploading...' : 'Extracting keywords...'}</div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <div className="text-xs text-muted-foreground tabular-nums">{uploadProgress}%</div>
+              </div>
             ) : (
               <>
                 <div className="text-sm font-medium">Upload ATS resume</div>
@@ -240,7 +274,13 @@ export default function ResumePage() {
             className="rounded-xl p-6 text-center cursor-pointer transition-colors border-2 border-dashed border-border hover:border-primary/50 bg-card"
           >
             {uploading === 'hiring_manager' ? (
-              <div className="text-sm text-muted-foreground">Uploading...</div>
+              <div className="w-full max-w-xs mx-auto space-y-2">
+                <div className="text-sm text-muted-foreground">Uploading...</div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <div className="text-xs text-muted-foreground tabular-nums">{uploadProgress}%</div>
+              </div>
             ) : (
               <>
                 <div className="text-sm font-medium">Upload Hiring Manager resume</div>

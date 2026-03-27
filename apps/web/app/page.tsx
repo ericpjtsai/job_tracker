@@ -366,8 +366,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
-      <div className={scrolled ? 'sticky top-[41px] z-40 -mx-6 bg-background/95 backdrop-blur-sm border-b' : 'hidden'}>
-          <div className="max-w-7xl mx-auto px-6 py-2 flex items-center gap-2">
+      <div className={scrolled ? 'sticky top-[42px] z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
+          <div className="max-w-7xl mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2">
             {/* Priority chips */}
             {[
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
@@ -375,7 +375,7 @@ export default function DashboardPage() {
               { label: 'L', key: 'low' as const, value: stats.low, growth: stats.growthLow },
             ].map((s) => (
               <button key={s.key} type="button" onClick={() => togglePriority(s.key)}
-                className={`text-xs px-2 py-1 rounded-md transition-colors tabular-nums ${priority === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs px-2 py-1.5 rounded-md transition-colors tabular-nums ${priority === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
               >{s.label}:{s.value}{growthLabel(s.growth) && <span className={`ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}</button>
             ))}
             <span className="text-muted-foreground/20">|</span>
@@ -415,11 +415,11 @@ export default function DashboardPage() {
               )}
               {polling ? (
                 <button type="button" onClick={stopPolling}
-                  className="text-xs text-destructive border border-destructive/30 rounded-md px-2 py-1 hover:bg-destructive/10 transition-colors"
+                  className="text-xs text-destructive border border-destructive/30 rounded-md px-2 py-1.5 hover:bg-destructive/10 transition-colors"
                 ><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 bg-destructive rounded-sm" />{pollProgress.total > 0 ? `Stop (${pollProgress.current}/${pollProgress.total})` : 'Stop'}</span></button>
               ) : (
                 <button type="button" onClick={handleUpdate}
-                  className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1 hover:text-foreground transition-colors"
+                  className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1.5 hover:text-foreground transition-colors"
                 >↻ {lastUpdated ? timeAgo(new Date(lastUpdated).toISOString()) : 'Update'}</button>
               )}
             </div>
