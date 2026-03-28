@@ -8,6 +8,7 @@ import {
   companyFromDomain,
   getCompanyBonus,
   extractKeywordsWithGemini,
+  validateKeywords,
 } from '@job-tracker/scoring'
 
 // ─── Supabase client (service role — full write access) ───────────────────────
@@ -331,7 +332,8 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
 }
 
 async function enrichWithLLM(supabase: any, url: string, description: string, resumeKeywords: string[], geminiKey?: string, anthropicKey?: string) {
-  const llmResult = await extractKeywordsWithGemini(description, resumeKeywords, geminiKey, anthropicKey)
+  const rawResult = await extractKeywordsWithGemini(description, resumeKeywords, geminiKey, anthropicKey)
+  const llmResult = rawResult ? validateKeywords(rawResult, description, resumeKeywords) : null
   if (!llmResult) return
 
   const allKeywords = [...llmResult.matched, ...llmResult.missing]
