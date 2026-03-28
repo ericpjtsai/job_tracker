@@ -4,7 +4,7 @@ import http from 'http'
 import EventSource from 'eventsource'
 import { createClient } from '@supabase/supabase-js'
 import { syncAllTaps, TAP_CONFIGS, type TapInfo } from './rules'
-import { processEvent, getProcessorStats, type FirehoseUpdateEvent } from './processor'
+import { processEvent, getProcessorStats, invalidateResumeCache, type FirehoseUpdateEvent } from './processor'
 
 // ─── Import sources + their DataSource registrations ─────────────────────────
 import { pollAllAts, pollStatus, stopAts, atsSource } from './ats-poller'
@@ -71,15 +71,6 @@ async function runRescore() {
   rescoreState.running = false
   console.log(`✅ Rescore done: ${rescoreState.updated} updated, ${rescoreState.errors} errors`)
 }
-
-// Force registration (importing the modules should trigger it, but ensure explicitly)
-void atsSource
-void mantikSource
-void scraperSource
-void serpApiSource
-void linkedinDirectSource
-void indeedSource
-void glassdoorSource
 
 const FIREHOSE_STREAM_URL = 'https://api.firehose.com/v1/stream'
 const RECONNECT_DELAY_MS = 5_000
@@ -275,6 +266,9 @@ function startControlServer() {
         res.statusCode = 404
         res.end(JSON.stringify({ error: 'Unknown poll endpoint' }))
       }
+    } else if (req.method === 'POST' && req.url === '/cache/invalidate') {
+      invalidateResumeCache()
+      res.end(JSON.stringify({ ok: true, message: 'Resume keyword cache invalidated' }))
     } else {
       res.statusCode = 404
       res.end(JSON.stringify({ error: 'Not found' }))

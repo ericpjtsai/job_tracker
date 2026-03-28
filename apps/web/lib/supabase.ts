@@ -12,6 +12,10 @@ export function createServerClient() {
   return createClient(supabaseUrl, serviceKey)
 }
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+export const JOB_STATUSES = ['new', 'reviewed', 'applied', 'skipped', 'unavailable'] as const
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface JobPosting {
@@ -19,7 +23,6 @@ export interface JobPosting {
   url: string
   url_hash: string
   company: string | null
-  company_tier: 1 | 2 | 3 | null
   title: string | null
   location: string | null
   salary_min: number | null
@@ -33,7 +36,6 @@ export interface JobPosting {
     methods: number
     soft_skills: number
     tools: number
-    company_bonus: number
     seniority_bonus: number
     location_bonus: number
   } | null

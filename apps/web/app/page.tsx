@@ -2,20 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase, type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
 import { formatSalary } from '@job-tracker/scoring'
+import { timeAgo, cycleOrder } from '@/lib/utils'
+import { StatCard } from '@/components/stat-card'
+import { SortHeader } from '@/components/sort-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-function timeAgo(iso: string): string {
-  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (secs < 60) return 'just now'
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return `${Math.floor(secs / 86400)}d ago`
-}
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
+const MotionTableRow = motion(TableRow)
 
 const PAGE_SIZE = 50
 
@@ -58,12 +57,6 @@ export default function DashboardPage() {
   // ── Sort ────────────────────────────────────────────────────────────────────
   const [fitOrder, setFitOrder] = useState<'asc' | 'desc' | null>(null)
   const [seenOrder, setSeenOrder] = useState<'asc' | 'desc' | null>(null)
-
-  function cycleOrder(current: 'asc' | 'desc' | null): 'asc' | 'desc' | null {
-    if (current === null) return 'desc'
-    if (current === 'desc') return 'asc'
-    return null
-  }
 
   // ── Fetch stats (respects current filters except priority) ─────────────────
   const loadStats = useCallback(async () => {
@@ -350,16 +343,16 @@ export default function DashboardPage() {
           <select
             aria-label="Time range"
             value={since}
-            onChange={(e) => setSince(e.target.value)}
-            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
+            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
           >
             {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
           </select>
           <select
             aria-label="Status filter"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+            onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
+            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
           >
             <option value="all">All</option>
             <option value="new">New</option>
@@ -409,8 +402,8 @@ export default function DashboardPage() {
             <select
               aria-label="Time range"
               value={since}
-              onChange={(e) => setSince(e.target.value)}
-              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+              onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
+              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
             >
               {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
             </select>
@@ -418,8 +411,8 @@ export default function DashboardPage() {
             <select
               aria-label="Status filter"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron"
+              onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
+              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
             >
               <option value="all">All</option>
               <option value="new">New</option>
@@ -453,23 +446,34 @@ export default function DashboardPage() {
       </div>
 
       {/* Search bar */}
-      {searchOpen && (
-        <div className="flex items-center gap-2">
-          <Input
-            type="text"
-            placeholder="Search title or company..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1"
-            autoFocus
-          />
-          {search && (
-            <Button variant="ghost" size="xs" onClick={() => setSearch('')}>
-              Clear
-            </Button>
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {searchOpen && (
+          <motion.div
+            key="search"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={spring}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="Search title or company..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1"
+                autoFocus
+              />
+              {search && (
+                <Button variant="ghost" size="xs" onClick={() => setSearch('')}>
+                  Clear
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Jobs table */}
       <div className="border rounded-lg min-h-[400px]">
@@ -500,7 +504,14 @@ export default function DashboardPage() {
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
-                <TableRow key={job.id} className={job.status === 'new' ? '' : 'bg-muted/40'}>
+                <MotionTableRow
+                  key={job.id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ ...spring, opacity: { duration: 0.2 } }}
+                  className={job.status === 'new' ? '' : 'bg-muted/40'}
+                >
                   <TableCell className="pl-3 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
                   <TableCell>
                     <Link href={`/jobs/${job.id}`} className="hover:underline font-medium block truncate max-w-full text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
@@ -529,7 +540,7 @@ export default function DashboardPage() {
                       }
                     </Button>
                   </TableCell>
-                </TableRow>
+                </MotionTableRow>
               ))}
             </TableBody>
           </Table>
@@ -545,71 +556,4 @@ export default function DashboardPage() {
   )
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function InfoTooltip({ text }: { text: string }) {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-
-  function show() {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const tipW = 192
-    let left = rect.left + rect.width / 2 - tipW / 2
-    let top = rect.bottom + 6
-    if (left < 8) left = 8
-    if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8
-    if (top + 80 > window.innerHeight) top = rect.top - 80 - 6
-    setPos({ top, left })
-  }
-
-  return (
-    <span className="inline-block align-middle ml-0.5" onMouseEnter={show} onMouseLeave={() => setPos(null)}>
-      <span ref={ref} className="text-muted-foreground/40 cursor-default text-[8px] rounded-full w-2.5 h-2.5 inline-flex items-center justify-center leading-none hover:text-muted-foreground select-none border border-border">i</span>
-      {pos && (
-        <span className="pointer-events-none fixed z-[9999] bg-black text-white text-xs font-normal normal-case tracking-normal whitespace-normal rounded-md px-2.5 py-2 w-48 shadow-lg leading-snug" style={{ top: pos.top, left: pos.left }}>
-          {text}
-        </span>
-      )}
-    </span>
-  )
-}
-
-function SortHeader({ label, order, onSort, tooltip }: { label: string; order: 'asc' | 'desc' | null; onSort: () => void; tooltip?: string }) {
-  return (
-    <span onClick={onSort} className="cursor-pointer select-none whitespace-nowrap hover:text-foreground inline-flex items-center gap-0.5">
-      {label}
-      {tooltip && <InfoTooltip text={tooltip} />}
-      <span className={order ? 'text-foreground' : 'text-muted-foreground/30'}>
-        {order === 'desc' ? ' ↓' : order === 'asc' ? ' ↑' : ' ↕'}
-      </span>
-    </span>
-  )
-}
-
-function StatCard({ label, value, active, change, changeColor, onClick }: {
-  label: string; value: number; active: boolean; change?: string; changeColor?: string; onClick: () => void
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`bg-card rounded-lg px-6 py-5 border cursor-pointer transition-all ${
-        active ? 'border-[1.5px] border-primary' : 'hover:shadow-sm'
-      }`}
-    >
-      <div className="space-y-1">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="flex items-baseline gap-2">
-          <span className={`text-3xl font-semibold font-mono tabular-nums tracking-[-0.02em] ${active ? 'text-primary' : 'text-foreground'}`}>
-            {value.toLocaleString()}
-          </span>
-          {change && (
-            <span className={`text-xs font-medium tabular-nums ${changeColor ?? 'text-green-600'}`}>{change}</span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 

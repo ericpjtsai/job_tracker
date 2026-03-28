@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   const seenOrder = searchParams.get('seenOrder')
   const newFirst = searchParams.get('newFirst') === 'true'
 
-  const LIST_COLS = 'id,url,title,company,company_tier,location,resume_fit,firehose_rule,first_seen,last_seen,status,score,priority,salary_min,salary_max'
+  const LIST_COLS = 'id,url,title,company,location,resume_fit,firehose_rule,first_seen,last_seen,status,score,priority,salary_min,salary_max'
+
+  // Escape Supabase filter metacharacters from user input
+  const safeSearch = search ? search.replace(/[.,()"\\]/g, '') : ''
 
   function applyFilters(q: any) {
     if (priority && priority !== 'all') {
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
       const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
       q = q.gte('first_seen', cutoff)
     }
-    if (search) q = q.or(`title.ilike.%${search}%,company.ilike.%${search}%`)
+    if (safeSearch) q = q.or(`title.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`)
     return q
   }
 
@@ -46,6 +49,11 @@ export async function GET(req: NextRequest) {
     const totalNew = newCount ?? 0
 
     const offset = page * limit
+
+    // Total count query — will run in parallel with data queries
+    let qTotal = supabase.from('job_postings').select('id', { count: 'exact', head: true })
+    qTotal = applyFilters(qTotal)
+
     let data: any[] = []
 
     if (offset < totalNew) {
@@ -56,34 +64,29 @@ export async function GET(req: NextRequest) {
       qNew = qNew.order('resume_fit', { ascending: false, nullsFirst: false }).range(offset, offset + newNeeded - 1)
 
       const restNeeded = limit - newNeeded
-      let qRest = restNeeded > 0
-        ? supabase.from('job_postings').select(LIST_COLS).neq('status', 'new')
+      const qRest = restNeeded > 0
+        ? applyFilters(supabase.from('job_postings').select(LIST_COLS).neq('status', 'new'))
+            .order('resume_fit', { ascending: false, nullsFirst: false }).range(0, restNeeded - 1)
         : null
-      if (qRest) {
-        qRest = applyFilters(qRest)
-        qRest = qRest.order('resume_fit', { ascending: false, nullsFirst: false }).range(0, restNeeded - 1)
-      }
 
-      const [resNew, resRest] = await Promise.all([qNew, qRest ?? Promise.resolve({ data: [] })])
+      const [resNew, resRest, { count: total }] = await Promise.all([qNew, qRest ?? Promise.resolve({ data: [] as any[] }), qTotal])
       data = [...(resNew.data ?? []), ...(resRest as any).data ?? []]
+      return NextResponse.json({ data, total: total ?? 0, page, limit }, {
+        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+      })
     } else {
       // Page is entirely in non-new jobs
       const restOffset = offset - totalNew
       let qRest = supabase.from('job_postings').select(LIST_COLS).neq('status', 'new')
       qRest = applyFilters(qRest)
       qRest = qRest.order('resume_fit', { ascending: false, nullsFirst: false }).range(restOffset, restOffset + limit - 1)
-      const resRest = await qRest
+
+      const [resRest, { count: total }] = await Promise.all([qRest, qTotal])
       data = resRest.data ?? []
+      return NextResponse.json({ data, total: total ?? 0, page, limit }, {
+        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+      })
     }
-
-    // Get total count
-    let qTotal = supabase.from('job_postings').select('id', { count: 'exact', head: true })
-    qTotal = applyFilters(qTotal)
-    const { count: total } = await qTotal
-
-    return NextResponse.json({ data, total: total ?? 0, page, limit }, {
-      headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
-    })
   }
 
   // ── Standard sort ───────────────────────────────────────────────────────
@@ -102,6 +105,6 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ data, total: count ?? 0, page, limit }, {
-    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
   })
 }

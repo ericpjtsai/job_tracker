@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { type ResumeVersion } from '@/lib/supabase'
+import { formatDateTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
+const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto', opacity: 1 }, exit: { height: 0, opacity: 0 }, transition: spring, style: { overflow: 'hidden' as const } }
 
 const KEYWORD_CATEGORIES: Record<string, string[]> = {
   'B2B / Domain': ['B2B', 'enterprise', 'SaaS', 'CRM', 'dashboard', 'fintech', 'workflow automation', 'developer tools', 'API', 'internal tools', 'ecommerce', 'e-commerce', 'digital ecosystem', 'media', 'editorial', 'content-driven'],
@@ -32,11 +37,6 @@ function categorize(keywords: string[]): Record<string, string[]> {
   return result
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-}
 
 const TYPE_LABELS: Record<string, string> = { ats: 'ATS', hiring_manager: 'Hiring Manager' }
 
@@ -216,7 +216,7 @@ export default function ResumePage() {
                   <Badge variant="success" className="text-[10px]">Active</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Uploaded {formatDate(atsActive.uploaded_at)} · <span className="tabular-nums">{atsActive.keywords_extracted?.length ?? 0}</span> keywords extracted
+                  Uploaded {formatDateTime(atsActive.uploaded_at)} · <span className="tabular-nums">{atsActive.keywords_extracted?.length ?? 0}</span> keywords extracted
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -245,27 +245,40 @@ export default function ResumePage() {
               </div>
             )}
 
-            {rescoreResult && (
-              <div className="mx-4 mb-3 text-xs text-green-600 bg-green-500/10 rounded-md px-3 py-2">
-                Updated resume fit score for <span className="tabular-nums">{rescoreResult.updated}</span> jobs.
-              </div>
-            )}
+            <AnimatePresence>
+              {rescoreResult && (
+                <motion.div
+                  key="rescore-result"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={spring}
+                  className="mx-4 mb-3 text-xs text-green-600 bg-green-500/10 rounded-md px-3 py-2"
+                >
+                  Updated resume fit score for <span className="tabular-nums">{rescoreResult.updated}</span> jobs.
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Keywords — collapsible */}
-            {atsOpen && Object.keys(atsCategorized).length > 0 && (
-              <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-4">
-                {Object.entries(atsCategorized).map(([cat, terms]) => (
-                  <div key={cat}>
-                    <div className="text-xs font-medium text-muted-foreground mb-2">{cat}</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {terms.map((t) => (
-                        <Badge key={t} variant="secondary">{t}</Badge>
-                      ))}
-                    </div>
+            <AnimatePresence initial={false}>
+              {atsOpen && Object.keys(atsCategorized).length > 0 && (
+                <motion.div key="ats-kw" {...collapse}>
+                  <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-4">
+                    {Object.entries(atsCategorized).map(([cat, terms]) => (
+                      <div key={cat}>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{cat}</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {terms.map((t) => (
+                            <Badge key={t} variant="secondary">{t}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ) : (
           <div
@@ -314,7 +327,7 @@ export default function ResumePage() {
                   <Badge variant="success" className="text-[10px]">Active</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Uploaded {formatDate(hmActive.uploaded_at)}
+                  Uploaded {formatDateTime(hmActive.uploaded_at)}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -328,11 +341,15 @@ export default function ResumePage() {
               </div>
             </div>
 
-            {hmOpen && (
-              <div className="px-4 pt-4 pb-4 bg-muted/30 text-xs text-muted-foreground">
-                No keyword analysis — this resume is for sending directly to hiring managers.
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {hmOpen && (
+                <motion.div key="hm-kw" {...collapse}>
+                  <div className="px-4 pt-4 pb-4 bg-muted/30 text-xs text-muted-foreground">
+                    No keyword analysis — this resume is for sending directly to hiring managers.
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ) : (
           <div
@@ -384,7 +401,7 @@ export default function ResumePage() {
                   <TableRow key={v.id} className={v.is_active ? 'bg-primary/5' : ''}>
                     <TableCell className="font-medium text-sm">{v.filename ?? 'resume.pdf'}</TableCell>
                     <TableCell className="text-xs">{TYPE_LABELS[v.resume_type] ?? 'ATS'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(v.uploaded_at)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(v.uploaded_at)}</TableCell>
                     <TableCell className="text-right tabular-nums text-xs">{v.keywords_extracted?.length ?? 0}</TableCell>
                     <TableCell>
                       {v.is_active ? (

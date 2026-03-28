@@ -174,10 +174,13 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
     model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.1,  // Low temp for consistent extraction
-      maxOutputTokens: 4096,
+      maxOutputTokens: 1500,
     },
   })
-  const result = await model.generateContent(prompt)
+  const result = await Promise.race([
+    model.generateContent(prompt),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Gemini timeout (15s)')), 15_000)),
+  ])
   return result.response.text()
 }
 
@@ -194,10 +197,11 @@ async function callClaude(prompt: string, apiKey: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 1500,
       temperature: 0.1,
       messages: [{ role: 'user', content: prompt }],
     }),
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`)
   const data = await res.json()

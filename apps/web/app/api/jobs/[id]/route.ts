@@ -17,7 +17,9 @@ export async function GET(
     .single()
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(data)
+  return NextResponse.json(data, {
+    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+  })
 }
 
 export async function PATCH(

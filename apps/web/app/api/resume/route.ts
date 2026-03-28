@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { extractResumeKeywords, computeResumeFit } from '@job-tracker/scoring'
+import { extractResumeKeywords } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,11 +48,6 @@ export async function PATCH(req: NextRequest) {
     .single()
 
   if (error || !resume) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 500 })
-
-  // Re-score all jobs only if ATS resume changed
-  if (resumeType === 'ats') {
-    updateAllResumeFit(supabase, resume.keywords_extracted ?? []).catch(console.error)
-  }
 
   return NextResponse.json({ ok: true, resume })
 }
@@ -129,11 +124,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insertError?.message ?? 'DB insert failed' }, { status: 500 })
   }
 
-  // ── Update resume_fit for all existing job postings (background, ATS only)
-  if (resumeType === 'ats') {
-    updateAllResumeFit(supabase, keywords).catch(console.error)
-  }
-
   return NextResponse.json({
     id: newResume.id,
     uploaded_at: newResume.uploaded_at,
@@ -142,20 +132,3 @@ export async function POST(req: NextRequest) {
   })
 }
 
-async function updateAllResumeFit(supabase: any, resumeKeywords: string[]) {
-  const { data: jobs } = await supabase
-    .from('job_postings')
-    .select('id, keywords_matched')
-
-  if (!jobs) return
-
-  const updates = jobs.map((job: { id: string; keywords_matched: string[] | null }) => ({
-    id: job.id,
-    resume_fit: computeResumeFit(job.keywords_matched ?? [], resumeKeywords),
-  }))
-
-  const BATCH = 500
-  for (let i = 0; i < updates.length; i += BATCH) {
-    await supabase.from('job_postings').upsert(updates.slice(i, i + BATCH), { onConflict: 'id' })
-  }
-}
