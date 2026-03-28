@@ -5,6 +5,24 @@ import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
+// GET: list manual imports with pagination
+export async function GET(req: NextRequest) {
+  const supabase = createServerClient()
+  const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
+  const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
+
+  const { data, error, count } = await supabase
+    .from('job_postings')
+    .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'exact' })
+    .eq('source_type', 'manual')
+    .order('applied_at', { ascending: false, nullsFirst: false })
+    .order('first_seen', { ascending: false })
+    .range(page * limit, (page + 1) * limit - 1)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ jobs: data ?? [], total: count ?? 0, page, limit })
+}
+
 interface ParsedJob {
   title: string
   company: string
@@ -184,7 +202,7 @@ export async function POST(req: NextRequest) {
       if (parsed.salary_max) updates.salary_max = parsed.salary_max
 
       await supabase.from('job_postings').update(updates).eq('id', existing.id)
-      results.push({ title: parsed.title, company: parsed.company, id: existing.id, status: 'updated', resume_fit })
+      results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: updates.status ?? parsed.status, resume_fit })
       continue
     }
 
@@ -215,7 +233,7 @@ export async function POST(req: NextRequest) {
       .select('id')
       .single()
 
-    results.push({ title: parsed.title, company: parsed.company, id: data?.id, status: 'imported', resume_fit, error: error?.message })
+    results.push({ title: parsed.title, company: parsed.company, id: data?.id, action: 'imported', jobStatus: parsed.status === 'applied' ? 'applied' : 'new', resume_fit, error: error?.message })
   }
 
   return NextResponse.json({ imported: results.filter(r => r.id).length, results })
