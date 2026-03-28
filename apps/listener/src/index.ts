@@ -17,6 +17,60 @@ import { pollIndeed, pollGlassdoor, indeedSource, glassdoorSource } from './hasd
 import { registerSource } from './sources/registry'
 import { getSource, getSourcesStatus } from './sources/registry'
 import { createHealth, type DataSource } from './sources/types'
+import { extractKeywordsWithGemini, validateKeywords, computeResumeFit } from '@job-tracker/scoring'
+
+// ─── Rescore state ───────────────────────────────────────────────────────────
+const rescoreState = { running: false, current: 0, total: 0, updated: 0, errors: 0 }
+
+async function runRescore() {
+  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const geminiKey = process.env.GEMINI_API_KEY
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+
+  const { data: resume } = await supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single()
+  if (!resume) { console.error('No active resume'); return }
+  const resumeKeywords: string[] = resume.keywords_extracted ?? []
+
+  const { data: jobs } = await supabase.from('job_postings').select('id, keywords_matched, page_content')
+  if (!jobs) return
+
+  rescoreState.running = true
+  rescoreState.current = 0
+  rescoreState.total = jobs.length
+  rescoreState.updated = 0
+  rescoreState.errors = 0
+  console.log(`🔄 Rescore started: ${jobs.length} jobs`)
+
+  for (const job of jobs) {
+    rescoreState.current++
+    try {
+      if ((geminiKey || anthropicKey) && job.page_content && job.page_content.length > 100) {
+        const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+        const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
+        if (llmResult) {
+          const allKeywords = [...llmResult.matched, ...llmResult.missing]
+          const fit = llmResult.role_fit
+          const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
+          await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', job.id)
+          rescoreState.updated++
+          await new Promise(r => setTimeout(r, 200))
+          continue
+        }
+      }
+      // Fallback: regex
+      const fit = computeResumeFit(job.keywords_matched ?? [], resumeKeywords)
+      const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
+      await supabase.from('job_postings').update({ resume_fit: fit, priority }).eq('id', job.id)
+      rescoreState.updated++
+    } catch (err) {
+      rescoreState.errors++
+      console.error(`Rescore error for ${job.id}:`, (err as Error).message)
+    }
+  }
+
+  rescoreState.running = false
+  console.log(`✅ Rescore done: ${rescoreState.updated} updated, ${rescoreState.errors} errors`)
+}
 
 // Force registration (importing the modules should trigger it, but ensure explicitly)
 void atsSource
@@ -184,6 +238,15 @@ function startControlServer() {
         rules: t.rules.map((r) => ({ tag: r.tag })),
       }))
       res.end(JSON.stringify({ sources, firehoseRules: rules, processorStats: getProcessorStats() }))
+    } else if (req.method === 'POST' && req.url === '/rescore') {
+      if (rescoreState.running) {
+        res.end(JSON.stringify({ ok: false, message: 'Rescore already running', ...rescoreState }))
+      } else {
+        runRescore().catch(console.error)
+        res.end(JSON.stringify({ ok: true, message: 'Rescore started' }))
+      }
+    } else if (req.method === 'GET' && req.url === '/rescore/status') {
+      res.end(JSON.stringify(rescoreState))
     } else if (req.method === 'POST' && req.url === '/poll/stop') {
       stopAts()
       res.end(JSON.stringify({ ok: true, message: 'ATS poll abort requested' }))

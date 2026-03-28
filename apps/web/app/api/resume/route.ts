@@ -10,11 +10,18 @@ export async function GET() {
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('resume_versions')
-    .select('*')
+    .select('id,filename,uploaded_at,is_active,resume_type,storage_path,keywords_extracted')
     .order('uploaded_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ versions: data ?? [] })
+
+  // For inactive versions, replace keywords array with just the count to reduce payload
+  const versions = (data ?? []).map(v => {
+    if (v.is_active) return v
+    const count = v.keywords_extracted?.length ?? 0
+    return { ...v, keywords_extracted: Array.from({ length: count }, (_, i) => String(i)) }
+  })
+  return NextResponse.json({ versions })
 }
 
 // ── PATCH: set a resume version as active ─────────────────────────────────────
