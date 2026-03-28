@@ -5,16 +5,12 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase, type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
-import { formatSalary } from '@job-tracker/scoring'
-import { timeAgo, cycleOrder } from '@/lib/utils'
+import { timeAgo } from '@/lib/utils'
 import { StatCard } from '@/components/stat-card'
-import { SortHeader } from '@/components/sort-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
-const MotionTableRow = motion(TableRow)
 
 const PAGE_SIZE = 50
 
@@ -45,7 +41,6 @@ export default function DashboardPage() {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)   // initial load only
   const [fetching, setFetching] = useState(false) // subsequent fetches (progress bar)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [priority, setPriority] = useState('high')
@@ -55,8 +50,8 @@ export default function DashboardPage() {
   const [searchOpen, setSearchOpen] = useState(false)
 
   // ── Sort ────────────────────────────────────────────────────────────────────
-  const [fitOrder, setFitOrder] = useState<'asc' | 'desc' | null>(null)
-  const [seenOrder, setSeenOrder] = useState<'asc' | 'desc' | null>(null)
+  const fitOrder = null
+  const seenOrder = null
 
   // ── Fetch stats (respects current filters except priority) ─────────────────
   const loadStats = useCallback(async () => {
@@ -244,12 +239,9 @@ export default function DashboardPage() {
   }
 
   async function deleteJob(id: string) {
-    if (!confirm('Delete this job posting? This cannot be undone.')) return
-    setDeletingId(id)
     await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
     setJobs((prev) => prev.filter((j) => j.id !== id))
     setTotal((t) => t - 1)
-    setDeletingId(null)
   }
 
   async function updateStatus(id: string, newStatus: string) {
@@ -314,11 +306,32 @@ export default function DashboardPage() {
     )}
     {(fetching || polling) && <div className="nav-progress-bar" />}
     <div className="space-y-4">
-      {/* Stat cards — normal flow, observed for scroll */}
-      <div ref={cardsRef} className="grid grid-cols-3 gap-4">
-        <StatCard label="High Priority" value={stats.high} active={priority === 'high'} change={growthLabel(stats.growthHigh)} changeColor={growthColor(stats.growthHigh)} onClick={() => togglePriority('high')} />
-        <StatCard label="Medium Priority" value={stats.medium} active={priority === 'medium'} change={growthLabel(stats.growthMedium)} changeColor={growthColor(stats.growthMedium)} onClick={() => togglePriority('medium')} />
-        <StatCard label="Low Priority" value={stats.low} active={priority === 'low'} change={growthLabel(stats.growthLow)} changeColor={growthColor(stats.growthLow)} onClick={() => togglePriority('low')} />
+      {/* Stat cards — compact row on mobile, 3-column grid on sm+ */}
+      <div ref={cardsRef}>
+        {/* Mobile: compact inline row */}
+        <div className="flex sm:hidden gap-2">
+          {[
+            { label: 'High', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
+            { label: 'Med', key: 'medium' as const, value: stats.medium, growth: stats.growthMedium },
+            { label: 'Low', key: 'low' as const, value: stats.low, growth: stats.growthLow },
+          ].map((s) => (
+            <button key={s.key} type="button" onClick={() => togglePriority(s.key)}
+              className={`flex-1 rounded-lg border px-3 py-2 text-center transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
+            >
+              <div className="text-[10px] text-muted-foreground">{s.label}</div>
+              <div className={`text-lg font-semibold font-mono tabular-nums ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
+                {s.value}
+                {growthLabel(s.growth) && <span className={`text-[10px] ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+        {/* Desktop: full stat cards */}
+        <div className="hidden sm:grid grid-cols-3 gap-4">
+          <StatCard label="High Priority" value={stats.high} active={priority === 'high'} change={growthLabel(stats.growthHigh)} changeColor={growthColor(stats.growthHigh)} onClick={() => togglePriority('high')} />
+          <StatCard label="Medium Priority" value={stats.medium} active={priority === 'medium'} change={growthLabel(stats.growthMedium)} changeColor={growthColor(stats.growthMedium)} onClick={() => togglePriority('medium')} />
+          <StatCard label="Low Priority" value={stats.low} active={priority === 'low'} change={growthLabel(stats.growthLow)} changeColor={growthColor(stats.growthLow)} onClick={() => togglePriority('low')} />
+        </div>
       </div>
 
       {/* Date tabs + New + Search + Update — all one row */}
@@ -475,8 +488,8 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Jobs table */}
-      <div className="border rounded-lg min-h-[400px]">
+      {/* Jobs list */}
+      <div className="min-h-[400px]">
         {loading && jobs.length === 0 ? (
           <div className="text-sm text-muted-foreground py-12 text-center">Loading...</div>
         ) : !loading && jobs.length === 0 ? (
@@ -486,71 +499,68 @@ export default function DashboardPage() {
               : 'No jobs yet. The listener will populate this as it finds matches.'}
           </div>
         ) : (
-          <Table className="table-fixed w-full">
-            <TableHeader>
-              <TableRow className="bg-muted/50 text-xs text-muted-foreground">
-                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] pl-3 pr-3 whitespace-nowrap">
-                  <SortHeader label="Fit" order={fitOrder} tooltip="How closely your resume keywords match this job's requirements." onSort={() => { setFitOrder(cycleOrder(fitOrder)); setPage(0) }} />
-                </TableHead>
-                <TableHead className="w-auto">Job</TableHead>
-                <TableHead className="hidden lg:table-cell lg:w-[16%]">Location</TableHead>
-                <TableHead className="hidden xl:table-cell xl:w-[9%]">Salary</TableHead>
-                <TableHead className="hidden md:table-cell md:w-[8%] px-2 whitespace-nowrap">
-                  <SortHeader label="Seen" order={seenOrder} onSort={() => { setSeenOrder(cycleOrder(seenOrder)); setPage(0) }} />
-                </TableHead>
-                <TableHead className="w-[15%] md:w-[12%] lg:w-[11%] px-2">Status</TableHead>
-                <TableHead className="w-[8%] md:w-[6%] lg:w-[5%] px-0 pr-3 text-right"><span className="sr-only">Actions</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            <div className="space-y-2">
+              <AnimatePresence>
               {jobs.map((job) => (
-                <MotionTableRow
+                <motion.div
                   key={job.id}
                   layout
                   initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -300, height: 0, marginBottom: 0, transition: { duration: 0.3 } }}
                   transition={{ ...spring, opacity: { duration: 0.2 } }}
-                  className={job.status === 'new' ? '' : 'bg-muted/40'}
+                  className="relative overflow-hidden rounded-lg"
                 >
-                  <TableCell className="pl-3 pr-3"><FitBadge fit={job.resume_fit} /></TableCell>
-                  <TableCell>
-                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium block truncate max-w-full text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
+                  {/* Delete background revealed on swipe */}
+                  <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-6 rounded-lg">
+                    <span className="text-destructive-foreground text-sm font-medium">Delete</span>
+                  </div>
+                  <motion.div
+                    drag="x"
+                    dragDirectionLock
+                    dragConstraints={{ left: -120, right: 0 }}
+                    dragElastic={0.1}
+                    onDragEnd={(_e, info) => {
+                      if (info.offset.x < -80) deleteJob(job.id)
+                    }}
+                    className={`bg-card border px-4 py-3 rounded-lg relative ${job.status === 'new' ? 'border-l-2 border-l-primary' : ''}`}
+                  >
+                  {/* Row 1: Title — Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm truncate text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
-                    <span className="text-muted-foreground text-xs">
-                      {job.company ?? '—'}
-                      {job.firehose_rule && <span className="opacity-50">・{job.firehose_rule}</span>}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell text-xs truncate">{job.location ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground hidden xl:table-cell text-xs tabular-nums">
-                    {formatSalary({ min: job.salary_min, max: job.salary_max }) ?? '—'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs hidden md:table-cell whitespace-nowrap tabular-nums px-2">
-                    {timeAgo(job.first_seen)}
-                  </TableCell>
-                  <TableCell className="px-2">
-                    <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
-                  </TableCell>
-                  <TableCell className="text-right px-0 pr-3">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteJob(job.id)} disabled={deletingId === job.id}>
-                      {deletingId === job.id
-                        ? <span className="text-xs">…</span>
-                        : <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      }
-                    </Button>
-                  </TableCell>
-                </MotionTableRow>
+                    <div className="shrink-0">
+                      <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
+                    </div>
+                  </div>
+                  {/* Row 2: Fit · Company · Location */}
+                  <div className="text-xs truncate mt-0.5">
+                    <FitBadge fit={job.resume_fit} />
+                    <span className="text-muted-foreground mx-1">·</span>
+                    <span className="text-foreground">{job.company ?? '—'}</span>
+                    {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
+                  </div>
+                  {/* Row 3: Applied date (if applied) */}
+                  {job.applied_at && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  )}
+                  </motion.div>
+                </motion.div>
               ))}
-            </TableBody>
-          </Table>
+              </AnimatePresence>
+            </div>
+          </>
         )}
       </div>
 
       {/* Infinite scroll sentinel */}
       <div ref={bottomRef} className="h-1" />
       {loadingMore.current && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
-      {jobs.length > 0 && jobs.length >= total && <div className="text-center text-xs text-muted-foreground -mt-3 pb-2">{total} jobs</div>}
+      {jobs.length > 0 && jobs.length >= total && <div className="text-center text-xs text-muted-foreground pb-2">End of list</div>}
     </div>
     </>
   )

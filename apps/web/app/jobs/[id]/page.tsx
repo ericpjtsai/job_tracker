@@ -307,7 +307,7 @@ export default function JobDetailPage() {
           <div className="bg-card rounded-lg border overflow-hidden">
             {/* Header — clickable to collapse */}
             <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingDesc && setDescOpen(!descOpen)}>
-              <div className="text-sm font-semibold tracking-[-0.02em]">Job description</div>
+              <div className="text-sm font-semibold">Job description</div>
               <div className="flex items-center gap-2">
                 {editingDesc ? (
                   <>
@@ -445,7 +445,7 @@ export default function JobDetailPage() {
           {/* Notes — same card pattern as job description */}
           <div className="bg-card rounded-lg border overflow-hidden">
             <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${notesOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingNotes && setNotesOpen(!notesOpen)}>
-              <div className="text-sm font-semibold tracking-[-0.02em]">Notes</div>
+              <div className="text-sm font-semibold">Notes</div>
               <div className="flex items-center gap-2">
                 {editingNotes ? (
                   <>

@@ -20,7 +20,7 @@ export function StatCard({ label, value, active, change, changeColor, onClick }:
       <div className="space-y-1">
         <div className="text-sm text-muted-foreground">{label}</div>
         <div className="flex items-baseline gap-2">
-          <span className={`text-3xl font-semibold font-mono tabular-nums tracking-[-0.02em] ${active ? 'text-primary' : 'text-foreground'}`}>
+          <span className={`text-3xl font-semibold font-mono tabular-nums ${active ? 'text-primary' : 'text-foreground'}`}>
             {value.toLocaleString()}
           </span>
           {change && (
