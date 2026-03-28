@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // ── Sort ────────────────────────────────────────────────────────────────────
   const fitOrder = null
@@ -316,13 +317,13 @@ export default function DashboardPage() {
             { label: 'Low', key: 'low' as const, value: stats.low, growth: stats.growthLow },
           ].map((s) => (
             <button key={s.key} type="button" onClick={() => togglePriority(s.key)}
-              className={`flex-1 rounded-lg border px-3 py-2 text-center transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
+              className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
             >
               <div className="text-[10px] text-muted-foreground">{s.label}</div>
               <div className={`text-lg font-semibold font-mono tabular-nums ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
                 {s.value}
-                {growthLabel(s.growth) && <span className={`text-[10px] ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}
               </div>
+              {growthLabel(s.growth) ? <div className={`text-[10px] tabular-nums ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</div> : <div className="text-[10px]">&nbsp;</div>}
             </button>
           ))}
         </div>
@@ -334,10 +335,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Date tabs + New + Search + Update — all one row */}
+      {/* Filters row */}
       <div className={`flex items-center gap-2 ${scrolled ? 'hidden' : ''}`}>
-        {/* Desktop: buttons */}
-        <div className="hidden lg:contents">
+        {/* Desktop: full buttons */}
+        <div className="hidden sm:contents">
           {dateTabs.map((tab) => (
             <button key={tab.value} type="button" onClick={() => setSince(tab.value)}
               className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
@@ -350,35 +351,29 @@ export default function DashboardPage() {
           <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
             className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >Applied</button>
-        </div>
-        {/* Mobile/tablet: dropdowns */}
-        <div className="contents lg:hidden">
-          <select
-            aria-label="Time range"
-            value={since}
-            onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
-            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+          <span className="text-muted-foreground/20">|</span>
+          <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
+            className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
-          </select>
-          <select
-            aria-label="Status filter"
-            value={status}
-            onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
-            className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
-          >
-            <option value="all">All</option>
-            <option value="new">New</option>
-            <option value="applied">Applied</option>
-          </select>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
         </div>
-        <span className="text-muted-foreground/20">|</span>
-        <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
-          className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        </button>
-        {/* Update button + last updated — far right */}
+
+        {/* Mobile: filter icon + search icon */}
+        <div className="flex items-center gap-2 sm:hidden">
+          <button type="button" aria-label="Filters" onClick={() => setFiltersOpen(!filtersOpen)}
+            className={`text-xs py-1.5 rounded-md transition-colors ${filtersOpen || since !== '24h' || status !== 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
+          </button>
+          <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
+            className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+        </div>
+
+        {/* Update button — far right */}
         <div className="flex items-center gap-2 ml-auto">
           {newCount > 0 && (
             <button type="button" onClick={() => { setNewCount(0); loadStats(); fetchJobs(0) }}
@@ -396,6 +391,41 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Mobile filter dropdown */}
+      <AnimatePresence>
+        {filtersOpen && (
+          <motion.div
+            key="mobile-filters"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={spring}
+            className="overflow-hidden sm:hidden"
+          >
+            <div className="flex items-center gap-2 pb-2">
+              <select
+                aria-label="Time range"
+                value={since}
+                onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
+                className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+              >
+                {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
+              </select>
+              <select
+                aria-label="Status filter"
+                value={status}
+                onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
+                className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+              >
+                <option value="all">All</option>
+                <option value="new">New</option>
+                <option value="applied">Applied</option>
+              </select>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
       <div className={scrolled ? 'sticky top-12 z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
@@ -505,11 +535,9 @@ export default function DashboardPage() {
               {jobs.map((job) => (
                 <motion.div
                   key={job.id}
-                  layout
-                  initial={{ opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -300, height: 0, marginBottom: 0, transition: { duration: 0.3 } }}
-                  transition={{ ...spring, opacity: { duration: 0.2 } }}
                   className="relative overflow-hidden rounded-lg"
                 >
                   {/* Delete background revealed on swipe */}
@@ -524,23 +552,24 @@ export default function DashboardPage() {
                     onDragEnd={(_e, info) => {
                       if (info.offset.x < -80) deleteJob(job.id)
                     }}
-                    className={`bg-card border px-4 py-3 rounded-lg relative ${job.status === 'new' ? 'border-l-2 border-l-primary' : ''}`}
+                    className="bg-card border px-4 py-3 rounded-lg relative"
                   >
-                  {/* Row 1: Title — Status */}
+                  {/* Row 1: Title — StatusChip (desktop only) */}
                   <div className="flex items-center justify-between gap-2">
-                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm truncate text-foreground" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
+                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm text-foreground sm:truncate" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
-                    <div className="shrink-0">
+                    <div className="shrink-0 hidden sm:block">
                       <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
                     </div>
                   </div>
-                  {/* Row 2: Fit · Company · Location */}
+                  {/* Row 2: Fit · Company · Location (+ status text on mobile) */}
                   <div className="text-xs truncate mt-0.5">
                     <FitBadge fit={job.resume_fit} />
                     <span className="text-muted-foreground mx-1">·</span>
                     <span className="text-foreground">{job.company ?? '—'}</span>
                     {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
+                    {job.status !== 'new' && <><span className="text-muted-foreground mx-1 sm:hidden">·</span><span className="text-muted-foreground capitalize sm:hidden">{job.status}</span></>}
                   </div>
                   {/* Row 3: Applied date (if applied) */}
                   {job.applied_at && (
