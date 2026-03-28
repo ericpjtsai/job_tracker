@@ -337,13 +337,9 @@ async function enrichWithLLM(supabase: any, url: string, description: string, re
   if (!llmResult) return
 
   const allKeywords = [...llmResult.matched, ...llmResult.missing]
-  const resumeFit = resumeKeywords.length > 0
-    ? Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)
-    : null
+  const resumeFit = llmResult.role_fit
 
-  const priority = resumeFit !== null
-    ? (resumeFit >= 60 ? 'high' : resumeFit >= 30 ? 'medium' : resumeFit >= 1 ? 'low' : 'skip')
-    : null
+  const priority = resumeFit >= 60 ? 'high' : resumeFit >= 30 ? 'medium' : resumeFit >= 1 ? 'low' : 'skip'
 
   const updates: Record<string, any> = { keywords_matched: allKeywords }
   if (resumeFit !== null) { updates.resume_fit = resumeFit; updates.priority = priority }

@@ -69,13 +69,9 @@ export async function PATCH(
 
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]
-        const resume_fit = resumeKeywords.length > 0
-          ? Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)
-          : null
-        const priority = resume_fit !== null
-          ? (resume_fit >= 60 ? 'high' : resume_fit >= 30 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip')
-          : undefined
-        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, ...(priority ? { priority } : {}) }).eq('id', id)
+        const resume_fit = llmResult.role_fit
+        const priority = resume_fit >= 60 ? 'high' : resume_fit >= 30 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip'
+        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, priority }).eq('id', id)
         return NextResponse.json({ ok: true, resume_fit, keywords_matched: allKeywords, matched: llmResult.matched, missing: llmResult.missing })
       }
 
