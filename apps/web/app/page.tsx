@@ -76,8 +76,12 @@ export default function DashboardPage() {
   }, [since, status, search])
 
   // ── Fetch jobs ─────────────────────────────────────────────────────────────
-  const fetchJobs = useCallback(async (pageNum = 0) => {
-    setFetching(true)
+  const loadingMore = useRef(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const fetchJobs = useCallback(async (pageNum = 0, append = false) => {
+    if (append) loadingMore.current = true
+    else setFetching(true)
     try {
       const params = new URLSearchParams({ page: String(pageNum), limit: String(PAGE_SIZE) })
       if (priority !== 'all') params.set('priority', priority)
@@ -91,21 +95,42 @@ export default function DashboardPage() {
       const res = await fetch(`/api/jobs?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const { data, total: t } = await res.json()
-      setJobs(data ?? [])
+      setJobs(prev => {
+        if (!append) return data ?? []
+        const existing = new Set(prev.map((j: any) => j.id))
+        return [...prev, ...(data ?? []).filter((j: any) => !existing.has(j.id))]
+      })
       setTotal(t ?? 0)
-      if (data?.length) sessionStorage.setItem('jobIds', JSON.stringify(data.map((j: any) => j.id)))
+      if (!append && data?.length) sessionStorage.setItem('jobIds', JSON.stringify(data.map((j: any) => j.id)))
+      if (append && data?.length) sessionStorage.setItem('jobIds', JSON.stringify([...JSON.parse(sessionStorage.getItem('jobIds') ?? '[]'), ...data.map((j: any) => j.id)]))
     } catch (err) {
       console.error('fetchJobs failed:', err)
-      setJobs([])
+      if (!append) setJobs([])
     } finally {
       setFetching(false)
       setLoading(false)
+      loadingMore.current = false
     }
   }, [priority, status, since, search, fitOrder, seenOrder])
 
   // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => { loadStats() }, [loadStats])
   useEffect(() => { setPage(0); fetchJobs(0) }, [fetchJobs])
+
+  // Infinite scroll
+  useEffect(() => {
+    const el = bottomRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !loadingMore.current && jobs.length < total) {
+        const nextPage = page + 1
+        setPage(nextPage)
+        fetchJobs(nextPage, true)
+      }
+    }, { rootMargin: '300px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [jobs.length, total, page, fetchJobs])
 
   // Auto-refresh on tab visibility
   useEffect(() => {
@@ -367,7 +392,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
-      <div className={scrolled ? 'sticky top-[42px] z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
+      <div className={scrolled ? 'sticky top-12 z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
           <div className="max-w-[1128px] mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2">
             {/* Priority chips */}
             {[
@@ -511,16 +536,10 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Pagination */}
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span className="tabular-nums">{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}</span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(page - 1); fetchJobs(page - 1) }}>← Prev</Button>
-            <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => { setPage(page + 1); fetchJobs(page + 1) }}>Next →</Button>
-          </div>
-        </div>
-      )}
+      {/* Infinite scroll sentinel */}
+      <div ref={bottomRef} className="h-1" />
+      {loadingMore.current && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
+      {jobs.length > 0 && jobs.length >= total && <div className="text-center text-xs text-muted-foreground -mt-3 pb-2">{total} jobs</div>}
     </div>
     </>
   )

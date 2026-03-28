@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { supabase, type JobPosting } from '@/lib/supabase'
+import { type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
 import { DropZone } from '@/components/drop-zone'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -16,7 +16,8 @@ interface ImportResult {
   title: string
   company: string
   id?: string
-  status: 'imported' | 'updated' | 'failed'
+  action: 'imported' | 'updated' | 'failed'
+  jobStatus: string
   resume_fit?: number
   error?: string
 }
@@ -26,17 +27,42 @@ export default function ImportPage() {
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null)
   const [history, setHistory] = useState<JobPosting[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyPage, setHistoryPage] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const PAGE_SIZE = 30
 
-  async function loadHistory() {
-    const { data } = await supabase
-      .from('job_postings')
-      .select('*')
-      .eq('source_type', 'manual')
-      .order('first_seen', { ascending: false })
-    setHistory(data ?? [])
-  }
+  const loadHistory = useCallback(async (page = 0, append = false) => {
+    if (page > 0) setLoadingMore(true)
+    const res = await fetch(`/api/jobs/import?page=${page}&limit=${PAGE_SIZE}`)
+    if (res.ok) {
+      const data = await res.json()
+      setHistory(prev => {
+        if (!append) return data.jobs ?? []
+        const existing = new Set(prev.map((j: any) => j.id))
+        return [...prev, ...(data.jobs ?? []).filter((j: any) => !existing.has(j.id))]
+      })
+      setHistoryTotal(data.total ?? 0)
+      setHistoryPage(page)
+    }
+    setLoadingMore(false)
+  }, [])
 
-  useEffect(() => { loadHistory() }, [])
+  useEffect(() => { loadHistory() }, [loadHistory])
+
+  // Infinite scroll — observe sentinel element
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !loadingMore && history.length < historyTotal) {
+        loadHistory(historyPage + 1, true)
+      }
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [history.length, historyTotal, historyPage, loadingMore, loadHistory])
 
   async function handleFiles(files: FileList | File[]) {
     const mdFiles = Array.from(files).filter(f => f.name.endsWith('.md'))
@@ -89,7 +115,7 @@ export default function ImportPage() {
       {importResults && importResults.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">
-            Results — {importResults.filter(r => r.status === 'imported').length} imported, {importResults.filter(r => r.status === 'updated').length} updated{importResults.some(r => r.status === 'failed') && `, ${importResults.filter(r => r.status === 'failed').length} failed`}
+            Results — {importResults.filter(r => r.action === 'imported').length} imported, {importResults.filter(r => r.action === 'updated').length} updated{importResults.some(r => r.action === 'failed') && `, ${importResults.filter(r => r.action === 'failed').length} failed`}
           </div>
           <div className="border rounded-lg">
             <Table>
@@ -97,7 +123,7 @@ export default function ImportPage() {
                 <TableRow className="bg-muted/50 text-xs text-muted-foreground">
                   <TableHead className="pl-3">Fit</TableHead>
                   <TableHead>Job</TableHead>
-                  <TableHead>Result</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -117,9 +143,14 @@ export default function ImportPage() {
                       {r.company && <span className="text-muted-foreground text-xs block">{r.company}</span>}
                     </TableCell>
                     <TableCell>
-                      {r.status === 'imported' && <span className="text-xs text-green-600">Imported</span>}
-                      {r.status === 'updated' && <span className="text-xs text-blue-600">Updated</span>}
-                      {r.status === 'failed' && <span className="text-xs text-destructive">{r.error ?? 'Failed'}</span>}
+                      {r.id ? (
+                        <StatusChip status={r.jobStatus} onChange={async (s) => {
+                          await fetch(`/api/jobs/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
+                          setImportResults(prev => prev?.map((item, j) => j === i ? { ...item, jobStatus: s } : item) ?? null)
+                        }} />
+                      ) : (
+                        <span className="text-xs text-destructive">{r.error ?? 'Failed'}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -164,6 +195,10 @@ export default function ImportPage() {
               </TableBody>
             </Table>
           </div>
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-1" />
+          {loadingMore && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
+          {history.length >= historyTotal && historyTotal > 0 && <div className="text-center text-xs text-muted-foreground py-1">{historyTotal} total</div>}
         </div>
       )}
     </div>

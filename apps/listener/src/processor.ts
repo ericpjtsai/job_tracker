@@ -7,6 +7,7 @@ import {
   computeResumeFit,
   companyFromDomain,
   getCompanyBonus,
+  extractKeywordsWithGemini,
 } from '@job-tracker/scoring'
 
 // ─── Supabase client (service role — full write access) ───────────────────────
@@ -225,20 +226,25 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   }
 
   // ── Title+company dedup (catches cross-source duplicates) ───────────────
-  if (opts.title && opts.company) {
-    const { data: titleMatch } = await supabase
-      .from('job_postings')
-      .select('id')
-      .ilike('title', opts.title)
-      .ilike('company', opts.company)
-      .maybeSingle()
+  // Skip dedup if existing row is manual import — never overwrite manual data
+  if (opts.title) {
+    let q = supabase.from('job_postings').select('id, page_content, source_type').ilike('title', opts.title)
+    if (opts.company) q = q.ilike('company', opts.company)
+    const { data: titleMatch } = await q.maybeSingle()
 
     if (titleMatch) {
+      if (titleMatch.source_type === 'manual') {
+        // Manual import exists — still dedup (don't insert) but don't overwrite
+        processorStats.deduplicated++
+        return
+      }
       processorStats.deduplicated++
-      await supabase
-        .from('job_postings')
-        .update({ last_seen: new Date().toISOString() })
-        .eq('id', titleMatch.id)
+      // Merge: update last_seen + keep the longer description
+      const updates: Record<string, any> = { last_seen: new Date().toISOString() }
+      if (opts.description && opts.description.length > (titleMatch.page_content || '').length) {
+        updates.page_content = opts.description
+      }
+      await supabase.from('job_postings').update(updates).eq('id', titleMatch.id)
       return
     }
   }
@@ -315,6 +321,33 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   processorStats.inserted++
   const emoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '⚪'
   console.log(`${emoji} [${priority.toUpperCase()} fit:${resumeFit ?? '-'}% score:${result.total}] ${opts.title} — ${opts.company} | ${normalizedUrl}`)
+
+  // ── Async LLM enrichment (non-blocking) ─────────────────────────────────
+  const geminiKey = process.env.GEMINI_API_KEY
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  if ((geminiKey || anthropicKey) && opts.description && opts.description.length > 100) {
+    enrichWithLLM(supabase, normalizedUrl, opts.description, resumeKeywords, geminiKey, anthropicKey).catch(() => {})
+  }
+}
+
+async function enrichWithLLM(supabase: any, url: string, description: string, resumeKeywords: string[], geminiKey?: string, anthropicKey?: string) {
+  const llmResult = await extractKeywordsWithGemini(description, resumeKeywords, geminiKey, anthropicKey)
+  if (!llmResult) return
+
+  const allKeywords = [...llmResult.matched, ...llmResult.missing]
+  const resumeFit = resumeKeywords.length > 0
+    ? Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)
+    : null
+
+  const priority = resumeFit !== null
+    ? (resumeFit >= 60 ? 'high' : resumeFit >= 30 ? 'medium' : resumeFit >= 1 ? 'low' : 'skip')
+    : null
+
+  const updates: Record<string, any> = { keywords_matched: allKeywords }
+  if (resumeFit !== null) { updates.resume_fit = resumeFit; updates.priority = priority }
+
+  await supabase.from('job_postings').update(updates).eq('url', url)
+  console.log(`  🤖 LLM enriched: ${allKeywords.length} keywords (${llmResult.matched.length} matched, ${llmResult.missing.length} missing)`)
 }
 
 // ─── Job board URL allowlist (Firehose only) ──────────────────────────────────

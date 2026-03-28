@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsWithGemini } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,7 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Re-score if page_content changed (parallel queries)
+  // Re-score if page_content changed
   if (updates.page_content) {
     const [{ data: job }, { data: resume }] = await Promise.all([
       supabase.from('job_postings').select('title, company, location, url').eq('id', id).single(),
@@ -59,8 +59,27 @@ export async function PATCH(
     ])
 
     if (job) {
-      const result = scorePosting({ text: updates.page_content, title: job.title ?? '', company: job.company ?? '', location: job.location ?? '', url: job.url })
       const resumeKeywords = resume?.keywords_extracted ?? []
+      const geminiKey = process.env.GEMINI_API_KEY
+      const anthropicKey = process.env.ANTHROPIC_API_KEY
+
+      // Try LLM extraction first, fall back to regex
+      const llmResult = (geminiKey || anthropicKey) ? await extractKeywordsWithGemini(updates.page_content, resumeKeywords, geminiKey, anthropicKey) : null
+
+      if (llmResult) {
+        const allKeywords = [...llmResult.matched, ...llmResult.missing]
+        const resume_fit = resumeKeywords.length > 0
+          ? Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)
+          : null
+        const priority = resume_fit !== null
+          ? (resume_fit >= 60 ? 'high' : resume_fit >= 30 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip')
+          : undefined
+        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, ...(priority ? { priority } : {}) }).eq('id', id)
+        return NextResponse.json({ ok: true, resume_fit, keywords_matched: allKeywords, matched: llmResult.matched, missing: llmResult.missing })
+      }
+
+      // Fallback: regex scoring
+      const result = scorePosting({ text: updates.page_content, title: job.title ?? '', company: job.company ?? '', location: job.location ?? '', url: job.url })
       const resume_fit = computeResumeFit(result.keywords_matched, resumeKeywords)
       await supabase.from('job_postings').update({ score: result.total, priority: result.priority, keywords_matched: result.keywords_matched, resume_fit }).eq('id', id)
       return NextResponse.json({ ok: true, score: result.total, priority: result.priority, resume_fit, keywords_matched: result.keywords_matched })
