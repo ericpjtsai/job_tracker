@@ -6,7 +6,7 @@ import {
   scorePosting,
   computeResumeFit,
   companyFromDomain,
-  getCompanyBonus,
+  isRoleExcluded,
   extractKeywordsWithGemini,
   validateKeywords,
 } from '@job-tracker/scoring'
@@ -100,6 +100,11 @@ export function extractLocation(text: string): string {
 let cachedResumeKeywords: string[] | null = null
 let lastResumeFetch = 0
 
+export function invalidateResumeCache() {
+  cachedResumeKeywords = null
+  lastResumeFetch = 0
+}
+
 async function getActiveResumeKeywords(supabase: ReturnType<typeof createClient>): Promise<string[]> { // eslint-disable-line @typescript-eslint/no-explicit-any
   if (cachedResumeKeywords && Date.now() - lastResumeFetch < 5 * 60 * 1000) {
     return cachedResumeKeywords
@@ -148,7 +153,7 @@ export function getProcessorStats() {
 
 // ─── Pre-insert filters ───────────────────────────────────────────────────────
 
-const BLOCKED_TITLE_WORDS = /\b(principal|lead|head|staff|intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer|job trends|salaries)\b/i
+// Role exclusion now handled by isRoleExcluded() from @job-tracker/scoring
 
 const BLOCKED_COMPANIES = new Set(['lensa', 'itjobswatch'])
 
@@ -171,12 +176,12 @@ function isArticleTitle(title: string): boolean {
 const NON_US_LOCATION = /\b(UK|United Kingdom|England|Scotland|Wales|Ireland|Canada|Australia|New Zealand|Germany|France|Spain|Italy|Netherlands|Sweden|Norway|Denmark|Finland|Switzerland|Austria|Belgium|Poland|Portugal|Czech|Romania|Hungary|Singapore|Japan|South Korea|Korea|China|Hong Kong|India|Brazil|Mexico|Argentina|Colombia|Chile|Israel|UAE|Dubai|Qatar|Saudi Arabia|South Africa|Nigeria|Kenya|Amsterdam|Berlin|Munich|Hamburg|London|Manchester|Edinburgh|Dublin|Paris|Lyon|Madrid|Barcelona|Rome|Milan|Stockholm|Gothenburg|Oslo|Copenhagen|Helsinki|Zurich|Geneva|Vienna|Brussels|Warsaw|Prague|Budapest|Toronto|Vancouver|Montreal|Calgary|Sydney|Melbourne|Brisbane|Auckland|Tel Aviv|Bangalore|Mumbai|Delhi|Hyderabad|Chennai|São Paulo|Rio de Janeiro|Mexico City|Buenos Aires|Bogotá|Santiago)\b/i
 
 function isTitleBlocked(title: string): boolean {
-  return BLOCKED_TITLE_WORDS.test(title)
+  return isRoleExcluded(title)
 }
 
 function isLocationBlocked(location: string): boolean {
   if (!location) return false  // unknown location → allow
-  if (/\b(remote|hybrid|united states|usa|u\.s\.a?\.?)\b/i.test(location)) return false
+  if (/\b(remote|hybrid|united states|usa|u\.s\.a?\.?|US)\b/i.test(location)) return false
   // Allow if it contains a US state abbreviation (e.g. "NY", "CA", "TX")
   if (/,\s*[A-Z]{2}$/.test(location.trim())) return false
   return NON_US_LOCATION.test(location)
@@ -219,6 +224,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
 
   if (existing) {
     processorStats.deduplicated++
+    console.log(`  ↷ Dedup (url): ${opts.title || normalizedUrl}`)
     await supabase
       .from('job_postings')
       .update({ last_seen: new Date().toISOString() })
@@ -235,11 +241,12 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
 
     if (titleMatch) {
       if (titleMatch.source_type === 'manual') {
-        // Manual import exists — still dedup (don't insert) but don't overwrite
         processorStats.deduplicated++
+        console.log(`  ↷ Dedup (manual): ${opts.title} — ${opts.company}`)
         return
       }
       processorStats.deduplicated++
+      console.log(`  ↷ Dedup (title+co): ${opts.title} — ${opts.company}`)
       // Merge: update last_seen + keep the longer description
       const updates: Record<string, any> = { last_seen: new Date().toISOString() }
       if (opts.description && opts.description.length > (titleMatch.page_content || '').length) {
@@ -279,9 +286,6 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     return
   }
 
-  // ── Company tier ─────────────────────────────────────────────────────────
-  const { tier } = getCompanyBonus(opts.company)
-
   // ── Priority (fit-based when resume active, score-based fallback) ──────
   const priority = result.excluded ? 'skip' as const
     : resumeFit !== null
@@ -294,7 +298,6 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     url: normalizedUrl,
     url_hash: urlHash,
     company: opts.company || null,
-    company_tier: tier,
     title: opts.title || null,
     location: opts.location || null,
     salary_min: result.salary.min,

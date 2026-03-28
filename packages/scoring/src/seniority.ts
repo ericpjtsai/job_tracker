@@ -1,14 +1,16 @@
 // Seniority filters from CLAUDE.md §5
 
-const EXCLUDE_PATTERNS = [
+const EXCLUDE_TITLE_PATTERNS = [
   /\bstaff\b/i,
   /\bprincipal\b/i,
   /\bdirector\b/i,
   /\bvp\b/i,
   /\bvice president\b/i,
-  /\bhead of design\b/i,
-  /\bdesign manager\b/i,
-  /\bmanager\b/i,          // people manager context
+  /\bhead of\b/i,
+  /\bmanager\b/i,
+]
+
+const EXCLUDE_COMBINED_PATTERNS = [
   /\blead\b.*\b(7|8|9|10)\+?\s*years?\b/i,
   /\b(8|9|10)\+\s*years?\b/i,
 ]
@@ -39,13 +41,25 @@ const SENIOR_OVERQUALIFIED_PATTERNS = [
   /\b(7|8)\+\s*years?\b/i,
 ]
 
+// Non-design roles — hard block (job is dropped entirely, never inserted)
+const NON_DESIGN_TITLE = /\b(intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer|job trends|salaries)\b/i
+
 /**
- * Returns true if the posting should be excluded entirely.
- * Called before scoring — if this returns true, set priority = 'skip'.
+ * Returns true if the title indicates a non-design role.
+ * These jobs are dropped entirely (not inserted into the DB).
+ */
+export function isRoleExcluded(title: string): boolean {
+  return NON_DESIGN_TITLE.test(title)
+}
+
+/**
+ * Returns true if the posting should be excluded by seniority.
+ * Job is inserted with priority = 'skip' (soft block — visible but deprioritized).
  */
 export function isSeniorityExcluded(title: string, text: string): boolean {
+  if (EXCLUDE_TITLE_PATTERNS.some((p) => p.test(title))) return true
   const combined = `${title} ${text}`
-  return EXCLUDE_PATTERNS.some((p) => p.test(combined))
+  return EXCLUDE_COMBINED_PATTERNS.some((p) => p.test(combined))
 }
 
 /**

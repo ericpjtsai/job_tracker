@@ -5,12 +5,8 @@ import Link from 'next/link'
 import { type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
 import { DropZone } from '@/components/drop-zone'
+import { formatDate } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 interface ImportResult {
   title: string

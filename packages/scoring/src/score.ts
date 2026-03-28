@@ -1,7 +1,7 @@
 // Scoring engine — implements CLAUDE.md §4 formula exactly
 
-import { KEYWORD_GROUPS } from './keywords'
-import { getCompanyBonus, companyFromDomain } from './companies'
+import { KEYWORD_GROUPS, type KeywordGroup } from './keywords'
+import { companyFromDomain } from './companies'
 import { isSeniorityExcluded, getSeniorityBonus } from './seniority'
 import { extractSalary, type SalaryRange } from './salary'
 
@@ -14,7 +14,6 @@ export interface ScoreBreakdown {
   methods: number
   soft_skills: number
   tools: number
-  company_bonus: number
   seniority_bonus: number
   location_bonus: number
 }
@@ -74,6 +73,18 @@ function getLocationBonus(locationText: string): number {
 
 // ─── Keyword matching ─────────────────────────────────────────────────────────
 
+// Pre-compile all keyword regexes once at module load (avoids recompilation per job)
+const COMPILED_KEYWORDS: Array<{ group: KeywordGroup; term: string; re: RegExp }> = []
+for (const group of KEYWORD_GROUPS) {
+  for (const term of group.terms) {
+    const termLower = term.toLowerCase()
+    const pattern = termLower.includes(' ')
+      ? termLower
+      : `\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`
+    COMPILED_KEYWORDS.push({ group, term, re: new RegExp(pattern, 'gi') })
+  }
+}
+
 /**
  * Count keyword matches in text, case-insensitive, whole-word where possible.
  * Returns { groupScores, matchedTerms }
@@ -86,22 +97,13 @@ function matchKeywords(text: string): {
   const groupScores: Record<string, number> = {}
   const matched: string[] = []
 
-  for (const group of KEYWORD_GROUPS) {
-    let groupTotal = 0
-    for (const term of group.terms) {
-      const termLower = term.toLowerCase()
-      // Use word boundary for single-word terms, substring for phrases
-      const pattern = termLower.includes(' ')
-        ? termLower
-        : `\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`
-      const re = new RegExp(pattern, 'gi')
-      const hits = (lower.match(re) ?? []).length
-      if (hits > 0) {
-        groupTotal += group.weight * Math.min(hits, 3) // cap at 3x per term
-        matched.push(term)
-      }
+  for (const { group, term, re } of COMPILED_KEYWORDS) {
+    re.lastIndex = 0 // reset stateful regex
+    const hits = (lower.match(re) ?? []).length
+    if (hits > 0) {
+      groupScores[group.name] = (groupScores[group.name] ?? 0) + group.weight * Math.min(hits, 3)
+      matched.push(term)
     }
-    groupScores[group.name] = groupTotal
   }
 
   return { groupScores, matched }
@@ -139,9 +141,6 @@ export function scorePosting(opts: ScoreInput): ScoreResult {
   // Keyword scoring
   const { groupScores, matched } = matchKeywords(combined)
 
-  // Company bonus
-  const { tier, bonus: companyBonus } = getCompanyBonus(company)
-
   // Seniority bonus
   const seniorityBonus = excluded ? 0 : getSeniorityBonus(title, text)
 
@@ -155,7 +154,6 @@ export function scorePosting(opts: ScoreInput): ScoreResult {
     methods: groupScores['methods'] ?? 0,
     soft_skills: groupScores['soft_skills'] ?? 0,
     tools: groupScores['tools'] ?? 0,
-    company_bonus: companyBonus,
     seniority_bonus: seniorityBonus,
     location_bonus: locationBonus,
   }

@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { type JobPosting } from '@/lib/supabase'
+import { motion, AnimatePresence } from 'framer-motion'
+import { type JobPosting, JOB_STATUSES } from '@/lib/supabase'
 import { formatSalary } from '@job-tracker/scoring'
 import { Badge } from '@/components/ui/badge'
-
 import { capitalize } from '@/lib/utils'
 import { marked } from 'marked'
 
-const STATUSES = ['new', 'reviewed', 'applied', 'skipped', 'unavailable']
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
+const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto', opacity: 1 }, exit: { height: 0, opacity: 0 }, transition: spring, style: { overflow: 'hidden' as const } }
 
 /**
  * Prepare page_content for display.
@@ -116,6 +117,7 @@ export default function JobDetailPage() {
   const [editingUrl, setEditingUrl] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
   const [savingUrl, setSavingUrl] = useState(false)
+  const preSaveKeywordsRef = useRef<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -133,6 +135,28 @@ export default function JobDetailPage() {
     }
     load()
   }, [id])
+
+  // Poll for LLM keyword results after saving description
+  useEffect(() => {
+    if (!savingDesc) return
+    let attempts = 0
+    const poll = setInterval(async () => {
+      attempts++
+      if (attempts > 20) { setSavingDesc(false); clearInterval(poll); return }
+      try {
+        const res = await fetch(`/api/jobs/${id}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const newKw = JSON.stringify(data.keywords_matched ?? [])
+        if (newKw !== preSaveKeywordsRef.current) {
+          setJob(prev => prev ? { ...prev, score: data.score, priority: data.priority, resume_fit: data.resume_fit, keywords_matched: data.keywords_matched } : prev)
+          setSavingDesc(false)
+          clearInterval(poll)
+        }
+      } catch { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(poll)
+  }, [id, savingDesc])
 
   async function updateStatus(newStatus: string) {
     if (!job) return
@@ -249,7 +273,7 @@ export default function JobDetailPage() {
             className="text-sm px-3 py-1.5 rounded-md border border-input bg-background text-foreground appearance-none bg-no-repeat cursor-pointer hover:bg-muted transition-colors"
             style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundSize: '12px', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
           >
-            {STATUSES.map((s) => (
+            {JOB_STATUSES.map((s) => (
               <option key={s} value={s}>{capitalize(s)}</option>
             ))}
           </select>
@@ -287,14 +311,15 @@ export default function JobDetailPage() {
               <div className="flex items-center gap-2">
                 {editingDesc ? (
                   <>
-                    <button type="button" disabled={savingDesc} onClick={async (e) => { e.stopPropagation()
-                      setSavingDesc(true)
-                      const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: draftDesc }) })
-                      const result = await res.json()
-                      setJob({ ...job, page_content: draftDesc, ...(result.score !== undefined ? { score: result.score, priority: result.priority, resume_fit: result.resume_fit, keywords_matched: result.keywords_matched } : {}) })
+                    <button type="button" disabled={savingDesc} onClick={(e) => { e.stopPropagation()
+                      const content = draftDesc
+                      preSaveKeywordsRef.current = JSON.stringify(job.keywords_matched ?? [])
                       setEditingDesc(false)
-                      setSavingDesc(false)
-                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">{savingDesc ? 'Saving...' : 'Save'}</button>
+                      setJob(prev => prev ? { ...prev, page_content: content } : prev)
+                      setSavingDesc(true)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                      fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
+                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
                   </>
                 ) : (
@@ -306,33 +331,46 @@ export default function JobDetailPage() {
               </div>
             </div>
 
-            {/* Keywords — collapsible, merged matched/missing */}
-            {descOpen && !editingDesc && keywords.length > 0 && (
-              <div className="px-6 py-4 border-b space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    {resumeKeywords.length > 0
-                      ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
-                      : <>{keywords.length} keywords</>
-                    }
+            {/* Keywords — loading indicator or matched/missing */}
+            <AnimatePresence initial={false}>
+              {descOpen && savingDesc && (
+                <motion.div key="kw-saving" {...collapse}>
+                  <div className="px-6 py-4 border-b flex items-center gap-2">
+                    <span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+                    <span className="text-xs text-muted-foreground">Updating keywords...</span>
                   </div>
-                  {resumeKeywords.length > 0 && (
-                    <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {matched.map((k) => (
-                    <Badge key={k} variant="success" className="text-xs">{k}</Badge>
-                  ))}
-                  {missing.map((k) => (
-                    <Badge key={k} variant="error" className="text-xs">{k}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+              {descOpen && !editingDesc && !savingDesc && keywords.length > 0 && (
+                <motion.div key="kw" {...collapse}>
+                  <div className="px-6 py-4 border-b space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">
+                        {resumeKeywords.length > 0
+                          ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
+                          : <>{keywords.length} keywords</>
+                        }
+                      </div>
+                      {resumeKeywords.length > 0 && (
+                        <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {matched.map((k) => (
+                        <Badge key={k} variant="success" className="text-xs">{k}</Badge>
+                      ))}
+                      {missing.map((k) => (
+                        <Badge key={k} variant="error" className="text-xs">{k}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Content — collapsible */}
-            {descOpen && <div className="px-6 py-5">
+            <AnimatePresence initial={false}>
+            {descOpen && <motion.div key="desc" {...collapse}><div className="px-6 py-5">
 
             {editingDesc ? (
               <div
@@ -343,18 +381,13 @@ export default function JobDetailPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    const el = e.target as HTMLDivElement
-                    setDraftDesc(el.innerHTML)
-                    // Trigger save
-                    ;(async () => {
-                      setSavingDesc(true)
-                      const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: el.innerHTML }) })
-                      const result = await res.json()
-                      setJob({ ...job!, page_content: el.innerHTML, ...(result.score !== undefined ? { score: result.score, priority: result.priority, resume_fit: result.resume_fit, keywords_matched: result.keywords_matched } : {}) })
-                      setEditingDesc(false)
-                      setSavingDesc(false)
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
-                    })()
+                    const content = (e.target as HTMLDivElement).innerHTML
+                    preSaveKeywordsRef.current = JSON.stringify(job!.keywords_matched ?? [])
+                    setEditingDesc(false)
+                    setJob(prev => prev ? { ...prev, page_content: content } : prev)
+                    setSavingDesc(true)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                    fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
                   }
                 }}
                 className="job-description min-h-[300px] max-h-[600px] overflow-y-auto p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -369,7 +402,8 @@ export default function JobDetailPage() {
             ) : (
               <button type="button" onClick={() => { setDraftDesc(''); setEditingDesc(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add job description</button>
             )}
-            </div>}
+            </div></motion.div>}
+            </AnimatePresence>
           </div>
 
           {/* Job posting URL — only show when URL is missing */}
@@ -432,7 +466,8 @@ export default function JobDetailPage() {
                 )}
               </div>
             </div>
-            {notesOpen && <div className="px-6 py-5">
+            <AnimatePresence initial={false}>
+            {notesOpen && <motion.div key="notes" {...collapse}><div className="px-6 py-5">
               {editingNotes ? (
                 <div
                   ref={(el) => { if (el && !el.innerHTML && draftNotes) el.innerHTML = prepareContent(draftNotes).content || draftNotes }}
@@ -456,7 +491,8 @@ export default function JobDetailPage() {
               ) : (
                 <button type="button" onClick={() => { setDraftNotes(''); setEditingNotes(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add notes</button>
               )}
-            </div>}
+            </div></motion.div>}
+            </AnimatePresence>
           </div>
       </div>
     </div>
