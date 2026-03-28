@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit, extractKeywordsWithGemini } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +64,8 @@ export async function PATCH(
       const anthropicKey = process.env.ANTHROPIC_API_KEY
 
       // Try LLM extraction first, fall back to regex
-      const llmResult = (geminiKey || anthropicKey) ? await extractKeywordsWithGemini(updates.page_content, resumeKeywords, geminiKey, anthropicKey) : null
+      const rawLlm = (geminiKey || anthropicKey) ? await extractKeywordsWithGemini(updates.page_content, resumeKeywords, geminiKey, anthropicKey) : null
+      const llmResult = rawLlm ? validateKeywords(rawLlm, updates.page_content, resumeKeywords) : null
 
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]

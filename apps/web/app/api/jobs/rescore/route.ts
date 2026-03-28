@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { computeResumeFit, extractKeywordsWithGemini } from '@job-tracker/scoring'
+import { computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
 
 export async function POST() {
   const supabase = createServerClient()
@@ -36,7 +36,8 @@ export async function POST() {
   for (const job of jobs) {
     // Try LLM enrichment for jobs with descriptions
     if ((geminiKey || anthropicKey) && job.page_content && job.page_content.length > 100) {
-      const llmResult = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+      const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+      const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]
         const fit = Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)

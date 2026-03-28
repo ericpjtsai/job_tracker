@@ -6,5 +6,5 @@ export { getCompanyBonus, companyFromDomain, normalizeCompanyName, COMPANY_TIERS
 export { isSeniorityExcluded, getSeniorityBonus } from './seniority'
 export { KEYWORD_GROUPS, ALL_TERMS } from './keywords'
 export type { KeywordGroup } from './keywords'
-export { extractKeywordsWithGemini } from './llm-keywords'
+export { extractKeywordsWithGemini, validateKeywords } from './llm-keywords'
 export type { LLMKeywordResult } from './llm-keywords'
