@@ -2,16 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase, type JobPosting } from '@/lib/supabase'
+import { type JobPosting } from '@/lib/supabase'
 import { formatSalary } from '@job-tracker/scoring'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
 
 import { capitalize } from '@/lib/utils'
 import { marked } from 'marked'
 
-const STATUSES = ['new', 'reviewed', 'applied', 'skipped']
+const STATUSES = ['new', 'reviewed', 'applied', 'skipped', 'unavailable']
 
 /**
  * Prepare page_content for display.
@@ -31,9 +29,13 @@ function prepareContent(raw: string): { html: boolean; content: string } {
       .replace(/&#39;/g, "'")
   }
 
-  // Case 1: real HTML tags present
+  // Case 1: real HTML tags present — strip inline font styles for consistency
   if (/<[a-z][\s\S]*>/i.test(decoded)) {
-    return { html: true, content: decoded }
+    const cleaned = decoded
+      .replace(/font-family\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/font-size\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/style="\s*"/gi, '')
+    return { html: true, content: cleaned }
   }
 
   // Case 2: stripped tag names (e.g., "strong About Us /strong p At Cloudflare...")
@@ -107,6 +109,10 @@ export default function JobDetailPage() {
   const [editingDesc, setEditingDesc] = useState(false)
   const [draftDesc, setDraftDesc] = useState('')
   const [savingDesc, setSavingDesc] = useState(false)
+  const [descOpen, setDescOpen] = useState(true)
+  const [notesOpen, setNotesOpen] = useState(true)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [draftNotes, setDraftNotes] = useState('')
   const [editingUrl, setEditingUrl] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
   const [savingUrl, setSavingUrl] = useState(false)
@@ -115,10 +121,14 @@ export default function JobDetailPage() {
     async function load() {
       const [jobRes, resumeRes] = await Promise.all([
         fetch(`/api/jobs/${id}`),
-        supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).single(),
+        fetch('/api/resume'),
       ])
       if (jobRes.ok) setJob(await jobRes.json())
-      if (resumeRes.data?.keywords_extracted) setResumeKeywords(resumeRes.data.keywords_extracted)
+      if (resumeRes.ok) {
+        const { versions } = await resumeRes.json()
+        const atsActive = versions?.find((v: any) => v.is_active && v.resume_type === 'ats')
+        if (atsActive?.keywords_extracted) setResumeKeywords(atsActive.keywords_extracted)
+      }
       setLoading(false)
     }
     load()
@@ -266,21 +276,18 @@ export default function JobDetailPage() {
         )}
       </div>
 
-      {/* ── Content area — 2 columns on large screens ────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Main column (2/3) */}
-        <div className="lg:col-span-2 space-y-5">
+      {/* ── Content area ──────────────────────────────────────────────── */}
+      <div className="space-y-5">
 
           {/* Job description */}
           <div className="bg-card rounded-lg border overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-4 flex items-center justify-between bg-muted/40">
-              <div className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">Job description</div>
+            {/* Header — clickable to collapse */}
+            <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingDesc && setDescOpen(!descOpen)}>
+              <div className="text-sm font-semibold tracking-[-0.02em]">Job description</div>
               <div className="flex items-center gap-2">
                 {editingDesc ? (
                   <>
-                    <button type="button" disabled={savingDesc} onClick={async () => {
+                    <button type="button" disabled={savingDesc} onClick={async (e) => { e.stopPropagation()
                       setSavingDesc(true)
                       const res = await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: draftDesc }) })
                       const result = await res.json()
@@ -288,25 +295,44 @@ export default function JobDetailPage() {
                       setEditingDesc(false)
                       setSavingDesc(false)
                     }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">{savingDesc ? 'Saving...' : 'Save'}</button>
-                    <button type="button" onClick={() => { setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
                   </>
                 ) : (
-                  <button type="button" onClick={() => { setDraftDesc(job.page_content ?? ''); setEditingDesc(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                  <>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setDraftDesc(job.page_content ?? ''); setEditingDesc(true); setDescOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${descOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </>
                 )}
               </div>
             </div>
 
-            {/* Keywords */}
-            {!editingDesc && keywords.length > 0 && (
-              <div className="px-6 py-4 border-b flex flex-wrap gap-1.5">
-                {keywords.map((k) => (
-                  <Badge key={k} variant={resumeSet.has(k.toLowerCase()) ? 'default' : 'secondary'} className="text-xs">{k}</Badge>
-                ))}
+            {/* Keywords — collapsible, merged matched/missing */}
+            {descOpen && !editingDesc && keywords.length > 0 && (
+              <div className="px-6 py-4 border-b space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    {resumeKeywords.length > 0
+                      ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
+                      : <>{keywords.length} keywords</>
+                    }
+                  </div>
+                  {resumeKeywords.length > 0 && (
+                    <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {matched.map((k) => (
+                    <Badge key={k} variant="success" className="text-xs">{k}</Badge>
+                  ))}
+                  {missing.map((k) => (
+                    <Badge key={k} variant="error" className="text-xs">{k}</Badge>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Content */}
-            <div className="px-6 py-5">
+            {/* Content — collapsible */}
+            {descOpen && <div className="px-6 py-5">
 
             {editingDesc ? (
               <div
@@ -343,7 +369,7 @@ export default function JobDetailPage() {
             ) : (
               <button type="button" onClick={() => { setDraftDesc(''); setEditingDesc(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add job description</button>
             )}
-            </div>
+            </div>}
           </div>
 
           {/* Job posting URL — only show when URL is missing */}
@@ -382,64 +408,56 @@ export default function JobDetailPage() {
             )}
           </div>}
 
-          {/* Notes */}
-          <div className="bg-card rounded-lg p-5 border space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium text-muted-foreground">Notes</div>
-              {saveState === 'saving' && <span className="text-xs text-muted-foreground">Saving...</span>}
-              {saveState === 'saved' && <span className="text-xs text-green-600">Saved</span>}
-            </div>
-            <Textarea
-              value={job.notes ?? ''}
-              onChange={(e) => handleNotesChange(e.target.value)}
-              placeholder="Add notes, recruiter contact, follow-up reminders..."
-              className="min-h-24 resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Sidebar (1/3) — Keyword Analysis */}
-        <div className="space-y-5">
-          {keywords.length > 0 && (
-            <div className="bg-card rounded-lg p-5 border space-y-4">
-              <div className="text-xs font-medium text-muted-foreground">
-                Fit <span className="tabular-nums text-green-600">{job.resume_fit ?? 0}%</span>
-                <span> · {keywords.length} keywords</span>
+          {/* Notes — same card pattern as job description */}
+          <div className="bg-card rounded-lg border overflow-hidden">
+            <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${notesOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingNotes && setNotesOpen(!notesOpen)}>
+              <div className="text-sm font-semibold tracking-[-0.02em]">Notes</div>
+              <div className="flex items-center gap-2">
+                {editingNotes ? (
+                  <>
+                    {saveState === 'saving' && <span className="text-xs text-muted-foreground">Saving...</span>}
+                    <button type="button" onClick={(e) => {
+                      e.stopPropagation()
+                      handleNotesChange(draftNotes)
+                      setEditingNotes(false)
+                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setEditingNotes(false); setDraftNotes(job.notes ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                  </>
+                ) : (
+                  <>
+                    {saveState === 'saved' && <span className="text-xs text-green-600">Saved</span>}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setDraftNotes(job.notes ?? ''); setEditingNotes(true); setNotesOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${notesOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </>
+                )}
               </div>
-
-              {/* Matched keywords */}
-              {matched.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">Matched ({matched.length})</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {matched.map((k) => (
-                      <Badge key={k} variant="success" className="text-xs">{k}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Missing keywords */}
-              {missing.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">Missing ({missing.length})</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {missing.map((k) => (
-                      <Badge key={k} variant="muted" className="text-xs opacity-60">{k}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* No resume uploaded */}
-              {resumeKeywords.length === 0 && (
-                <div className="text-xs text-muted-foreground">
-                  Upload a resume to see keyword matching.
-                </div>
-              )}
             </div>
-          )}
-        </div>
+            {notesOpen && <div className="px-6 py-5">
+              {editingNotes ? (
+                <div
+                  ref={(el) => { if (el && !el.innerHTML && draftNotes) el.innerHTML = prepareContent(draftNotes).content || draftNotes }}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => setDraftNotes((e.target as HTMLDivElement).innerHTML)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      const content = (e.target as HTMLDivElement).innerHTML
+                      setDraftNotes(content)
+                      handleNotesChange(content)
+                      setEditingNotes(false)
+                    }
+                  }}
+                  className="job-description min-h-[100px] max-h-[400px] overflow-y-auto p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  data-placeholder="Add notes, recruiter contact, follow-up reminders..."
+                />
+              ) : job.notes ? (
+                <div className="job-description" dangerouslySetInnerHTML={{ __html: prepareContent(job.notes).content }} />
+              ) : (
+                <button type="button" onClick={() => { setDraftNotes(''); setEditingNotes(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add notes</button>
+              )}
+            </div>}
+          </div>
       </div>
     </div>
   )
