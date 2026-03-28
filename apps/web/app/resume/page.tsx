@@ -45,7 +45,9 @@ export default function ResumePage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [rescoring, setRescoring] = useState(false)
+  const [rescoreProgress, setRescoreProgress] = useState({ current: 0, total: 0, updated: 0 })
   const [rescoreResult, setRescoreResult] = useState<{ updated: number } | null>(null)
+  const rescoreInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [settingActive, setSettingActive] = useState<string | null>(null)
   const atsFileRef = useRef<HTMLInputElement>(null)
@@ -77,6 +79,30 @@ export default function ResumePage() {
   }
 
   useEffect(() => { loadVersions() }, [])
+
+  // Resume rescore polling if one is already running
+  useEffect(() => {
+    fetch('/api/jobs/rescore').then(r => r.json()).then(status => {
+      if (status.running) {
+        setRescoring(true)
+        setRescoreProgress({ current: status.current, total: status.total, updated: status.updated })
+        rescoreInterval.current = setInterval(async () => {
+          const res = await fetch('/api/jobs/rescore')
+          if (res.ok) {
+            const s = await res.json()
+            setRescoreProgress({ current: s.current, total: s.total, updated: s.updated })
+            if (!s.running && s.current > 0) {
+              clearInterval(rescoreInterval.current!)
+              rescoreInterval.current = null
+              setRescoring(false)
+              setRescoreResult({ updated: s.updated })
+            }
+          }
+        }, 2000)
+      }
+    }).catch(() => {})
+    return () => { if (rescoreInterval.current) clearInterval(rescoreInterval.current) }
+  }, [])
 
   const atsActive = versions.find((v) => v.is_active && v.resume_type === 'ats') ?? null
   const hmActive = versions.find((v) => v.is_active && v.resume_type === 'hiring_manager') ?? null
@@ -125,10 +151,25 @@ export default function ResumePage() {
 
   async function handleRescore() {
     setRescoring(true)
-    const res = await fetch('/api/jobs/rescore', { method: 'POST' })
-    const data = await res.json()
-    setRescoreResult({ updated: data.updated ?? 0 })
-    setRescoring(false)
+    setRescoreResult(null)
+    setRescoreProgress({ current: 0, total: 0, updated: 0 })
+
+    await fetch('/api/jobs/rescore', { method: 'POST' })
+
+    // Poll progress
+    rescoreInterval.current = setInterval(async () => {
+      const res = await fetch('/api/jobs/rescore')
+      if (res.ok) {
+        const status = await res.json()
+        setRescoreProgress({ current: status.current, total: status.total, updated: status.updated })
+        if (!status.running && status.current > 0) {
+          clearInterval(rescoreInterval.current!)
+          rescoreInterval.current = null
+          setRescoring(false)
+          setRescoreResult({ updated: status.updated })
+        }
+      }
+    }, 2000)
   }
 
   async function handleSetActive(id: string) {
@@ -183,7 +224,7 @@ export default function ResumePage() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </Button>
                 <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRescore() }} disabled={rescoring}>
-                  {rescoring ? 'Re-scoring...' : 'Re-score all jobs'}
+                  {rescoring ? `Re-scoring ${rescoreProgress.current}/${rescoreProgress.total}` : 'Re-score all jobs'}
                 </Button>
                 <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); atsFileRef.current?.click() }}>
                   Upload new

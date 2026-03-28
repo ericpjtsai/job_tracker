@@ -1,61 +1,27 @@
-import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
-import { computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
+import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
+const LISTENER_URL = process.env.LISTENER_URL || 'http://localhost:3002'
+
+// POST: trigger rescore on the listener (no timeout)
 export async function POST() {
-  const supabase = createServerClient()
-  const geminiKey = process.env.GEMINI_API_KEY
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-
-  // Get active resume keywords
-  const { data: resume, error: resumeError } = await supabase
-    .from('resume_versions')
-    .select('keywords_extracted')
-    .eq('is_active', true)
-    .eq('resume_type', 'ats')
-    .single()
-
-  if (resumeError || !resume) {
-    return NextResponse.json({ error: 'No active resume found' }, { status: 404 })
+  try {
+    const res = await fetch(`${LISTENER_URL}/rescore`, { method: 'POST' })
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Listener not reachable' }, { status: 502 })
   }
+}
 
-  const resumeKeywords: string[] = resume.keywords_extracted ?? []
-
-  // Fetch all job postings
-  const { data: jobs, error: jobsError } = await supabase
-    .from('job_postings')
-    .select('id, keywords_matched, page_content')
-
-  if (jobsError || !jobs) {
-    return NextResponse.json({ error: jobsError?.message ?? 'Failed to fetch jobs' }, { status: 500 })
+// GET: poll rescore progress from the listener
+export async function GET() {
+  try {
+    const res = await fetch(`${LISTENER_URL}/rescore/status`)
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ running: false, current: 0, total: 0, updated: 0, errors: 0 })
   }
-
-  let updated = 0
-
-  // Process jobs — use LLM for those with page_content, regex fit for others
-  for (const job of jobs) {
-    // Try LLM enrichment for jobs with descriptions
-    if ((geminiKey || anthropicKey) && job.page_content && job.page_content.length > 100) {
-      const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
-      const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
-      if (llmResult) {
-        const allKeywords = [...llmResult.matched, ...llmResult.missing]
-        const fit = llmResult.role_fit
-        const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
-        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', job.id)
-        updated++
-        // Rate limit: 200ms between calls
-        await new Promise(r => setTimeout(r, 200))
-        continue
-      }
-    }
-
-    // Fallback: regex-based fit calculation
-    const fit = computeResumeFit(job.keywords_matched ?? [], resumeKeywords)
-    const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
-    await supabase.from('job_postings').update({ resume_fit: fit, priority }).eq('id', job.id)
-    updated++
-  }
-
-  return NextResponse.json({ updated })
 }
