@@ -40,7 +40,7 @@ export async function POST() {
       const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]
-        const fit = Math.round((llmResult.matched.length / Math.max(allKeywords.length, 1)) * 100)
+        const fit = llmResult.role_fit
         const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
         await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', job.id)
         updated++
