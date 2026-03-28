@@ -521,24 +521,24 @@ function Section({ title, badge, defaultOpen = false, children }: {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted' : 'hover:bg-muted'}`}
+        className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
       >
-        <span className="text-sm font-semibold flex items-center gap-2">
+        <span className="text-sm font-medium leading-6 flex items-center gap-2">
           {title}
           {badge && <span className="text-xs font-normal text-muted-foreground">{badge}</span>}
         </span>
         <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
-      {open && <div className="px-4 pt-4 pb-4 bg-muted/30">{children}</div>}
+      {open && <div className="px-4 py-3 bg-muted/30">{children}</div>}
     </div>
   )
 }
 
 function TypeBadge({ type }: { type: 'stream' | 'poll' }) {
   return type === 'stream' ? (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 uppercase tracking-[-0.02em]">Stream</span>
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 uppercase">Stream</span>
   ) : (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase tracking-[-0.02em]">Poll</span>
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">Poll</span>
   )
 }
 
@@ -554,22 +554,21 @@ function SourceCard({ source }: { source: Source }) {
   const [open, setOpen] = useState(false)
   const isAts = source.id === 'ats'
   return (
-    <div className={`bg-card rounded-lg overflow-hidden ${isAts ? 'md:col-span-2' : ''}`}>
+    <div className={`bg-card rounded-lg overflow-hidden border ${isAts ? 'md:col-span-2' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full p-4 text-left hover:bg-muted transition-colors"
+        className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-semibold">{source.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium leading-6">{source.name}</span>
               <TypeBadge type={source.type} />
               {isAts && <span className="text-[10px] text-muted-foreground/50">{ATS_COMPANIES.length} companies</span>}
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-              <span>{source.schedule}</span>
-              <span>{source.cost}</span>
+            <div className="text-xs text-muted-foreground mt-1">
+              {source.schedule} · {source.cost}
             </div>
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -577,17 +576,17 @@ function SourceCard({ source }: { source: Source }) {
       </button>
 
       {open && (
-        <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-3 text-xs">
+        <div className="px-4 py-3 bg-muted/30 space-y-3 text-xs">
           {/* Endpoint */}
           <div className="pt-3">
-            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Endpoint</div>
+            <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Endpoint</div>
             <div className="text-foreground font-mono text-[11px] break-all">{source.endpoint}</div>
             <div className="text-muted-foreground mt-0.5">Auth: {source.auth}</div>
           </div>
 
           {/* Queries / Keywords */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Search Queries / Keywords</div>
+            <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Search Queries / Keywords</div>
             <ul className="space-y-0.5">
               {source.queries.map((q, i) => (
                 <li key={i} className="text-foreground font-mono text-[11px]">{q}</li>
@@ -597,7 +596,7 @@ function SourceCard({ source }: { source: Source }) {
 
           {/* Filters */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Source-level Filters</div>
+            <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Source-level Filters</div>
             <ul className="space-y-0.5">
               {source.filters.map((f, i) => (
                 <li key={i} className="text-muted-foreground">{f}</li>
@@ -608,7 +607,7 @@ function SourceCard({ source }: { source: Source }) {
           {/* Env vars */}
           {source.envVars.length > 0 && (
             <div>
-              <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Environment Variables</div>
+              <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Environment Variables</div>
               <div className="flex flex-wrap gap-1">
                 {source.envVars.map((v) => (
                   <span key={v} className="font-mono text-[11px] bg-muted text-foreground px-1.5 py-0.5 rounded">{v}</span>
@@ -619,7 +618,7 @@ function SourceCard({ source }: { source: Source }) {
 
           {/* Notes */}
           <div>
-            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Notes</div>
+            <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Notes</div>
             <p className="text-muted-foreground">{source.notes}</p>
           </div>
 
@@ -648,7 +647,7 @@ function AtsCompaniesSection() {
 
   return (
     <div>
-      <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-2">
+      <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-2">
         Companies ({ATS_COMPANIES.length} total)
       </div>
 
@@ -816,7 +815,7 @@ export default function SourcesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-[-0.03em] text-foreground">Sources</h1>
+          <h1 className="text-xl font-semibold text-foreground">Sources</h1>
           <p className="text-xs text-muted-foreground mt-1">
             {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} scoring keywords
           </p>
@@ -832,7 +831,7 @@ export default function SourcesPage() {
 
       {/* ── Source Cards ────────────────────────────────────────────────────── */}
       <div>
-        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Data Sources</h2>
+        <h2 className="text-xs font-medium text-muted-foreground mb-3">Data Sources</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {sources.map((s) => (
             <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} />
@@ -842,7 +841,7 @@ export default function SourcesPage() {
 
       {/* ── Configuration & Rules ──────────────────────────────────────────── */}
       <div>
-        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Configuration &amp; Rules</h2>
+        <h2 className="text-xs font-medium text-muted-foreground mb-3">Configuration &amp; Rules</h2>
         <div className="space-y-3">
 
       <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
@@ -901,7 +900,7 @@ export default function SourcesPage() {
         <div className="space-y-4 pt-3">
           {/* Keyword groups */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Keyword Groups</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Keyword Groups</div>
             <div className="space-y-2">
               {KEYWORD_GROUPS.map((group) => (
                 <KeywordGroupRow key={group.name} group={group} />
@@ -911,7 +910,7 @@ export default function SourcesPage() {
 
           {/* Company tiers */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Company Tier Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Company Tier Bonuses</div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="bg-red-50 border rounded p-2">
                 <div className="font-semibold text-red-800">Tier 1: +20</div>
@@ -933,7 +932,7 @@ export default function SourcesPage() {
 
           {/* Seniority */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Seniority Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Seniority Bonuses</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-green-700">+10</div>
@@ -956,7 +955,7 @@ export default function SourcesPage() {
 
           {/* Location */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Location Bonuses</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Location Bonuses</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-green-700">+5</div>
@@ -979,7 +978,7 @@ export default function SourcesPage() {
 
           {/* Priority */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-2">Priority Thresholds</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Priority Thresholds</div>
             <div className="flex gap-3 text-xs">
               <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: score &ge; 50</span>
               <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: score &ge; 30</span>
@@ -990,7 +989,7 @@ export default function SourcesPage() {
 
           {/* Resume fit */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase tracking-[-0.02em] font-medium mb-1">Resume Fit</div>
+            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-1">Resume Fit</div>
             <p className="text-xs text-muted-foreground">
               Percentage of posting&apos;s matched keywords that also appear in the active resume&apos;s keywords. If resume is active and fit = 0%, the job is skipped.
             </p>
@@ -1057,7 +1056,7 @@ function TapSection({ tap }: { tap: Tap }) {
         <div className="bg-muted/20">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-muted text-[10px] text-muted-foreground uppercase tracking-[-0.02em]">
+              <tr className="bg-muted text-[10px] text-muted-foreground uppercase">
                 <th className="px-3 py-1.5 text-left font-medium">Tag</th>
                 <th className="px-3 py-1.5 text-left font-medium">Target</th>
                 <th className="px-3 py-1.5 text-left font-medium w-16">Type</th>
@@ -1105,22 +1104,22 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={`w-full p-4 text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
+        className={`w-full px-4 py-3 text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2">
               <StatusDot status={h.status} />
-              <span className="text-sm font-semibold">{source.name}</span>
+              <span className="text-sm font-medium leading-6">{source.name}</span>
               <TypeBadge type={source.type} />
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground mt-1">
               {[
                 source.schedule,
                 source.cost,
                 h.lastPollAt ? `Last: ${timeAgo(h.lastPollAt)}` : null,
                 h.jobsFound > 0 ? `${h.jobsFound} jobs` : null,
-              ].filter(Boolean).join(' ・ ')}
+              ].filter(Boolean).join(' · ')}
             </div>
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -1128,10 +1127,10 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
       </button>
 
       {open && (
-        <div className="px-4 pt-4 pb-4 bg-muted/30 space-y-3 text-xs">
+        <div className="px-4 py-3 bg-muted/30 space-y-3 text-xs">
           {/* Health details */}
           <div className="pt-3">
-            <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Health</div>
+            <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Health</div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div><span className="text-muted-foreground">Status:</span> <span className="font-medium capitalize">{h.status}</span></div>
               <div><span className="text-muted-foreground">Last poll:</span> <span className="tabular-nums">{timeAgo(h.lastPollAt)}</span></div>
@@ -1146,7 +1145,7 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
           {/* Env vars */}
           {source.envVars.length > 0 && (
             <div>
-              <div className="font-label text-muted-foreground uppercase tracking-[-0.02em] text-[10px] font-medium mb-1">Environment Variables</div>
+              <div className="font-label text-muted-foreground uppercase text-[10px] font-medium mb-1">Environment Variables</div>
               <div className="flex flex-wrap gap-1">
                 {source.envVars.map((v) => (
                   <span key={v} className="font-mono text-[11px] bg-muted text-foreground px-1.5 py-0.5 rounded">{v}</span>

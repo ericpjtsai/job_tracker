@@ -6,7 +6,6 @@ import { type ResumeVersion } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
 const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto', opacity: 1 }, exit: { height: 0, opacity: 0 }, transition: spring, style: { overflow: 'hidden' as const } }
@@ -191,7 +190,7 @@ export default function ResumePage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-semibold tracking-[-0.03em]">Resume</h1>
+      <h1 className="text-xl font-semibold">Resume</h1>
 
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">{error}</div>
@@ -199,7 +198,7 @@ export default function ResumePage() {
 
       {/* ── ATS Resume (primary) ─────────────────────────────────────────── */}
       <div className="space-y-3">
-        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">ATS Resume</h2>
+        <h2 className="text-xs font-medium text-muted-foreground">ATS Resume</h2>
 
         {atsActive ? (
           <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverAts ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('ats')}>
@@ -212,21 +211,21 @@ export default function ResumePage() {
             <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setAtsOpen(!atsOpen)}>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{atsActive.filename ?? 'resume.pdf'}</span>
+                  <span className="text-sm font-medium">{atsActive.filename ?? 'resume.pdf'}</span>
                   <Badge variant="success" className="text-[10px]">Active</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Uploaded {formatDateTime(atsActive.uploaded_at)} · <span className="tabular-nums">{atsActive.keywords_extracted?.length ?? 0}</span> keywords extracted
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button size="sm" variant="outline" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(atsActive.storage_path) }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(atsActive.storage_path) }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </Button>
-                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRescore() }} disabled={rescoring}>
+                <Button size="xs" onClick={(e) => { e.stopPropagation(); handleRescore() }} disabled={rescoring}>
                   {rescoring ? `Re-scoring ${rescoreProgress.current}/${rescoreProgress.total}` : 'Re-score all jobs'}
                 </Button>
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); atsFileRef.current?.click() }}>
+                <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); atsFileRef.current?.click() }}>
                   Upload new
                 </Button>
                 <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${atsOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -311,7 +310,7 @@ export default function ResumePage() {
 
       {/* ── Hiring Manager Resume (secondary) ────────────────────────────── */}
       <div className="space-y-3">
-        <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">Hiring Manager Resume</h2>
+        <h2 className="text-xs font-medium text-muted-foreground">Hiring Manager Resume</h2>
 
         {hmActive ? (
           <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverHm ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('hiring_manager')}>
@@ -323,18 +322,18 @@ export default function ResumePage() {
             <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setHmOpen(!hmOpen)}>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{hmActive.filename ?? 'resume.pdf'}</span>
+                  <span className="text-sm font-medium">{hmActive.filename ?? 'resume.pdf'}</span>
                   <Badge variant="success" className="text-[10px]">Active</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Uploaded {formatDateTime(hmActive.uploaded_at)}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button size="sm" variant="outline" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(hmActive.storage_path) }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(hmActive.storage_path) }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </Button>
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); hmFileRef.current?.click() }}>
+                <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); hmFileRef.current?.click() }}>
                   Upload new
                 </Button>
                 <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${hmOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -383,51 +382,41 @@ export default function ResumePage() {
       {/* ── Upload History ────────────────────────────────────────────────── */}
       {versions.length > 0 && (
         <div>
-          <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground mb-3">Upload History</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-xs text-muted-foreground">
-                  <TableHead>File</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Uploaded</TableHead>
-                  <TableHead className="text-right">Keywords</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {versions.map((v) => (
-                  <TableRow key={v.id} className={v.is_active ? 'bg-primary/5' : ''}>
-                    <TableCell className="font-medium text-sm">{v.filename ?? 'resume.pdf'}</TableCell>
-                    <TableCell className="text-xs">{TYPE_LABELS[v.resume_type] ?? 'ATS'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(v.uploaded_at)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-xs">{v.keywords_extracted?.length ?? 0}</TableCell>
-                    <TableCell>
-                      {v.is_active ? (
-                        <Badge variant="success" className="text-[10px]">Active</Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Inactive</span>
+          <h2 className="text-xs font-medium text-muted-foreground mb-3">Upload History</h2>
+          <div className="space-y-2">
+            {versions.map((v) => (
+              <div key={v.id} className="bg-card rounded-lg border px-4 py-3 flex items-center justify-between gap-3">
+                {/* Left: text */}
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate text-foreground">{v.filename ?? 'resume.pdf'}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {TYPE_LABELS[v.resume_type] ?? 'ATS'}
+                    <span className="mx-1">·</span>
+                    <span className="tabular-nums">{v.keywords_extracted?.length ?? 0}</span> keywords
+                    <span className="mx-1">·</span>
+                    {formatDateTime(v.uploaded_at)}
+                  </div>
+                </div>
+                {/* Right: actions */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {v.is_active ? (
+                    <Badge variant="success" className="text-[10px]">Active</Badge>
+                  ) : (
+                    <>
+                      {v.storage_path && (
+                        <Button size="xs" variant="ghost" aria-label="Download" onClick={() => handleDownload(v.storage_path)}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </Button>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {v.storage_path && (
-                          <Button size="xs" variant="ghost" aria-label="Download" onClick={() => handleDownload(v.storage_path)}>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          </Button>
-                        )}
-                        {!v.is_active && (
-                          <Button size="xs" variant="outline" disabled={settingActive === v.id} onClick={() => handleSetActive(v.id)}>
-                            {settingActive === v.id ? 'Setting...' : 'Set Active'}
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <Button size="xs" variant="outline" disabled={settingActive === v.id} onClick={() => handleSetActive(v.id)}>
+                        {settingActive === v.id ? 'Setting...' : 'Set Active'}
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+              </div>
+            ))}
           </div>
         </div>
       )}

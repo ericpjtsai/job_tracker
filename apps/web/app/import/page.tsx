@@ -6,7 +6,6 @@ import { type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
 import { DropZone } from '@/components/drop-zone'
 import { formatDate } from '@/lib/utils'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface ImportResult {
   title: string
@@ -93,7 +92,7 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-semibold tracking-[-0.03em]">Import</h1>
+      <h1 className="text-xl font-semibold">Import</h1>
 
       <DropZone
         accept=".md"
@@ -110,48 +109,37 @@ export default function ImportPage() {
       {/* Import results */}
       {importResults && importResults.length > 0 && (
         <div className="space-y-3">
-          <div className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">
+          <div className="text-xs font-medium text-muted-foreground">
             Results — {importResults.filter(r => r.action === 'imported').length} imported, {importResults.filter(r => r.action === 'updated').length} updated{importResults.some(r => r.action === 'failed') && `, ${importResults.filter(r => r.action === 'failed').length} failed`}
           </div>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 text-xs text-muted-foreground">
-                  <TableHead className="pl-3">Fit</TableHead>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {importResults.map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="pl-3">
-                      {r.resume_fit !== undefined ? <FitBadge fit={r.resume_fit} /> : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {r.id ? (
-                        <Link href={`/jobs/${r.id}`} className="hover:underline font-medium text-foreground">
-                          {r.title || 'Untitled'}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{r.title || 'Untitled'}</span>
-                      )}
-                      {r.company && <span className="text-muted-foreground text-xs block">{r.company}</span>}
-                    </TableCell>
-                    <TableCell>
-                      {r.id ? (
-                        <StatusChip status={r.jobStatus} onChange={async (s) => {
-                          await fetch(`/api/jobs/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
-                          setImportResults(prev => prev?.map((item, j) => j === i ? { ...item, jobStatus: s } : item) ?? null)
-                        }} />
-                      ) : (
-                        <span className="text-xs text-destructive">{r.error ?? 'Failed'}</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="space-y-2">
+            {importResults.map((r, i) => (
+              <div key={i} className="bg-card rounded-lg border px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  {r.id ? (
+                    <Link href={`/jobs/${r.id}`} className="hover:underline font-medium text-sm truncate text-foreground">
+                      {r.title || 'Untitled'}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-sm truncate">{r.title || 'Untitled'}</span>
+                  )}
+                  <div className="shrink-0">
+                    {r.id ? (
+                      <StatusChip status={r.jobStatus} onChange={async (s) => {
+                        await fetch(`/api/jobs/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
+                        setImportResults(prev => prev?.map((item, j) => j === i ? { ...item, jobStatus: s } : item) ?? null)
+                      }} />
+                    ) : (
+                      <span className="text-xs text-destructive">{r.error ?? 'Failed'}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-xs mt-0.5">
+                  <FitBadge fit={r.resume_fit ?? null} />
+                  {r.company && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{r.company}</span></>}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -159,42 +147,33 @@ export default function ImportPage() {
       {/* Import history */}
       {history.length > 0 && (
         <div className="space-y-3">
-          <div className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">Import history ({history.length})</div>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 text-xs text-muted-foreground">
-                  <TableHead className="pl-3">Fit</TableHead>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Applied</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map((job) => (
-                  <TableRow key={job.id} className={job.status === 'new' ? '' : 'bg-muted/40'}>
-                    <TableCell className="pl-3"><FitBadge fit={job.resume_fit} /></TableCell>
-                    <TableCell>
-                      <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-foreground">
-                        {job.title ?? 'Untitled'}
-                      </Link>
-                      <span className="text-muted-foreground text-xs block">{job.company ?? '—'}</span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {job.applied_at ? formatDate(job.applied_at) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <StatusChip status={job.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="text-xs font-medium text-muted-foreground">Import history ({historyTotal})</div>
+          <div className="space-y-2">
+            {history.map((job) => (
+              <div key={job.id} className="bg-card rounded-lg border px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm truncate text-foreground">
+                    {job.title ?? 'Untitled'}
+                  </Link>
+                  <div className="shrink-0">
+                    <StatusChip status={job.status} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                  <span className="text-xs">
+                    <FitBadge fit={job.resume_fit} />
+                    <span className="text-muted-foreground mx-1">·</span>
+                    <span className="text-foreground">{job.company ?? '—'}</span>
+                  </span>
+                  {job.applied_at && <span className="text-xs text-muted-foreground shrink-0">{formatDate(job.applied_at)}</span>}
+                </div>
+              </div>
+            ))}
           </div>
           {/* Infinite scroll sentinel */}
           <div ref={sentinelRef} className="h-1" />
           {loadingMore && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
-          {history.length >= historyTotal && historyTotal > 0 && <div className="text-center text-xs text-muted-foreground py-1">{historyTotal} total</div>}
+          {history.length >= historyTotal && historyTotal > 0 && <div className="text-center text-xs text-muted-foreground py-1">End of list</div>}
         </div>
       )}
     </div>
