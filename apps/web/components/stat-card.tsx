@@ -1,20 +1,13 @@
 'use client'
 
-import { motion } from 'framer-motion'
-
-const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
-
 export function StatCard({ label, value, active, change, changeColor, onClick }: {
   label: string; value: number; active: boolean; change?: string; changeColor?: string; onClick: () => void
 }) {
   return (
-    <motion.div
+    <div
       onClick={onClick}
-      animate={{ scale: active ? 1.02 : 1 }}
-      whileTap={{ scale: 0.97 }}
-      transition={spring}
-      className={`bg-card rounded-lg px-6 py-5 border cursor-pointer transition-colors ${
-        active ? 'border-[1.5px] border-primary' : 'hover:shadow-sm'
+      className={`bg-card rounded-lg px-6 py-5 border cursor-pointer ${
+        active ? 'border-[1.5px] border-primary' : ''
       }`}
     >
       <div className="space-y-1">
@@ -28,6 +21,6 @@ export function StatCard({ label, value, active, change, changeColor, onClick }:
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
