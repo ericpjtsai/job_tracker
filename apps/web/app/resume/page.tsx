@@ -52,6 +52,21 @@ export default function ResumePage() {
   const hmFileRef = useRef<HTMLInputElement>(null)
   const [atsOpen, setAtsOpen] = useState(false)
   const [hmOpen, setHmOpen] = useState(false)
+  const [dragOverAts, setDragOverAts] = useState(false)
+  const [dragOverHm, setDragOverHm] = useState(false)
+
+  function dropHandlers(type: 'ats' | 'hiring_manager') {
+    const setDrag = type === 'ats' ? setDragOverAts : setDragOverHm
+    return {
+      onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDrag(true) },
+      onDragLeave: () => setDrag(false),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault(); setDrag(false)
+        const file = e.dataTransfer.files?.[0]
+        if (file) handleFile(file, type)
+      },
+    }
+  }
 
   async function loadVersions() {
     const res = await fetch('/api/resume')
@@ -146,7 +161,12 @@ export default function ResumePage() {
         <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">ATS Resume</h2>
 
         {atsActive ? (
-          <div className="bg-card rounded-lg overflow-hidden border">
+          <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverAts ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('ats')}>
+            {dragOverAts && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/5 rounded-lg">
+                <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
+              </div>
+            )}
             {/* Header — always visible, entire area toggles collapse */}
             <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setAtsOpen(!atsOpen)}>
               <div>
@@ -240,7 +260,12 @@ export default function ResumePage() {
         <h2 className="text-xs font-medium tracking-[-0.02em] text-muted-foreground">Hiring Manager Resume</h2>
 
         {hmActive ? (
-          <div className="bg-card rounded-lg overflow-hidden border">
+          <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverHm ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('hiring_manager')}>
+            {dragOverHm && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/5 rounded-lg">
+                <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
+              </div>
+            )}
             <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setHmOpen(!hmOpen)}>
               <div>
                 <div className="flex items-center gap-2">
