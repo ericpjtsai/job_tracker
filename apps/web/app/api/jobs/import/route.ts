@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -11,16 +12,27 @@ export async function GET(req: NextRequest) {
   const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
 
-  const { data, error, count } = await supabase
-    .from('job_postings')
-    .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'exact' })
-    .eq('source_type', 'manual')
-    .order('applied_at', { ascending: false, nullsFirst: false })
-    .order('first_seen', { ascending: false })
-    .range(page * limit, (page + 1) * limit - 1)
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ jobs: data ?? [], total: count ?? 0, page, limit })
+  // Run both queries in parallel
+  const [listResult, todayResult] = await Promise.all([
+    supabase
+      .from('job_postings')
+      .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'exact' })
+      .eq('source_type', 'manual')
+      .order('applied_at', { ascending: false, nullsFirst: false })
+      .order('resume_fit', { ascending: false, nullsFirst: false })
+      .range(page * limit, (page + 1) * limit - 1),
+    supabase
+      .from('job_postings')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'applied')
+      .gte('applied_at', todayStart.toISOString()),
+  ])
+
+  if (listResult.error) return NextResponse.json({ error: listResult.error.message }, { status: 500 })
+
+  return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, page, limit })
 }
 
 interface ParsedJob {
@@ -78,8 +90,8 @@ function parseNotionMarkdown(md: string): ParsedJob {
       status = line.replace(/^Status:\s*/, '').toLowerCase()
       continue
     }
-    if (line.startsWith('Date:')) {
-      date = line.replace(/^Date:\s*/, '')
+    if (line.startsWith('Date:') || line.startsWith('Date Applied:')) {
+      date = line.replace(/^Date(?:\s+Applied)?:\s*/, '')
       continue
     }
     if (line.startsWith('Note:')) {
@@ -106,8 +118,9 @@ function parseNotionMarkdown(md: string): ParsedJob {
       if (salary_max < 1000) salary_max *= 1000
     }
 
-    // Detect start of job description (first ## or **About** section)
-    if (descStart === -1 && (line.startsWith('## ') || line.startsWith('**About'))) {
+    // Detect start of job description: any content line after metadata
+    // Matches ## headings, # **bold headings**, **bold sections**, --- separators, or any non-empty line
+    if (descStart === -1 && title && line.length > 0) {
       descStart = i
     }
   }
@@ -121,6 +134,29 @@ function parseNotionMarkdown(md: string): ParsedJob {
   }
 
   return { title, company, url, date, notes: notes.trim(), description, status, salary_min, salary_max }
+}
+
+// Map Notion statuses to our system statuses
+function mapStatus(notionStatus: string): { status: string; isApplied: boolean } {
+  switch (notionStatus.toLowerCase()) {
+    case 'applied':
+    case 'interview':
+    case 'in progress':
+      return { status: 'applied', isApplied: true }
+    case 'offer':
+      return { status: 'applied', isApplied: true }
+    case 'rejected':
+    case 'complete':
+      return { status: 'unavailable', isApplied: true }
+    case 'wishlist':
+    case 'to-do':
+    case 'todo':
+      return { status: 'reviewed', isApplied: false }
+    case 'skipped':
+      return { status: 'skipped', isApplied: false }
+    default:
+      return { status: 'applied', isApplied: true }
+  }
 }
 
 // POST: import one or more jobs from Notion markdown
@@ -174,18 +210,17 @@ export async function POST(req: NextRequest) {
 
     const urlHash = crypto.createHash('sha256').update(parsed.url || `manual-${parsed.title}-${parsed.company}`).digest('hex')
 
-    // Dedup: check by title+company among manual imports only
-    const { data: existing } = await supabase
+    // Dedup: check by title+company across all sources
+    let dedupQuery = supabase
       .from('job_postings')
-      .select('id, title, company, notes, page_content')
-      .eq('source_type', 'manual')
+      .select('id, title, company, notes, page_content, applied_at')
       .ilike('title', parsed.title)
-      .ilike('company', parsed.company || '')
-      .maybeSingle()
+    if (parsed.company) dedupQuery = dedupQuery.ilike('company', parsed.company)
+    const { data: existing } = await dedupQuery.maybeSingle()
 
     if (existing) {
-      // Update if there's new data (notes or description)
-      const updates: Record<string, any> = { last_seen: new Date().toISOString() }
+      // Update if there's new data (notes or description) — preserve original applied_at
+      const updates: Record<string, any> = { last_seen: new Date().toISOString(), source_type: 'manual' }
       if (parsed.notes && parsed.notes !== existing.notes) updates.notes = parsed.notes
       if (parsed.description && parsed.description !== existing.page_content) {
         updates.page_content = parsed.description
@@ -194,15 +229,17 @@ export async function POST(req: NextRequest) {
         updates.keywords_matched = scoreResult.keywords_matched
         updates.resume_fit = resume_fit
       }
-      if (parsed.status === 'applied' && appliedAt) {
-        updates.status = 'applied'
-        updates.applied_at = appliedAt
+      const mapped = mapStatus(parsed.status)
+      if (mapped.isApplied) {
+        updates.status = mapped.status
+        // Only set applied_at if not already set
+        if (!existing.applied_at && appliedAt) updates.applied_at = appliedAt
       }
       if (parsed.salary_min) updates.salary_min = parsed.salary_min
       if (parsed.salary_max) updates.salary_max = parsed.salary_max
 
       await supabase.from('job_postings').update(updates).eq('id', existing.id)
-      results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: updates.status ?? parsed.status, resume_fit })
+      results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: updates.status ?? mapStatus(parsed.status).status, resume_fit })
       continue
     }
 
@@ -216,8 +253,8 @@ export async function POST(req: NextRequest) {
         location: '',
         page_content: parsed.description || null,
         notes: parsed.notes || null,
-        status: parsed.status === 'applied' ? 'applied' : 'new',
-        applied_at: parsed.status === 'applied' ? appliedAt : null,
+        status: mapStatus(parsed.status).status,
+        applied_at: mapStatus(parsed.status).isApplied ? appliedAt : null,
         source_type: 'manual',
         firehose_rule: 'manual-import',
         score: scoreResult.total,
@@ -233,7 +270,32 @@ export async function POST(req: NextRequest) {
       .select('id')
       .single()
 
-    results.push({ title: parsed.title, company: parsed.company, id: data?.id, action: 'imported', jobStatus: parsed.status === 'applied' ? 'applied' : 'new', resume_fit, error: error?.message })
+    results.push({ title: parsed.title, company: parsed.company, id: data?.id, action: 'imported', jobStatus: mapStatus(parsed.status).status, resume_fit, error: error?.message })
+  }
+
+  // Trigger LLM enrichment for all imported/updated jobs with JD content (non-blocking)
+  const jobsToEnrich = results.filter(r => r.id).map(r => r.id!)
+  if (jobsToEnrich.length > 0) {
+    after(async () => {
+      const supabaseAsync = createServerClient()
+      const geminiKey = process.env.GEMINI_API_KEY
+      const anthropicKey = process.env.ANTHROPIC_API_KEY
+      if (!geminiKey && !anthropicKey) return
+
+      for (const jobId of jobsToEnrich) {
+        const { data: job } = await supabaseAsync.from('job_postings').select('page_content, keywords_matched').eq('id', jobId).single()
+        if (!job?.page_content || job.page_content.length < 100) continue
+
+        const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+        const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
+        if (llmResult) {
+          const allKeywords = [...llmResult.matched, ...llmResult.missing]
+          const fit = llmResult.role_fit
+          const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'
+          await supabaseAsync.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', jobId)
+        }
+      }
+    })
   }
 
   return NextResponse.json({ imported: results.filter(r => r.id).length, results })

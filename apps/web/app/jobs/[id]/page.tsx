@@ -317,7 +317,7 @@ export default function JobDetailPage() {
                       setEditingDesc(false)
                       setJob(prev => prev ? { ...prev, page_content: content } : prev)
                       setSavingDesc(true)
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
                       fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
                     }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
@@ -386,7 +386,7 @@ export default function JobDetailPage() {
                     setEditingDesc(false)
                     setJob(prev => prev ? { ...prev, page_content: content } : prev)
                     setSavingDesc(true)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
                     fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
                   }
                 }}

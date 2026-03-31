@@ -49,6 +49,26 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const preSearchFilters = useRef<{ priority: string; since: string; status: string } | null>(null)
+
+  function toggleSearch() {
+    if (!searchOpen) {
+      preSearchFilters.current = { priority, since, status }
+      setPriority('all')
+      setSince('all')
+      setStatus('all')
+      setSearchOpen(true)
+    } else {
+      setSearchOpen(false)
+      setSearch('')
+      if (preSearchFilters.current) {
+        setPriority(preSearchFilters.current.priority)
+        setSince(preSearchFilters.current.since)
+        setStatus(preSearchFilters.current.status)
+        preSearchFilters.current = null
+      }
+    }
+  }
 
   // ── Sort ────────────────────────────────────────────────────────────────────
   const fitOrder = null
@@ -239,20 +259,13 @@ export default function DashboardPage() {
     fetchJobs(page)
   }
 
-  async function deleteJob(id: string) {
-    await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
-    setJobs((prev) => prev.filter((j) => j.id !== id))
-    setTotal((t) => t - 1)
-  }
-
   async function updateStatus(id: string, newStatus: string) {
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus as any } : j)))
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus as any, applied_at: newStatus === 'applied' ? new Date().toISOString() : null } : j)))
     await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
-    setTimeout(() => fetchJobs(page), 300)
   }
 
   function togglePriority(p: string) {
@@ -352,7 +365,7 @@ export default function DashboardPage() {
             className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >Applied</button>
           <span className="text-muted-foreground/20">|</span>
-          <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
+          <button type="button" aria-label="Search" onClick={toggleSearch}
             className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -366,7 +379,7 @@ export default function DashboardPage() {
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
           </button>
-          <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
+          <button type="button" aria-label="Search" onClick={toggleSearch}
             className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -463,7 +476,7 @@ export default function DashboardPage() {
             </select>
             <span className="text-muted-foreground/20">|</span>
             {/* Search */}
-            <button type="button" aria-label="Search" onClick={() => setSearchOpen(!searchOpen)}
+            <button type="button" aria-label="Search" onClick={toggleSearch}
               className={`text-xs py-1.5 rounded-md transition-colors ${searchOpen || search ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -489,34 +502,23 @@ export default function DashboardPage() {
       </div>
 
       {/* Search bar */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            key="search"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={spring}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                type="text"
-                placeholder="Search title or company..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1"
-                autoFocus
-              />
-              {search && (
-                <Button variant="ghost" size="xs" onClick={() => setSearch('')}>
-                  Clear
-                </Button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {searchOpen && (
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            placeholder="Search title or company..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1"
+            autoFocus
+          />
+          {search && (
+            <Button variant="ghost" size="xs" onClick={() => setSearch('')}>
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Jobs list */}
       <div className="min-h-[400px]">
@@ -531,35 +533,14 @@ export default function DashboardPage() {
         ) : (
           <>
             <div className="space-y-2">
-              <AnimatePresence>
               {jobs.map((job) => (
-                <motion.div
-                  key={job.id}
-                  initial={false}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -300, height: 0, marginBottom: 0, transition: { duration: 0.3 } }}
-                  className="relative overflow-hidden rounded-lg"
-                >
-                  {/* Delete background revealed on swipe */}
-                  <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-6 rounded-lg">
-                    <span className="text-destructive-foreground text-sm font-medium">Delete</span>
-                  </div>
-                  <motion.div
-                    drag="x"
-                    dragDirectionLock
-                    dragConstraints={{ left: -120, right: 0 }}
-                    dragElastic={0.1}
-                    onDragEnd={(_e, info) => {
-                      if (info.offset.x < -80) deleteJob(job.id)
-                    }}
-                    className="bg-card border px-4 py-3 rounded-lg relative"
-                  >
+                <div key={job.id} className="bg-card border px-4 py-3 rounded-lg">
                   {/* Row 1: Title — StatusChip (desktop only) */}
                   <div className="flex items-center justify-between gap-2">
                     <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm text-foreground sm:truncate" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
-                    <div className="shrink-0 hidden sm:block">
+                    <div className="shrink-0 hidden sm:block relative z-10">
                       <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
                     </div>
                   </div>
@@ -569,6 +550,7 @@ export default function DashboardPage() {
                     <span className="text-muted-foreground mx-1">·</span>
                     <span className="text-foreground">{job.company ?? '—'}</span>
                     {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
+                    {job.firehose_rule && <><span className="text-muted-foreground mx-1 hidden sm:inline">·</span><span className="text-muted-foreground hidden sm:inline">{job.firehose_rule}</span></>}
                     {job.status !== 'new' && <><span className="text-muted-foreground mx-1 sm:hidden">·</span><span className="text-muted-foreground capitalize sm:hidden">{job.status}</span></>}
                   </div>
                   {/* Row 3: Applied date (if applied) */}
@@ -577,10 +559,8 @@ export default function DashboardPage() {
                       Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                   )}
-                  </motion.div>
-                </motion.div>
+                </div>
               ))}
-              </AnimatePresence>
             </div>
           </>
         )}

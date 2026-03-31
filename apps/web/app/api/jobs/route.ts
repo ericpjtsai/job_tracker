@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
 
   function applyFilters(q: any) {
     if (priority && priority !== 'all') {
-      if (priority === 'high') q = q.gte('resume_fit', 60)
-      else if (priority === 'medium') q = q.gte('resume_fit', 30).lt('resume_fit', 60)
-      else if (priority === 'low') q = q.or('resume_fit.is.null,resume_fit.lt.30')
+      if (priority === 'high') q = q.gte('resume_fit', 80)
+      else if (priority === 'medium') q = q.gte('resume_fit', 50).lt('resume_fit', 80)
+      else if (priority === 'low') q = q.or('resume_fit.is.null,resume_fit.lt.50')
     }
     if (rule && rule !== 'all') q = q.eq('firehose_rule', rule)
     if (status && status !== 'all') q = q.eq('status', status)
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       const [resNew, resRest, { count: total }] = await Promise.all([qNew, qRest ?? Promise.resolve({ data: [] as any[] }), qTotal])
       data = [...(resNew.data ?? []), ...(resRest as any).data ?? []]
       return NextResponse.json({ data, total: total ?? 0, page, limit }, {
-        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+        headers: { 'Cache-Control': 'private, no-cache' },
       })
     } else {
       // Page is entirely in non-new jobs
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
       const [resRest, { count: total }] = await Promise.all([qRest, qTotal])
       data = resRest.data ?? []
       return NextResponse.json({ data, total: total ?? 0, page, limit }, {
-        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+        headers: { 'Cache-Control': 'private, no-cache' },
       })
     }
   }
@@ -105,6 +105,6 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ data, total: count ?? 0, page, limit }, {
-    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+    headers: { 'Cache-Control': 'private, no-cache' },
   })
 }

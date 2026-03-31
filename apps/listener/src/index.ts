@@ -14,6 +14,10 @@ import { pollSerpApi, serpApiSource } from './serpapi-jobs'
 import { pollLinkedInDirect, linkedinDirectSource } from './linkedin-direct'
 import { pollIndeed, pollGlassdoor, indeedSource, glassdoorSource } from './hasdata-jobs'
 
+// Ensure source modules are imported so registerSource() side-effects run
+void atsSource; void mantikSource; void scraperSource
+void serpApiSource; void linkedinDirectSource; void indeedSource; void glassdoorSource
+
 import { registerSource } from './sources/registry'
 import { getSource, getSourcesStatus } from './sources/registry'
 import { createHealth, type DataSource } from './sources/types'
@@ -50,7 +54,7 @@ async function runRescore() {
         if (llmResult) {
           const allKeywords = [...llmResult.matched, ...llmResult.missing]
           const fit = llmResult.role_fit
-          const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
+          const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'
           await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', job.id)
           rescoreState.updated++
           await new Promise(r => setTimeout(r, 200))
@@ -59,7 +63,7 @@ async function runRescore() {
       }
       // Fallback: regex
       const fit = computeResumeFit(job.keywords_matched ?? [], resumeKeywords)
-      const priority = fit >= 60 ? 'high' : fit >= 30 ? 'medium' : fit >= 1 ? 'low' : 'skip'
+      const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'
       await supabase.from('job_postings').update({ resume_fit: fit, priority }).eq('id', job.id)
       rescoreState.updated++
     } catch (err) {

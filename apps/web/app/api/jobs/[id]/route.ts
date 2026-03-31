@@ -18,7 +18,7 @@ export async function GET(
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data, {
-    headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+    headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
 
@@ -72,7 +72,7 @@ export async function PATCH(
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]
         const resume_fit = llmResult.role_fit
-        const priority = resume_fit >= 60 ? 'high' : resume_fit >= 30 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip'
+        const priority = resume_fit >= 80 ? 'high' : resume_fit >= 50 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip'
         await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, priority }).eq('id', id)
         return NextResponse.json({ ok: true, resume_fit, keywords_matched: allKeywords, matched: llmResult.matched, missing: llmResult.missing })
       }

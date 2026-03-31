@@ -274,8 +274,9 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
 
   // ── Resume fit ───────────────────────────────────────────────────────────
   const resumeKeywords = await getActiveResumeKeywords(supabase as any)
+  const hasContent = opts.description && opts.description.length > 100
   const resumeFit =
-    resumeKeywords.length > 0
+    resumeKeywords.length > 0 && hasContent
       ? computeResumeFit(result.keywords_matched, resumeKeywords)
       : null
 
@@ -289,7 +290,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   // ── Priority (fit-based when resume active, score-based fallback) ──────
   const priority = result.excluded ? 'skip' as const
     : resumeFit !== null
-      ? (resumeFit >= 60 ? 'high' as const : resumeFit >= 30 ? 'medium' as const : resumeFit >= 1 ? 'low' as const : 'skip' as const)
+      ? (resumeFit >= 80 ? 'high' as const : resumeFit >= 50 ? 'medium' as const : resumeFit >= 1 ? 'low' as const : 'skip' as const)
       : result.priority
 
   // ── Insert ───────────────────────────────────────────────────────────────
@@ -342,7 +343,7 @@ async function enrichWithLLM(supabase: any, url: string, description: string, re
   const allKeywords = [...llmResult.matched, ...llmResult.missing]
   const resumeFit = llmResult.role_fit
 
-  const priority = resumeFit >= 60 ? 'high' : resumeFit >= 30 ? 'medium' : resumeFit >= 1 ? 'low' : 'skip'
+  const priority = resumeFit >= 80 ? 'high' : resumeFit >= 50 ? 'medium' : resumeFit >= 1 ? 'low' : 'skip'
 
   const updates: Record<string, any> = { keywords_matched: allKeywords }
   if (resumeFit !== null) { updates.resume_fit = resumeFit; updates.priority = priority }

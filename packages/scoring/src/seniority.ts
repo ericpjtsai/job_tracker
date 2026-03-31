@@ -42,7 +42,7 @@ const SENIOR_OVERQUALIFIED_PATTERNS = [
 ]
 
 // Non-design roles — hard block (job is dropped entirely, never inserted)
-const NON_DESIGN_TITLE = /\b(intern(ship)?|scholarship|researcher|strategist|motion designer|engineer|ai trainer|job trends|salaries)\b/i
+const NON_DESIGN_TITLE = /\b(lead|intern(ship)?|scholarship|researcher|strategist|motion designer|content designer|engineer|ai trainer|job trends|salaries)\b/i
 
 /**
  * Returns true if the title indicates a non-design role.
