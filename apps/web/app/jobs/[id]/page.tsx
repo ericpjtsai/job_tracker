@@ -160,7 +160,11 @@ export default function JobDetailPage() {
 
   async function updateStatus(newStatus: string) {
     if (!job) return
-    setJob({ ...job, status: newStatus as any, applied_at: newStatus === 'applied' ? new Date().toISOString() : null })
+    const applied_at =
+      newStatus === 'applied' ? (job.applied_at ?? new Date().toISOString()) :
+      ['new', 'reviewed', 'skipped'].includes(newStatus) ? null :
+      job.applied_at
+    setJob({ ...job, status: newStatus as any, applied_at })
     await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -406,10 +410,10 @@ export default function JobDetailPage() {
             </AnimatePresence>
           </div>
 
-          {/* Job posting URL — only show when URL is missing */}
-          {(!job.url || editingUrl) && <div className="bg-card rounded-lg p-5 border space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium text-muted-foreground">Posting URL</div>
+          {/* Job posting URL — always visible */}
+          <div className="bg-card rounded-lg border overflow-hidden">
+            <div className={`px-6 py-4 flex items-center justify-between transition-colors ${editingUrl ? 'bg-muted/40' : ''}`}>
+              <div className="text-sm font-semibold">Posting URL</div>
               <div className="flex items-center gap-2">
                 {editingUrl ? (
                   <>
@@ -419,7 +423,7 @@ export default function JobDetailPage() {
                       setJob({ ...job, url: draftUrl })
                       setEditingUrl(false)
                       setSavingUrl(false)
-                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">{savingUrl ? 'Saving...' : 'Save'}</button>
+                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
                     <button type="button" onClick={() => { setEditingUrl(false); setDraftUrl(job.url ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
                   </>
                 ) : (
@@ -427,20 +431,32 @@ export default function JobDetailPage() {
                 )}
               </div>
             </div>
-            {editingUrl ? (
-              <input
-                type="url"
-                value={draftUrl}
-                onChange={(e) => setDraftUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background"
-              />
-            ) : job.url ? (
-              <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
-            ) : (
-              <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
-            )}
-          </div>}
+            <div className="px-6 py-4">
+              {editingUrl ? (
+                <input
+                  type="url"
+                  value={draftUrl}
+                  onChange={(e) => setDraftUrl(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      setSavingUrl(true)
+                      await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
+                      setJob({ ...job, url: draftUrl })
+                      setEditingUrl(false)
+                      setSavingUrl(false)
+                    }
+                  }}
+                  placeholder="https://..."
+                  autoFocus
+                  className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background focus-visible:outline-none"
+                />
+              ) : job.url ? (
+                <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
+              ) : (
+                <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
+              )}
+            </div>
+          </div>
 
           {/* Notes — same card pattern as job description */}
           <div className="bg-card rounded-lg border overflow-hidden">

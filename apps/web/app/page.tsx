@@ -42,8 +42,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)   // initial load only
   const [fetching, setFetching] = useState(false) // subsequent fetches (progress bar)
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   // ── Filters ────────────────────────────────────────────────────────────────
-  const [priority, setPriority] = useState('high')
+  const [priority, setPriority] = useState('all')
   const [since, setSince] = useState('24h')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
@@ -248,6 +251,14 @@ export default function DashboardPage() {
     }, 500)
   }
 
+  async function deleteJob(id: string) {
+    setDeletingId(id)
+    await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
+    setJobs((prev) => prev.filter((j) => j.id !== id))
+    setTotal((t) => t - 1)
+    setDeletingId(null)
+  }
+
   async function stopPolling() {
     await fetch('/api/poll', { method: 'DELETE' }).catch(() => {})
     if (pollIntervalRef.current) {
@@ -260,7 +271,14 @@ export default function DashboardPage() {
   }
 
   async function updateStatus(id: string, newStatus: string) {
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus as any, applied_at: newStatus === 'applied' ? new Date().toISOString() : null } : j)))
+    setJobs((prev) => prev.map((j) => {
+      if (j.id !== id) return j
+      const applied_at =
+        newStatus === 'applied' ? (j.applied_at ?? new Date().toISOString()) :
+        ['new', 'reviewed', 'skipped'].includes(newStatus) ? null :
+        j.applied_at
+      return { ...j, status: newStatus as any, applied_at }
+    }))
     await fetch(`/api/jobs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -534,17 +552,35 @@ export default function DashboardPage() {
           <>
             <div className="space-y-2">
               {jobs.map((job) => (
-                <div key={job.id} className="bg-card border px-4 py-3 rounded-lg">
+                <div key={job.id} className={`bg-card border px-4 py-3 rounded-lg ${deletingId === job.id ? 'opacity-50' : ''}`}>
                   {/* Row 1: Title — StatusChip (desktop only) */}
                   <div className="flex items-center justify-between gap-2">
                     <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm text-foreground sm:truncate" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
                       {job.title ?? 'Untitled'}
                     </Link>
-                    <div className="shrink-0 hidden sm:block relative z-10">
-                      <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
+                    <div className="shrink-0 flex items-center gap-3 relative z-10">
+                      <div className="hidden sm:block">
+                        <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
+                      </div>
+                      {deletingId === job.id ? (
+                        <span className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-destructive rounded-full animate-spin" />
+                      ) : confirmDeleteId === job.id ? (
+                        <span className="flex items-center gap-2">
+                          <button type="button" aria-label="Confirm delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteJob(job.id); setConfirmDeleteId(null) }} className="flex items-center justify-center text-destructive hover:text-destructive/80 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                          </button>
+                          <button type="button" aria-label="Cancel delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(null) }} className="flex items-center justify-center text-muted-foreground/40 hover:text-foreground transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                          </button>
+                        </span>
+                      ) : (
+                        <button type="button" aria-label="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(job.id) }} className="flex items-center justify-center text-muted-foreground/40 hover:text-destructive transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {/* Row 2: Fit · Company · Location (+ status text on mobile) */}
+                  {/* Row 2: Fit · Company · Location */}
                   <div className="text-xs truncate mt-0.5">
                     <FitBadge fit={job.resume_fit} />
                     <span className="text-muted-foreground mx-1">·</span>

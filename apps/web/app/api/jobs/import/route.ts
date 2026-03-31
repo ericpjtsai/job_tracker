@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
   const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
 
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  // Today midnight in server's local timezone
+  const todayLocal = new Date()
+  todayLocal.setHours(0, 0, 0, 0)
+  const todayMidnight = todayLocal.toISOString()
 
   // Run both queries in parallel
   const [listResult, todayResult] = await Promise.all([
@@ -26,8 +29,8 @@ export async function GET(req: NextRequest) {
     supabase
       .from('job_postings')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'applied')
-      .gte('applied_at', todayStart.toISOString()),
+      .not('applied_at', 'is', null)
+      .gte('applied_at', todayMidnight),
   ])
 
   if (listResult.error) return NextResponse.json({ error: listResult.error.message }, { status: 500 })
@@ -81,9 +84,13 @@ function parseNotionMarkdown(md: string): ParsedJob {
     // Metadata fields
     if (line.startsWith('Company:')) {
       const val = line.replace(/^Company:\s*/, '')
-      // Could be a URL or a name
       if (val.startsWith('http')) url = val
       else company = val
+      continue
+    }
+    if (line.startsWith('URL:')) {
+      const val = line.replace(/^URL:\s*/, '').trim()
+      if (val) url = val
       continue
     }
     if (line.startsWith('Status:')) {
@@ -189,12 +196,14 @@ export async function POST(req: NextRequest) {
     })
     const resume_fit = computeResumeFit(scoreResult.keywords_matched, resumeKeywords)
 
-    // Parse date
+    // Parse date — date-only ISO strings ("2026-03-31") are parsed as UTC midnight by JS spec,
+    // so append T00:00:00 to parse as local time for consistency with todayMidnight
     let appliedAt: string | null = null
     let firstSeen: string
     if (parsed.date) {
       try {
-        const d = new Date(parsed.date)
+        const dateStr = parsed.date.trim()
+        const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + 'T00:00:00' : dateStr)
         if (!isNaN(d.getTime())) {
           appliedAt = d.toISOString()
           firstSeen = d.toISOString()
@@ -206,6 +215,11 @@ export async function POST(req: NextRequest) {
       }
     } else {
       firstSeen = new Date().toISOString()
+    }
+
+    // Default appliedAt to now when status is applied but no date was provided
+    if (!appliedAt && mapStatus(parsed.status).isApplied) {
+      appliedAt = new Date().toISOString()
     }
 
     const urlHash = crypto.createHash('sha256').update(parsed.url || `manual-${parsed.title}-${parsed.company}`).digest('hex')

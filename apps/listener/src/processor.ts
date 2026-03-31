@@ -187,10 +187,15 @@ function isLocationBlocked(location: string): boolean {
   return NON_US_LOCATION.test(location)
 }
 
+function cleanTitle(title: string): string {
+  return title.replace(/^apply\s*now\s*/i, '').trim()
+}
+
 export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   const supabase = getSupabase()
   const normalizedUrl = canonicalLinkedInUrl(opts.url)
   const urlHash = sha256(normalizedUrl)
+  opts.title = cleanTitle(opts.title)
   processorStats.received++
 
   // ── Title & location pre-filters (before dedup to save DB calls) ──────────
@@ -257,6 +262,29 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     }
   }
 
+  // ── Fuzzy dedup for scrapers: title+company match with partial JD overlap + low fit ──
+  if (opts.title && (opts.source.includes('scraper') || opts.source.includes('hasdata') || opts.source.includes('glassdoor') || opts.source.includes('indeed') || opts.source.includes('serpapi') || opts.source.includes('mantiks'))) {
+    let fq = supabase.from('job_postings').select('id, page_content, resume_fit').ilike('title', opts.title)
+    if (opts.company) fq = fq.ilike('company', opts.company)
+    const { data: fuzzyMatches } = await fq
+    if (fuzzyMatches && fuzzyMatches.length > 0) {
+      for (const match of fuzzyMatches) {
+        // Check partial description overlap
+        const existingContent = (match.page_content || '').toLowerCase()
+        const newContent = (opts.description || '').toLowerCase()
+        const hasDescOverlap = existingContent.length > 100 && newContent.length > 100 &&
+          (existingContent.includes(newContent.substring(0, 100)) || newContent.includes(existingContent.substring(0, 100)))
+
+        if (hasDescOverlap && match.resume_fit !== null && match.resume_fit < 50) {
+          processorStats.deduplicated++
+          console.log(`  ↷ Dedup (fuzzy scraper, fit:${match.resume_fit}): ${opts.title} — ${opts.company}`)
+          await supabase.from('job_postings').update({ last_seen: new Date().toISOString() }).eq('id', match.id)
+          return
+        }
+      }
+    }
+  }
+
   // ── Score ────────────────────────────────────────────────────────────────
   const result = scorePosting({
     text: opts.description,
@@ -279,6 +307,13 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     resumeKeywords.length > 0 && hasContent
       ? computeResumeFit(result.keywords_matched, resumeKeywords)
       : null
+
+  // Skip if no keyword matches at all (title + description have zero design relevance)
+  if (result.keywords_matched.length === 0) {
+    processorStats.resumeFitZero++
+    console.log(`  ↷ Skipped (0 keywords): ${opts.title || normalizedUrl}`)
+    return
+  }
 
   // Skip if resume is active and this job has zero keyword overlap — it's irrelevant
   if (resumeKeywords.length > 0 && resumeFit === 0) {

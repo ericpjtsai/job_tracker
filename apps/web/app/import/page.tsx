@@ -40,7 +40,7 @@ export default function ImportPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        entries: [`# ${manualForm.title}\n\nCompany: ${manualForm.company}\nURL: ${manualForm.url || ''}\nDate Applied: ${new Date().toISOString().split('T')[0]}\nStatus: Applied\n\n---\n\n${manualForm.description}\n\n${manualForm.notes ? `> ${manualForm.notes}` : ''}`],
+        entries: [`# ${manualForm.title}\n\nCompany: ${manualForm.company}\nURL: ${manualForm.url || ''}\nDate: ${new Date().toISOString()}\nStatus: Applied\n${manualForm.notes ? `Note: ${manualForm.notes}\n` : ''}\n## Description\n\n${manualForm.description}`],
       }),
     })
     const data = await res.json()
