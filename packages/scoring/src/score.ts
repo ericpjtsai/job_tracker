@@ -187,8 +187,13 @@ export function scorePosting(opts: ScoreInput): ScoreResult {
 // ─── Resume fit ───────────────────────────────────────────────────────────────
 
 /**
- * Compute how well a job's matched keywords overlap with the resume's keywords.
- * Returns 0–100 (percentage of posting keywords that appear in the resume).
+ * Quick resume fit score based on matched keyword count.
+ * Calibrated against LLM role_fit scores from 672 training samples:
+ *   0 matched → 0 (skip)
+ *   1-9 matched → scale 10-40 (low, LLM avg ~32)
+ *   10-19 matched → scale 40-65 (medium, LLM avg ~66)
+ *   20+ matched → scale 65-85 (high, LLM avg ~86)
+ * This is a fast pre-filter; LLM enrichment overwrites with accurate role_fit.
  */
 export function computeResumeFit(
   postingKeywords: string[],
@@ -196,8 +201,11 @@ export function computeResumeFit(
 ): number {
   if (postingKeywords.length === 0) return 0
   const resumeSet = new Set(resumeKeywords.map((k) => k.toLowerCase()))
-  const overlap = postingKeywords.filter((k) => resumeSet.has(k.toLowerCase()))
-  return Math.round((overlap.length / postingKeywords.length) * 100)
+  const matched = postingKeywords.filter((k) => resumeSet.has(k.toLowerCase())).length
+  if (matched === 0) return 0
+  if (matched < 10) return Math.round(10 + (matched / 9) * 30)  // 10-40
+  if (matched < 20) return Math.round(40 + ((matched - 10) / 10) * 25)  // 40-65
+  return Math.min(85, Math.round(65 + ((matched - 20) / 20) * 20))  // 65-85, cap at 85
 }
 
 /**

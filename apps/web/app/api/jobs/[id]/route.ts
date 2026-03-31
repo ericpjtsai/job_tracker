@@ -18,7 +18,7 @@ export async function GET(
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data, {
-    headers: { 'Cache-Control': 'private, no-cache' },
+    headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' },
   })
 }
 
@@ -30,13 +30,19 @@ export async function PATCH(
   const supabase = createServerClient()
   const body = await req.json()
 
-  // Only allow updating status, notes, page_content, and url
+  // Only allow updating status, notes, page_content, url, and title
   const updates: Record<string, string | null> = {}
+  if (typeof body.title === 'string') updates.title = body.title
   if (typeof body.status === 'string') {
     updates.status = body.status
-    // Track when job was applied
-    if (body.status === 'applied') updates.applied_at = new Date().toISOString()
-    else updates.applied_at = null
+    // Track when job was applied — preserve applied_at for post-application states
+    if (body.status === 'applied') {
+      const { data: current } = await supabase.from('job_postings').select('applied_at').eq('id', id).single()
+      if (!current?.applied_at) updates.applied_at = new Date().toISOString()
+    } else if (['new', 'reviewed', 'skipped'].includes(body.status)) {
+      updates.applied_at = null
+    }
+    // 'unavailable' = post-application (rejection) — don't touch applied_at
   }
   if (typeof body.notes === 'string') updates.notes = body.notes
   if (typeof body.page_content === 'string') updates.page_content = body.page_content

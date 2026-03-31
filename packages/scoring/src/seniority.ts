@@ -42,7 +42,8 @@ const SENIOR_OVERQUALIFIED_PATTERNS = [
 ]
 
 // Non-design roles — hard block (job is dropped entirely, never inserted)
-const NON_DESIGN_TITLE = /\b(lead|intern(ship)?|scholarship|researcher|strategist|motion designer|content designer|engineer|ai trainer|job trends|salaries)\b/i
+// Note: avoid broad terms like "marketing" or "brand designer" — they match "Product Designer, Marketing" teams
+const NON_DESIGN_TITLE = /\b(lead|intern(ship)?|scholarship|researcher|strategist|motion designer|content designer|graphic designer|interior designer|multimedia designer|engineer|ai trainer|job trends|salaries|data scientist|business analyst|client associate|product specialist|professor|nurse|licensed practical nurse|founder.s office|marketing (representative|coordinator|specialist|assistant|associate)|growth marketing|creative producer)\b/i
 
 /**
  * Returns true if the title indicates a non-design role.

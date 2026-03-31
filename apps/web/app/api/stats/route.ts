@@ -21,37 +21,35 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  function countQuery() {
-    let q = supabase.from('job_postings').select('id', { count: 'exact', head: true })
-    if (since && since !== 'all') {
-      const hours = since === '24h' ? 24 : 7 * 24
-      const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-      q = q.gte('first_seen', cutoff)
-    }
-    return applySharedFilters(q)
+  // Single query: fetch resume_fit + status (lightweight), count in JS — faster than 6 round-trips
+  let query = supabase.from('job_postings').select('resume_fit, status')
+  if (since && since !== 'all') {
+    const hours = since === '24h' ? 24 : 7 * 24
+    const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
+    query = query.gte('first_seen', cutoff)
   }
+  query = applySharedFilters(query)
 
-  // Run all 6 count queries in parallel — each is a lightweight HEAD request (no rows returned)
-  const [high, medium, low, newHigh, newMedium, newLow] = await Promise.all([
-    countQuery().gte('resume_fit', 80),
-    countQuery().gte('resume_fit', 50).lt('resume_fit', 80),
-    countQuery().or('resume_fit.is.null,resume_fit.lt.50'),
-    countQuery().eq('status', 'new').gte('resume_fit', 80),
-    countQuery().eq('status', 'new').gte('resume_fit', 50).lt('resume_fit', 80),
-    countQuery().eq('status', 'new').or('resume_fit.is.null,resume_fit.lt.50'),
-  ])
+  const { data } = await query
+  const rows = data ?? []
 
-  const h = high.count ?? 0, m = medium.count ?? 0, l = low.count ?? 0
+  let h = 0, m = 0, l = 0, gh = 0, gm = 0, gl = 0
+  for (const r of rows) {
+    const fit = r.resume_fit
+    if (fit !== null && fit >= 80) { h++; if (r.status === 'new') gh++ }
+    else if (fit !== null && fit >= 50) { m++; if (r.status === 'new') gm++ }
+    else { l++; if (r.status === 'new') gl++ }
+  }
 
   return NextResponse.json({
     total: h + m + l,
     high: h,
     medium: m,
     low: l,
-    growthHigh: newHigh.count ?? 0,
-    growthMedium: newMedium.count ?? 0,
-    growthLow: newLow.count ?? 0,
+    growthHigh: gh,
+    growthMedium: gm,
+    growthLow: gl,
   }, {
-    headers: { 'Cache-Control': 'private, no-cache' },
+    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
   })
 }
