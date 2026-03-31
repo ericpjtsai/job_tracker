@@ -33,12 +33,12 @@ export async function GET(req: NextRequest) {
 
   // Run all 6 count queries in parallel — each is a lightweight HEAD request (no rows returned)
   const [high, medium, low, newHigh, newMedium, newLow] = await Promise.all([
-    countQuery().gte('resume_fit', 60),
-    countQuery().gte('resume_fit', 30).lt('resume_fit', 60),
-    countQuery().or('resume_fit.is.null,resume_fit.lt.30'),
-    countQuery().eq('status', 'new').gte('resume_fit', 60),
-    countQuery().eq('status', 'new').gte('resume_fit', 30).lt('resume_fit', 60),
-    countQuery().eq('status', 'new').or('resume_fit.is.null,resume_fit.lt.30'),
+    countQuery().gte('resume_fit', 80),
+    countQuery().gte('resume_fit', 50).lt('resume_fit', 80),
+    countQuery().or('resume_fit.is.null,resume_fit.lt.50'),
+    countQuery().eq('status', 'new').gte('resume_fit', 80),
+    countQuery().eq('status', 'new').gte('resume_fit', 50).lt('resume_fit', 80),
+    countQuery().eq('status', 'new').or('resume_fit.is.null,resume_fit.lt.50'),
   ])
 
   const h = high.count ?? 0, m = medium.count ?? 0, l = low.count ?? 0
@@ -52,6 +52,6 @@ export async function GET(req: NextRequest) {
     growthMedium: newMedium.count ?? 0,
     growthLow: newLow.count ?? 0,
   }, {
-    headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' },
+    headers: { 'Cache-Control': 'private, no-cache' },
   })
 }
