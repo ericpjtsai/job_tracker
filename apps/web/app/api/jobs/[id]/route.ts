@@ -39,10 +39,9 @@ export async function PATCH(
     if (body.status === 'applied') {
       const { data: current } = await supabase.from('job_postings').select('applied_at').eq('id', id).single()
       if (!current?.applied_at) updates.applied_at = new Date().toISOString()
-    } else if (['new', 'reviewed', 'skipped'].includes(body.status)) {
+    } else if (['new', 'reviewed', 'skipped', 'unavailable'].includes(body.status)) {
       updates.applied_at = null
     }
-    // 'unavailable' = post-application (rejection) — don't touch applied_at
   }
   if (typeof body.notes === 'string') updates.notes = body.notes
   if (typeof body.page_content === 'string') updates.page_content = body.page_content

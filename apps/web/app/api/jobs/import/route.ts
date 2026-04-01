@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
   // Today midnight in Pacific time (consistent across local dev and Vercel/UTC)
   const todayMidnight = new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })).toISOString()
 
-  // Run both queries in parallel
-  const [listResult, todayResult] = await Promise.all([
+  // Run all queries in parallel
+  const [listResult, todayResult, companiesResult] = await Promise.all([
     supabase
       .from('job_postings')
       .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
@@ -29,11 +29,18 @@ export async function GET(req: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .not('applied_at', 'is', null)
       .gte('applied_at', todayMidnight),
+    page === 0
+      ? supabase.from('job_postings').select('company').not('company', 'is', null)
+      : Promise.resolve({ data: null }),
   ])
 
   if (listResult.error) return NextResponse.json({ error: listResult.error.message }, { status: 500 })
 
-  return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, page, limit }, {
+  const companies = companiesResult.data
+    ? [...new Set(companiesResult.data.map((r: any) => r.company).filter(Boolean))].sort()
+    : undefined
+
+  return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, companies, page, limit }, {
     headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' },
   })
 }

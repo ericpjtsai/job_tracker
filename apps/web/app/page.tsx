@@ -397,7 +397,7 @@ export default function DashboardPage() {
       const wasApplied = j.status === 'applied'
       const applied_at =
         newStatus === 'applied' ? (j.applied_at ?? new Date().toISOString()) :
-        ['new', 'reviewed', 'skipped'].includes(newStatus) ? null :
+        ['new', 'reviewed', 'skipped', 'unavailable'].includes(newStatus) ? null :
         j.applied_at
       if (newStatus === 'applied' && !wasApplied) setTodayApplied((n) => n + 1)
       if (newStatus !== 'applied' && wasApplied) setTodayApplied((n) => Math.max(0, n - 1))

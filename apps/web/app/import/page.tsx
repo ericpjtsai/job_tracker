@@ -28,6 +28,11 @@ export default function ImportPage() {
   const [manualForm, setManualForm] = useState({ title: '', company: '', url: '', description: '', notes: '' })
   const [manualSubmitting, setManualSubmitting] = useState(false)
   const [manualResult, setManualResult] = useState<ImportResult | null>(null)
+  const [companies, setCompanies] = useState<string[]>([])
+  const [companyOpen, setCompanyOpen] = useState(false)
+  const [companyIdx, setCompanyIdx] = useState(-1)
+  const [companyLimit, setCompanyLimit] = useState(8)
+  const companyRef = useRef<HTMLDivElement>(null)
   const [notesOpen, setNotesOpen] = useState(false)
   const descRef = useRef<HTMLDivElement>(null)
   const notesRef = useRef<HTMLDivElement>(null)
@@ -84,6 +89,7 @@ export default function ImportPage() {
       })
       setHistoryTotal(data.total ?? 0)
       setTodayCount(data.todayCount ?? 0)
+      if (data.companies) setCompanies(data.companies)
       setHistoryPage(page)
     }
     setLoadingMore(false)
@@ -181,7 +187,58 @@ export default function ImportPage() {
         <div className="bg-card rounded-lg border px-4 py-4 space-y-3">
           <div className="grid sm:grid-cols-3 gap-3">
             <Input placeholder="Job title *" value={manualForm.title} onChange={(e) => setManualForm(f => ({ ...f, title: e.target.value }))} />
-            <Input placeholder="Company *" value={manualForm.company} onChange={(e) => setManualForm(f => ({ ...f, company: e.target.value }))} />
+            <div className="relative" ref={companyRef}>
+              <Input
+                placeholder="Company *"
+                value={manualForm.company}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={companyOpen}
+                aria-autocomplete="list"
+                aria-controls="company-listbox"
+                aria-activedescendant={companyIdx >= 0 ? `company-option-${companyIdx}` : undefined}
+                onChange={(e) => {
+                  setManualForm(f => ({ ...f, company: e.target.value }))
+                  setCompanyOpen(e.target.value.length > 0)
+                  setCompanyIdx(-1)
+                  setCompanyLimit(8)
+                }}
+                onFocus={() => { if (manualForm.company) setCompanyOpen(true) }}
+                onKeyDown={(e) => {
+                  const filtered = companies.filter(c => c.toLowerCase().includes(manualForm.company.toLowerCase())).slice(0, companyLimit)
+                  if (!companyOpen || !filtered.length) return
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setCompanyIdx(i => Math.min(i + 1, filtered.length - 1)) }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setCompanyIdx(i => Math.max(i - 1, 0)) }
+                  else if (e.key === 'Enter' && companyIdx >= 0) { e.preventDefault(); setManualForm(f => ({ ...f, company: filtered[companyIdx] })); setCompanyOpen(false) }
+                  else if (e.key === 'Escape') setCompanyOpen(false)
+                }}
+                onBlur={() => setTimeout(() => setCompanyOpen(false), 150)}
+              />
+              {companyOpen && (() => {
+                const q = manualForm.company.toLowerCase()
+                const filtered = companies.filter(c => c.toLowerCase().includes(q))
+                if (!filtered.length || (filtered.length === 1 && filtered[0] === manualForm.company)) return null
+                const visible = filtered.slice(0, companyLimit)
+                const more = filtered.length - visible.length
+                return (
+                  <div id="company-listbox" role="listbox" aria-label="Company suggestions" className="absolute z-50 top-full mt-1 w-full bg-card border rounded-md shadow-md max-h-[220px] overflow-y-auto"
+                    onScroll={(e) => {
+                      const el = e.currentTarget
+                      if (more > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
+                        setCompanyLimit(l => l + 10)
+                      }
+                    }}>
+                    {visible.map((c, i) => (
+                      <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx ? true : false}
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === companyIdx ? 'bg-muted' : 'hover:bg-muted/50'}`}
+                        onPointerDown={() => { setManualForm(f => ({ ...f, company: c })); setCompanyOpen(false) }}
+                      >{c}</button>
+                    ))}
+                    {more > 0 && <div className="px-3 py-1.5 text-xs text-muted-foreground">{more} more...</div>}
+                  </div>
+                )
+              })()}
+            </div>
             <Input placeholder="URL *" value={manualForm.url} onChange={(e) => setManualForm(f => ({ ...f, url: e.target.value }))} />
           </div>
           <div
@@ -189,16 +246,21 @@ export default function ImportPage() {
             contentEditable
             suppressContentEditableWarning
             onInput={(e) => setManualForm(f => ({ ...f, description: (e.target as HTMLDivElement).innerHTML }))}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleManualSubmit() } }}
+            onKeyDown={(e) => {
+              if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold') }
+              else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleManualSubmit() }
+            }}
             className="job-description w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[100px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
             data-placeholder="Job description *"
           />
+          <p className="text-[10px] text-muted-foreground/60 -mt-1.5">⌘B to bold</p>
           {notesOpen ? (
             <div
               ref={notesRef}
               contentEditable
               suppressContentEditableWarning
               onInput={(e) => setManualForm(f => ({ ...f, notes: (e.target as HTMLDivElement).innerHTML }))}
+              onKeyDown={(e) => { if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold') } }}
               className="w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[60px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
               data-placeholder="Notes"
             />

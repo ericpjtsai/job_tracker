@@ -164,7 +164,7 @@ export default function JobDetailPage() {
     if (!job) return
     const applied_at =
       newStatus === 'applied' ? (job.applied_at ?? new Date().toISOString()) :
-      ['new', 'reviewed', 'skipped'].includes(newStatus) ? null :
+      ['new', 'reviewed', 'skipped', 'unavailable'].includes(newStatus) ? null :
       job.applied_at
     setJob({ ...job, status: newStatus as any, applied_at })
     await fetch(`/api/jobs/${id}`, {
@@ -423,6 +423,7 @@ export default function JobDetailPage() {
                     suppressContentEditableWarning
                     onInput={(e) => setDraftDesc((e.target as HTMLDivElement).innerHTML)}
                     onKeyDown={(e) => {
+                      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold'); return }
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
                         const content = (e.target as HTMLDivElement).innerHTML
@@ -514,6 +515,7 @@ export default function JobDetailPage() {
                   suppressContentEditableWarning
                   onInput={(e) => setDraftNotes((e.target as HTMLDivElement).innerHTML)}
                   onKeyDown={(e) => {
+                    if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold'); return }
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
                       const content = (e.target as HTMLDivElement).innerHTML
