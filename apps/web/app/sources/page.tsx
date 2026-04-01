@@ -518,14 +518,14 @@ interface ProcessorStats {
 }
 
 const FILTER_PIPELINE: { name: string; scope: string; description: string; statsKey: keyof ProcessorStats | null }[] = [
-  { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (linkedin, greenhouse, lever, etc.), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/)', statsKey: 'nonJobBoard' },
-  { name: 'Title blocking', scope: 'All sources', description: 'Blocks: principal, lead, head, staff, intern(ship), scholarship, researcher, strategist, motion designer', statsKey: 'titleBlocked' },
-  { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (60+ cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations', statsKey: 'locationBlocked' },
-  { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies: Lensa', statsKey: 'companyBlocked' },
-  { name: 'Article detection', scope: 'All sources', description: 'Blocks content marketing titles: "How to...", "What is...", "Best practices...", "X tips for...", "Guide to...", year prefixes, "deep dive", "case study"', statsKey: 'articleBlocked' },
-  { name: 'Dedup', scope: 'All sources', description: 'SHA-256 hash of normalized URL (UTM params stripped). Existing entries get last_seen updated, no duplicate insert.', statsKey: 'deduplicated' },
-  { name: 'Seniority exclusion', scope: 'All sources', description: 'Blocks: staff, principal, director, VP, vice president, head of design, design manager, manager, lead with 7+yr, 8+ years', statsKey: 'seniorityExcluded' },
-  { name: 'Resume fit filter', scope: 'All sources', description: 'If active resume exists AND 0% keyword overlap with the job posting, the job is skipped entirely.', statsKey: 'resumeFitZero' },
+  { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (17 domains), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/). Configurable in Settings.', statsKey: 'nonJobBoard' },
+  { name: 'Non-design title blocking', scope: 'All sources', description: 'Hard-blocks non-design roles (27+ keywords: engineer, intern, graphic designer, etc.). Strips "Apply now" prefix. Configurable in Settings.', statsKey: 'titleBlocked' },
+  { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (92 cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations. Configurable in Settings.', statsKey: 'locationBlocked' },
+  { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies (configurable in Settings). Currently: lensa, itjobswatch.', statsKey: 'companyBlocked' },
+  { name: 'Article detection', scope: 'All sources', description: 'Blocks content marketing titles: "How to...", "What is...", "Best practices...", "Guide to...", year prefixes, "deep dive", "case study".', statsKey: 'articleBlocked' },
+  { name: 'Dedup (URL + title+company+location)', scope: 'All sources', description: 'SHA-256 URL hash + case-insensitive title+company+location matching. Uses .limit(1) for multi-match safety. Merges longer JDs and triggers LLM re-scoring.', statsKey: 'deduplicated' },
+  { name: 'Seniority exclusion', scope: 'All sources', description: 'Soft-blocks staff, principal, director, VP, head of, manager (priority=skip). Also blocks lead with 7+yr, 8+ years. Senior designers pass through. Configurable in Settings.', statsKey: 'seniorityExcluded' },
+  { name: 'Resume fit filter', scope: 'All sources', description: 'If active resume exists AND 0 keywords matched OR 0% resume fit, the job is skipped. LLM enrichment runs async post-insert for accurate scoring.', statsKey: 'resumeFitZero' },
 ]
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -794,18 +794,23 @@ export default function SourcesPage() {
   const [liveTaps, setLiveTaps] = useState<LiveTap[]>([])
   const [procStats, setProcStats] = useState<ProcessorStats | null>(null)
   const [historicalCounts, setHistoricalCounts] = useState<Record<string, number>>({})
+  const [scoringConfig, setScoringConfig] = useState<Record<string, any>>({})
   const [liveError, setLiveError] = useState(false)
   const [lastFetch, setLastFetch] = useState(0)
 
   async function fetchSources() {
     try {
-      const res = await fetch('/api/sources')
-      if (!res.ok) throw new Error()
-      const data = await res.json()
+      const [sourcesRes, scoringRes] = await Promise.all([
+        fetch('/api/sources'),
+        fetch('/api/scoring'),
+      ])
+      if (!sourcesRes.ok) throw new Error()
+      const data = await sourcesRes.json()
       setLiveSources(data.sources ?? [])
       setLiveTaps(data.firehoseRules ?? [])
       if (data.processorStats) setProcStats(data.processorStats)
       if (data.historicalCounts) setHistoricalCounts(data.historicalCounts)
+      if (scoringRes.ok) setScoringConfig(await scoringRes.json())
       setLiveError(false)
       setLastFetch(Date.now())
     } catch {
@@ -815,7 +820,7 @@ export default function SourcesPage() {
 
   useEffect(() => {
     fetchSources()
-    const interval = setInterval(fetchSources, 15_000) // refresh every 15s
+    const interval = setInterval(fetchSources, 15_000)
     return () => clearInterval(interval)
   }, [])
 
@@ -919,13 +924,26 @@ export default function SourcesPage() {
       </Section>
 
       {/* ── Scoring System ────────────────────────────────────────────────── */}
-      <Section title="Scoring System" badge={`${KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} keywords in ${KEYWORD_GROUPS.length} groups`}>
+      {(() => {
+        const liveGroups = scoringConfig.keyword_groups as any[] | undefined
+        const liveSeniorityExclude = scoringConfig.seniority_exclude as string[] | undefined
+        const liveNewgrad = scoringConfig.seniority_newgrad as string[] | undefined
+        const liveNonDesign = scoringConfig.non_design_titles as string[] | undefined
+        const liveBlockedLocations = scoringConfig.blocked_locations as string[] | undefined
+        const liveBlockedCompanies = scoringConfig.blocked_companies as string[] | undefined
+        const displayGroups = liveGroups ?? KEYWORD_GROUPS
+        const totalTerms = displayGroups.reduce((s: number, g: any) => s + (g.terms?.length ?? 0), 0)
+        return (
+      <Section title="Scoring System" badge={`${totalTerms} keywords in ${displayGroups.length} groups`}>
         <div className="space-y-4 pt-3">
           {/* Keyword groups */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Keyword Groups</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Keyword Groups</div>
+              <a href="/settings#keywords" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
+            </div>
             <div className="space-y-2">
-              {KEYWORD_GROUPS.map((group) => (
+              {displayGroups.map((group: any) => (
                 <KeywordGroupRow key={group.name} group={group} />
               ))}
             </div>
@@ -955,28 +973,49 @@ export default function SourcesPage() {
 
           {/* Seniority */}
           <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Seniority Bonuses</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Seniority &amp; Title Filters</div>
+              <a href="/settings#seniority" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-green-700">+10</div>
-                <div className="text-muted-foreground">New grad / associate / junior / early career / entry-level</div>
+                <div className="text-muted-foreground">{liveNewgrad ? liveNewgrad.slice(0, 5).join(', ') : 'New grad / associate / junior'}{liveNewgrad && liveNewgrad.length > 5 ? '...' : ''}</div>
               </div>
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-blue-700">+5</div>
                 <div className="text-muted-foreground">&quot;Product Designer&quot; or &quot;UX Designer&quot; (no level)</div>
               </div>
               <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-red-600">-10</div>
-                <div className="text-muted-foreground">Senior with 7+ / 8+ years</div>
+                <div className="font-semibold text-red-600">Excluded</div>
+                <div className="text-muted-foreground">{liveSeniorityExclude ? liveSeniorityExclude.join(', ') : 'Staff / principal / director / VP / manager'}</div>
               </div>
               <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-red-800">Excluded</div>
-                <div className="text-muted-foreground">Staff / principal / director / VP / manager</div>
+                <div className="font-semibold text-red-800">Hard blocked</div>
+                <div className="text-muted-foreground">{liveNonDesign ? `${liveNonDesign.length} non-design titles` : '27 non-design titles'}</div>
               </div>
             </div>
           </div>
 
-          {/* Location */}
+          {/* Blocklists */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Blocklists</div>
+              <a href="/settings#blocklists" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-muted/50 rounded-md p-2">
+                <div className="font-semibold text-foreground">{liveBlockedCompanies?.length ?? 2} blocked companies</div>
+                <div className="text-muted-foreground mt-0.5">{liveBlockedCompanies ? liveBlockedCompanies.join(', ') : 'lensa, itjobswatch'}</div>
+              </div>
+              <div className="bg-muted/50 rounded-md p-2">
+                <div className="font-semibold text-foreground">{liveBlockedLocations?.length ?? 92} blocked locations</div>
+                <div className="text-muted-foreground mt-0.5">Non-US cities &amp; countries</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Location bonuses */}
           <div>
             <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Location Bonuses</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -994,7 +1033,7 @@ export default function SourcesPage() {
               </div>
               <div className="bg-muted/50 rounded-md p-2">
                 <div className="font-semibold text-red-600">-20</div>
-                <div className="text-muted-foreground">Non-US (60+ cities/countries)</div>
+                <div className="text-muted-foreground">Non-US ({liveBlockedLocations?.length ?? '92'}+ cities/countries)</div>
               </div>
             </div>
           </div>
@@ -1002,11 +1041,11 @@ export default function SourcesPage() {
           {/* Priority */}
           <div>
             <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Priority Thresholds</div>
-            <div className="flex gap-3 text-xs">
-              <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: score &ge; 50</span>
-              <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: score &ge; 30</span>
-              <span className="bg-muted text-muted-foreground border px-2 py-1 rounded font-medium">Low: score &ge; 15</span>
-              <span className="bg-muted text-muted-foreground/50 border px-2 py-1 rounded font-medium">Skip: score &lt; 15</span>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: fit &ge; 80%</span>
+              <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: fit &ge; 50%</span>
+              <span className="bg-muted text-muted-foreground border px-2 py-1 rounded font-medium">Low: fit &ge; 1%</span>
+              <span className="bg-muted text-muted-foreground/50 border px-2 py-1 rounded font-medium">Skip: fit = 0%</span>
             </div>
           </div>
 
@@ -1014,11 +1053,13 @@ export default function SourcesPage() {
           <div>
             <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-1">Resume Fit</div>
             <p className="text-xs text-muted-foreground">
-              Percentage of posting&apos;s matched keywords that also appear in the active resume&apos;s keywords. If resume is active and fit = 0%, the job is skipped.
+              Percentage of posting&apos;s matched keywords that also appear in the active resume. LLM enrichment (Gemini/Anthropic) provides accurate role_fit scores after initial regex scoring. If resume is active and fit = 0%, the job is skipped.
             </p>
           </div>
         </div>
       </Section>
+        )
+      })()}
 
       {/* ── Fallback Chain ────────────────────────────────────────────────── */}
       <Section title="Fallback Chain">
@@ -1029,7 +1070,7 @@ export default function SourcesPage() {
               <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
               <div>
                 <div className="font-medium text-foreground">Normal operation</div>
-                <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day)</div>
+                <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
               </div>
             </div>
             <div className="flex items-start gap-2">

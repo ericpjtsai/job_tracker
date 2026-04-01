@@ -26,23 +26,36 @@ type ScoringConfig = {
 
 // ─── Tag Editor Component ────────────────────────────────────────────────────
 
-function TagEditor({ tags, onChange, placeholder }: {
+function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
   tags: string[]
   onChange: (tags: string[]) => void
   placeholder?: string
+  allTermsAcrossGroups?: Set<string>
 }) {
   const [input, setInput] = useState('')
   const [expanded, setExpanded] = useState(tags.length <= 20)
+  const [dupeWarning, setDupeWarning] = useState<string | null>(null)
+
+  const inputLower = input.trim().toLowerCase()
+  const isDupeInList = !!inputLower && tags.some((t) => t.toLowerCase() === inputLower)
+  const isDupeAcrossGroups = !!inputLower && !isDupeInList && !!allTermsAcrossGroups?.has(inputLower)
 
   function addTag() {
     const trimmed = input.trim()
     if (!trimmed) return
-    if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
-      setInput('')
+    if (isDupeInList) {
+      setDupeWarning(`"${trimmed}" already exists in this list`)
+      setTimeout(() => setDupeWarning(null), 2000)
+      return
+    }
+    if (isDupeAcrossGroups) {
+      setDupeWarning(`"${trimmed}" already exists in another group`)
+      setTimeout(() => setDupeWarning(null), 2000)
       return
     }
     onChange([...tags, trimmed])
     setInput('')
+    setDupeWarning(null)
   }
 
   function removeTag(index: number) {
@@ -69,16 +82,26 @@ function TagEditor({ tags, onChange, placeholder }: {
         )}
       </div>
       <div className="flex items-center gap-2">
-        <Input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-          placeholder={placeholder ?? 'Add item...'}
-          className="flex-1 h-8 text-xs"
-        />
-        <Button size="xs" variant="outline" onClick={addTag} disabled={!input.trim()}>Add</Button>
+        <div className="flex-1 relative">
+          <Input
+            type="text"
+            value={input}
+            onChange={(e) => { setInput(e.target.value); setDupeWarning(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+            placeholder={placeholder ?? 'Add item...'}
+            className={`h-8 text-xs ${isDupeInList || isDupeAcrossGroups ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`}
+          />
+          {inputLower && (isDupeInList || isDupeAcrossGroups) && (
+            <div className="absolute -bottom-5 left-0 text-[10px] text-amber-600">
+              {isDupeInList ? 'Already in this list' : 'Exists in another group'}
+            </div>
+          )}
+        </div>
+        <Button size="xs" variant="outline" onClick={addTag} disabled={!input.trim() || isDupeInList || isDupeAcrossGroups}>Add</Button>
       </div>
+      {dupeWarning && (
+        <div className="text-[11px] text-amber-600">{dupeWarning}</div>
+      )}
     </div>
   )
 }
@@ -268,6 +291,7 @@ export default function SettingsPage() {
                     setLocalKeywords(updated)
                   }}
                   placeholder={`Add ${group.name.replace(/_/g, ' ')} term...`}
+                  allTermsAcrossGroups={new Set(localKeywords.filter((_, i) => i !== gi).flatMap(g => g.terms.map(t => t.toLowerCase())))}
                 />
               </div>
             </details>
