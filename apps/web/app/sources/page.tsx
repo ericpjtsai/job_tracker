@@ -625,7 +625,6 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
   saving: boolean; hasChanges: boolean; onSave: () => void; onReset: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
     if (window.location.hash === `#${id}`) setOpen(true)
@@ -646,19 +645,10 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
         <>
           <div className="px-5 py-4 space-y-4">{children}</div>
           <div className="px-5 py-3 border-t flex items-center justify-between">
-            {confirmReset ? (
-              <span className="flex items-center gap-2">
-                <span className="text-xs text-destructive">Reset?</span>
-                <button type="button" aria-label="Confirm reset" onClick={() => { onReset(); setConfirmReset(false) }} className="text-destructive hover:text-destructive/80 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                </button>
-                <button type="button" aria-label="Cancel reset" onClick={() => setConfirmReset(false)} className="text-muted-foreground/40 hover:text-foreground transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setConfirmReset(true)} className="text-xs text-destructive/70 hover:text-destructive transition-colors">Reset to defaults</button>
+            {hasChanges && (
+              <button type="button" onClick={onReset} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Undo changes</button>
             )}
+            {!hasChanges && <span />}
             <Button size="sm" onClick={onSave} disabled={saving || !hasChanges}>{saving ? 'Saving...' : 'Save'}</Button>
           </div>
         </>
