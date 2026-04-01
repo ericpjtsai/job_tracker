@@ -197,6 +197,27 @@ const SOURCES: Source[] = [
     triggerPath: null,
     envVars: [],
   },
+  {
+    id: 'github-jobs',
+    name: 'GitHub Jobright Repos',
+    type: 'poll',
+    schedule: '2x daily (7am & 7pm)',
+    cost: 'Free',
+    endpoint: 'https://raw.githubusercontent.com (public repos)',
+    auth: 'None (public repos)',
+    queries: [
+      'jobright-ai/2026-Design-New-Grad — all design/creative new grad roles (~220 jobs)',
+      'jobright-ai/Daily-H1B-Jobs-In-Tech — Arts & Design section only (~300 H1B-sponsored jobs)',
+    ],
+    filters: [
+      'All jobs pass through insertJobPosting processor pipeline',
+      'Title/seniority exclusion, location blocking, dedup, scoring applied automatically',
+      'Minimal descriptions (title + company + location) — LLM enrichment skipped',
+    ],
+    notes: 'Parses markdown tables from GitHub README files. Both repos updated daily by Jobright.ai automation. Uses jobright.ai redirect URLs (UTM stripped) for dedup.',
+    triggerPath: '/poll/github',
+    envVars: [],
+  },
 ]
 
 // ─── ATS Companies ───────────────────────────────────────────────────────────
@@ -772,6 +793,7 @@ export default function SourcesPage() {
   const [liveSources, setLiveSources] = useState<LiveSource[]>([])
   const [liveTaps, setLiveTaps] = useState<LiveTap[]>([])
   const [procStats, setProcStats] = useState<ProcessorStats | null>(null)
+  const [historicalCounts, setHistoricalCounts] = useState<Record<string, number>>({})
   const [liveError, setLiveError] = useState(false)
   const [lastFetch, setLastFetch] = useState(0)
 
@@ -783,6 +805,7 @@ export default function SourcesPage() {
       setLiveSources(data.sources ?? [])
       setLiveTaps(data.firehoseRules ?? [])
       if (data.processorStats) setProcStats(data.processorStats)
+      if (data.historicalCounts) setHistoricalCounts(data.historicalCounts)
       setLiveError(false)
       setLastFetch(Date.now())
     } catch {
@@ -834,7 +857,7 @@ export default function SourcesPage() {
         <h2 className="text-xs font-medium text-muted-foreground mb-3">Data Sources</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {sources.map((s) => (
-            <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} />
+            <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
           ))}
         </div>
       </div>
@@ -1080,7 +1103,7 @@ function TapSection({ tap }: { tap: Tap }) {
 
 // ─── Live Source Card ─────────────────────────────────────────────────────────
 
-function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: () => void }) {
+function LiveSourceCard({ source, onTrigger, dbCount }: { source: LiveSource; onTrigger: () => void; dbCount?: number }) {
   const [open, setOpen] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const h = source.health
@@ -1119,6 +1142,7 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
                 source.cost,
                 h.lastPollAt ? `Last: ${timeAgo(h.lastPollAt)}` : null,
                 h.jobsFound > 0 ? `${h.jobsFound} jobs` : null,
+                dbCount ? `${dbCount} in DB` : null,
               ].filter(Boolean).join(' · ')}
             </div>
           </div>
@@ -1136,6 +1160,9 @@ function LiveSourceCard({ source, onTrigger }: { source: LiveSource; onTrigger: 
               <div><span className="text-muted-foreground">Last poll:</span> <span className="tabular-nums">{timeAgo(h.lastPollAt)}</span></div>
               <div><span className="text-muted-foreground">Jobs found:</span> <span className="tabular-nums">{h.jobsFound}</span></div>
               <div><span className="text-muted-foreground">Failures:</span> <span className="tabular-nums">{h.consecutiveFailures}</span></div>
+              {dbCount !== undefined && dbCount > 0 && (
+                <div className="col-span-2"><span className="text-muted-foreground">Total in DB:</span> <span className="tabular-nums font-medium">{dbCount}</span></div>
+              )}
               {h.lastError && (
                 <div className="col-span-2 text-red-600 truncate">Error: {h.lastError}</div>
               )}

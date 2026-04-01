@@ -47,6 +47,7 @@ export default function ResumePage() {
   const [rescoreProgress, setRescoreProgress] = useState({ current: 0, total: 0, updated: 0 })
   const [rescoreResult, setRescoreResult] = useState<{ updated: number } | null>(null)
   const rescoreInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [settingActive, setSettingActive] = useState<string | null>(null)
   const atsFileRef = useRef<HTMLInputElement>(null)
@@ -77,12 +78,13 @@ export default function ResumePage() {
     }
   }
 
-  useEffect(() => { loadVersions() }, [])
-
-  // Resume rescore polling if one is already running
   useEffect(() => {
-    fetch('/api/jobs/rescore').then(r => r.json()).then(status => {
-      if (status.running) {
+    // Load resume versions and check rescore status in parallel
+    Promise.all([
+      loadVersions(),
+      fetch('/api/jobs/rescore').then(r => r.json()).catch(() => null),
+    ]).then(([, status]) => {
+      if (status?.running) {
         setRescoring(true)
         setRescoreProgress({ current: status.current, total: status.total, updated: status.updated })
         rescoreInterval.current = setInterval(async () => {
@@ -99,7 +101,8 @@ export default function ResumePage() {
           }
         }, 2000)
       }
-    }).catch(() => {})
+      setLoading(false)
+    })
     return () => { if (rescoreInterval.current) clearInterval(rescoreInterval.current) }
   }, [])
 
@@ -186,6 +189,14 @@ export default function ResumePage() {
   function handleDownload(storagePath: string | null) {
     if (!storagePath) return
     window.open(`/api/resume/download?path=${encodeURIComponent(storagePath)}`, '_blank')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <span className="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
+      </div>
+    )
   }
 
   return (

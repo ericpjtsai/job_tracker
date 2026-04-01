@@ -21,7 +21,9 @@ export async function GET() {
     const count = v.keywords_extracted?.length ?? 0
     return { ...v, keywords_extracted: Array.from({ length: count }, (_, i) => String(i)) }
   })
-  return NextResponse.json({ versions })
+  return NextResponse.json({ versions }, {
+    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+  })
 }
 
 // ── PATCH: set a resume version as active ─────────────────────────────────────

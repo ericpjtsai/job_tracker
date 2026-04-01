@@ -13,10 +13,12 @@ import { pollLinkedIn, scraperStatus, scraperSource } from './linkedin-scraper'
 import { pollSerpApi, serpApiSource } from './serpapi-jobs'
 import { pollLinkedInDirect, linkedinDirectSource } from './linkedin-direct'
 import { pollIndeed, pollGlassdoor, indeedSource, glassdoorSource } from './hasdata-jobs'
+import { githubSource } from './github-jobs'
 
 // Ensure source modules are imported so registerSource() side-effects run
 void atsSource; void mantikSource; void scraperSource
 void serpApiSource; void linkedinDirectSource; void indeedSource; void glassdoorSource
+void githubSource
 
 import { registerSource } from './sources/registry'
 import { getSource, getSourcesStatus } from './sources/registry'
@@ -256,6 +258,7 @@ function startControlServer() {
       else if (path === '/poll/indeed') sourceId = 'indeed'
       else if (path === '/poll/glassdoor') sourceId = 'glassdoor'
       else if (path === '/poll/linkedin-direct') sourceId = 'linkedin-direct'
+      else if (path === '/poll/github') sourceId = 'github-jobs'
 
       if (sourceId) {
         const source = getSource(sourceId)
@@ -342,6 +345,10 @@ async function main() {
   scheduleDailyAt([6, 18], () => scraper.poll().catch(console.error), 'LinkedIn scraper')
   scheduleDailyAt([6, 18], () => serpapi.poll().catch(console.error), 'SerpApi')
   scheduleDailyAt([6, 18], () => Promise.all([indeed.poll(), glassdoor.poll()]).catch(console.error), 'HasData (Indeed+Glassdoor)')
+
+  const github = getSource('github-jobs')!
+  await github.poll()
+  scheduleDailyAt([7, 19], () => github.poll().catch(console.error), 'GitHub jobs')
 
   // Fallback chain
   setInterval(() => {
