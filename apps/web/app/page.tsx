@@ -14,6 +14,123 @@ const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
 
 const PAGE_SIZE = 50
 
+function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onNavigate }: {
+  job: JobPosting
+  deletingId: string | null
+  confirmDeleteId: string | null
+  onStatusChange: (s: string) => void
+  onDeleteRequest: () => void
+  onDeleteConfirm: () => void
+  onDeleteCancel: () => void
+  onNavigate: () => void
+}) {
+  const [swipeX, setSwipeX] = useState(0)
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const swiping = useRef(false)
+  const DELETE_THRESHOLD = 80
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    swiping.current = false
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - touchStartX.current
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current)
+    if (!swiping.current && Math.abs(dx) > 10 && Math.abs(dx) > dy) swiping.current = true
+    if (swiping.current && dx < 0) setSwipeX(Math.max(dx, -DELETE_THRESHOLD - 20))
+  }
+  const onTouchEnd = () => {
+    if (swipeX <= -DELETE_THRESHOLD) {
+      setSwipeX(-DELETE_THRESHOLD)
+      onDeleteRequest()
+    } else {
+      setSwipeX(0)
+    }
+    swiping.current = false
+  }
+
+  const isConfirming = confirmDeleteId === job.id
+
+  return (
+    <div className={`relative overflow-hidden rounded-lg ${deletingId === job.id ? 'opacity-50' : ''}`}>
+      {/* Swipe delete background (mobile) */}
+      <div className="absolute inset-y-0 right-0 flex items-center sm:hidden">
+        {isConfirming ? (
+          <div className="flex items-center gap-2 pr-3">
+            <button type="button" onClick={onDeleteConfirm} className="text-xs text-white bg-destructive px-3 py-1.5 rounded-md">Delete</button>
+            <button type="button" onClick={() => { onDeleteCancel(); setSwipeX(0) }} className="text-xs text-muted-foreground px-2 py-1.5">Cancel</button>
+          </div>
+        ) : (
+          <div className="bg-destructive/10 text-destructive text-xs font-medium px-4 h-full flex items-center" style={{ width: Math.abs(swipeX) }}>
+            {Math.abs(swipeX) >= DELETE_THRESHOLD && 'Delete'}
+          </div>
+        )}
+      </div>
+
+      {/* Card content */}
+      <div
+        className="bg-card border px-4 py-3 rounded-lg relative"
+        style={{ transform: `translateX(${swipeX}px)`, transition: swiping.current ? 'none' : 'transform 0.2s ease-out' }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Row 1: Title + Status/Delete */}
+        <div className="flex items-center justify-between gap-2">
+          <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm text-foreground sm:truncate" onClick={onNavigate}>
+            {job.title ?? 'Untitled'}
+          </Link>
+          <div className="shrink-0 flex items-center gap-3 relative z-10">
+            {/* Desktop: interactive status chip */}
+            <div className="hidden sm:block">
+              <StatusChip status={job.status} onChange={onStatusChange} />
+            </div>
+            {/* Mobile: read-only status chip */}
+            <div className="sm:hidden">
+              <StatusChip status={job.status} />
+            </div>
+            {/* Desktop delete */}
+            <div className="hidden sm:flex items-center">
+              {deletingId === job.id ? (
+                <span className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-destructive rounded-full animate-spin" />
+              ) : isConfirming ? (
+                <span className="flex items-center gap-2">
+                  <button type="button" aria-label="Confirm delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteConfirm() }} className="text-destructive hover:text-destructive/80 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  </button>
+                  <button type="button" aria-label="Cancel delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteCancel() }} className="text-muted-foreground/40 hover:text-foreground transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </span>
+              ) : (
+                <button type="button" aria-label="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteRequest() }} className="text-muted-foreground/40 hover:text-destructive transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Row 2: Fit · Company · Location */}
+        <div className="text-xs mt-0.5 sm:truncate">
+          <FitBadge fit={job.resume_fit} />
+          <span className="text-muted-foreground mx-1">·</span>
+          <span className="text-foreground">{job.company ?? '—'}</span>
+          {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
+          {job.firehose_rule && <><span className="text-muted-foreground mx-1 hidden sm:inline">·</span><span className="text-muted-foreground hidden sm:inline">{job.firehose_rule}</span></>}
+        </div>
+        {/* Row 3: Applied date (if applied) */}
+        {job.applied_at && (
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const [stats, setStats] = useState({ total: 0, high: 0, medium: 0, low: 0, growthHigh: 0, growthMedium: 0, growthLow: 0 })
@@ -46,7 +163,7 @@ export default function DashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // ── Filters ────────────────────────────────────────────────────────────────
-  const [priority, setPriority] = useState('all')
+  const [priority, setPriority] = useState('high')
   const [since, setSince] = useState('24h')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
@@ -460,7 +577,7 @@ export default function DashboardPage() {
 
       {/* ── Sticky minimized bar — visible when cards scroll out ─────────── */}
       <div className={scrolled ? 'sticky top-12 z-40 bg-background/95 backdrop-blur-sm border-b' : 'hidden'} style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)' }}>
-          <div className="max-w-[1128px] mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2">
+          <div className="max-w-[1128px] mx-auto px-6 pt-3 pb-2.5 flex items-center gap-2 overflow-x-auto scrollbar-hide">
             {/* Priority chips */}
             {[
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
@@ -552,50 +669,17 @@ export default function DashboardPage() {
           <>
             <div className="space-y-2">
               {jobs.map((job) => (
-                <div key={job.id} className={`bg-card border px-4 py-3 rounded-lg ${deletingId === job.id ? 'opacity-50' : ''}`}>
-                  {/* Row 1: Title — StatusChip (desktop only) */}
-                  <div className="flex items-center justify-between gap-2">
-                    <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm text-foreground sm:truncate" onClick={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}>
-                      {job.title ?? 'Untitled'}
-                    </Link>
-                    <div className="shrink-0 flex items-center gap-3 relative z-10">
-                      <div className="hidden sm:block">
-                        <StatusChip status={job.status} onChange={(s) => updateStatus(job.id, s)} />
-                      </div>
-                      {deletingId === job.id ? (
-                        <span className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-destructive rounded-full animate-spin" />
-                      ) : confirmDeleteId === job.id ? (
-                        <span className="flex items-center gap-2">
-                          <button type="button" aria-label="Confirm delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteJob(job.id); setConfirmDeleteId(null) }} className="flex items-center justify-center text-destructive hover:text-destructive/80 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                          </button>
-                          <button type="button" aria-label="Cancel delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(null) }} className="flex items-center justify-center text-muted-foreground/40 hover:text-foreground transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                          </button>
-                        </span>
-                      ) : (
-                        <button type="button" aria-label="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(job.id) }} className="flex items-center justify-center text-muted-foreground/40 hover:text-destructive transition-colors">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {/* Row 2: Fit · Company · Location */}
-                  <div className="text-xs truncate mt-0.5">
-                    <FitBadge fit={job.resume_fit} />
-                    <span className="text-muted-foreground mx-1">·</span>
-                    <span className="text-foreground">{job.company ?? '—'}</span>
-                    {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
-                    {job.firehose_rule && <><span className="text-muted-foreground mx-1 hidden sm:inline">·</span><span className="text-muted-foreground hidden sm:inline">{job.firehose_rule}</span></>}
-                    {job.status !== 'new' && <><span className="text-muted-foreground mx-1 sm:hidden">·</span><span className="text-muted-foreground capitalize sm:hidden">{job.status}</span></>}
-                  </div>
-                  {/* Row 3: Applied date (if applied) */}
-                  {job.applied_at && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </div>
-                  )}
-                </div>
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  deletingId={deletingId}
+                  confirmDeleteId={confirmDeleteId}
+                  onStatusChange={(s) => updateStatus(job.id, s)}
+                  onDeleteRequest={() => setConfirmDeleteId(job.id)}
+                  onDeleteConfirm={() => { deleteJob(job.id); setConfirmDeleteId(null) }}
+                  onDeleteCancel={() => setConfirmDeleteId(null)}
+                  onNavigate={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}
+                />
               ))}
             </div>
           </>
