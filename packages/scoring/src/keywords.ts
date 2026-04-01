@@ -181,3 +181,25 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
 
 // Flat list of all terms for quick lookup
 export const ALL_TERMS = KEYWORD_GROUPS.flatMap((g) => g.terms)
+
+// ─── Dynamic config (overridable at runtime) ─────────────────────────────────
+
+let activeGroups: KeywordGroup[] = KEYWORD_GROUPS
+
+export function getKeywordGroups(): KeywordGroup[] {
+  return activeGroups
+}
+
+export function setKeywordGroups(groups: KeywordGroup[]): void {
+  activeGroups = groups
+}
+
+export function getActiveTerms(): string[] {
+  return activeGroups.flatMap((g) => g.terms)
+}
+
+export function resetKeywordGroups(): void {
+  activeGroups = KEYWORD_GROUPS
+}
+
+export { KEYWORD_GROUPS as DEFAULT_KEYWORD_GROUPS }
