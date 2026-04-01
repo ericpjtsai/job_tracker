@@ -282,7 +282,7 @@ export default function ImportPage() {
       )}
       {!historyLoading && history.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-medium text-muted-foreground">
             <div className="flex items-center gap-2">
               <span>Import history (<span className="tabular-nums">{historyTotal}</span>)</span>
               <button type="button" aria-label="Search" onClick={() => { setHistorySearchOpen(!historySearchOpen); if (historySearchOpen) setHistorySearch('') }}

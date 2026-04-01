@@ -219,17 +219,20 @@ export default function ResumePage() {
               </div>
             )}
             {/* Header — always visible, entire area toggles collapse */}
-            <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setAtsOpen(!atsOpen)}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{atsActive.filename ?? 'resume.pdf'}</span>
-                  <Badge variant="success" className="text-[10px]">Active</Badge>
+            <div className={`px-4 py-3 cursor-pointer transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setAtsOpen(!atsOpen)}>
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{atsActive.filename ?? 'resume.pdf'}</span>
+                    <Badge variant="success" className="text-[10px]">Active</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Uploaded {formatDateTime(atsActive.uploaded_at)} · <span className="tabular-nums">{atsActive.keywords_extracted?.length ?? 0}</span> keywords extracted
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  Uploaded {formatDateTime(atsActive.uploaded_at)} · <span className="tabular-nums">{atsActive.keywords_extracted?.length ?? 0}</span> keywords extracted
-                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 ml-2 ${atsOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 mt-2 flex-wrap">
                 <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(atsActive.storage_path) }}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </Button>
@@ -239,7 +242,6 @@ export default function ResumePage() {
                 <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); atsFileRef.current?.click() }}>
                   Upload new
                 </Button>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${atsOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </div>
             </div>
 
@@ -330,24 +332,26 @@ export default function ResumePage() {
                 <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
               </div>
             )}
-            <div className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setHmOpen(!hmOpen)}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{hmActive.filename ?? 'resume.pdf'}</span>
-                  <Badge variant="success" className="text-[10px]">Active</Badge>
+            <div className={`px-4 py-3 cursor-pointer transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setHmOpen(!hmOpen)}>
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{hmActive.filename ?? 'resume.pdf'}</span>
+                    <Badge variant="success" className="text-[10px]">Active</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Uploaded {formatDateTime(hmActive.uploaded_at)}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  Uploaded {formatDateTime(hmActive.uploaded_at)}
-                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 ml-2 ${hmOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 mt-2">
                 <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(hmActive.storage_path) }}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </Button>
                 <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); hmFileRef.current?.click() }}>
                   Upload new
                 </Button>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${hmOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </div>
             </div>
 
@@ -396,36 +400,35 @@ export default function ResumePage() {
           <h2 className="text-xs font-medium text-muted-foreground mb-3">Upload History</h2>
           <div className="space-y-2">
             {versions.map((v) => (
-              <div key={v.id} className="bg-card rounded-lg border px-4 py-3 flex items-center justify-between gap-3">
-                {/* Left: text */}
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate text-foreground">{v.filename ?? 'resume.pdf'}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {TYPE_LABELS[v.resume_type] ?? 'ATS'}
-                    <span className="mx-1">·</span>
-                    <span className="tabular-nums">{v.keywords_extracted?.length ?? 0}</span> keywords
-                    <span className="mx-1">·</span>
-                    {formatDateTime(v.uploaded_at)}
+              <div key={v.id} className="bg-card rounded-lg border px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate text-foreground">{v.filename ?? 'resume.pdf'}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {TYPE_LABELS[v.resume_type] ?? 'ATS'}
+                      <span className="mx-1">·</span>
+                      <span className="tabular-nums">{v.keywords_extracted?.length ?? 0}</span> keywords
+                      <span className="mx-1">·</span>
+                      {formatDateTime(v.uploaded_at)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {v.is_active ? (
+                      <Badge variant="success" className="text-[10px]">Active</Badge>
+                    ) : (
+                      <>
+                        {v.storage_path && (
+                          <Button size="xs" variant="ghost" aria-label="Download" onClick={() => handleDownload(v.storage_path)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          </Button>
+                        )}
+                        <Button size="xs" variant="outline" disabled={settingActive === v.id} onClick={() => handleSetActive(v.id)}>
+                          {settingActive === v.id ? 'Setting...' : 'Set Active'}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                {/* Right: actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {v.is_active ? (
-                    <Badge variant="success" className="text-[10px]">Active</Badge>
-                  ) : (
-                    <>
-                      {v.storage_path && (
-                        <Button size="xs" variant="ghost" aria-label="Download" onClick={() => handleDownload(v.storage_path)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        </Button>
-                      )}
-                      <Button size="xs" variant="outline" disabled={settingActive === v.id} onClick={() => handleSetActive(v.id)}>
-                        {settingActive === v.id ? 'Setting...' : 'Set Active'}
-                      </Button>
-                    </>
-                  )}
-                </div>
-
               </div>
             ))}
           </div>
