@@ -135,11 +135,15 @@ export default function DashboardPage() {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const [stats, setStats] = useState({ total: 0, high: 0, medium: 0, low: 0, growthHigh: 0, growthMedium: 0, growthLow: 0 })
   const [newCount, setNewCount] = useState(0)
+  const [todayApplied, setTodayApplied] = useState(0)
   const [polling, setPolling] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<number>(0)
 
-  // Fetch last poll time from backend on mount
+  // Fetch last poll time + today applied count on mount
   useEffect(() => {
+    fetch('/api/jobs/import?page=0&limit=1').then(r => r.json()).then(data => {
+      if (data.todayCount !== undefined) setTodayApplied(data.todayCount)
+    }).catch(() => {})
     fetch('/api/sources').then(r => r.json()).then(data => {
       const ats = data.sources?.find((s: any) => s.id === 'ats')
       if (ats?.health?.lastPollAt) setLastUpdated(ats.health.lastPollAt)
@@ -390,10 +394,13 @@ export default function DashboardPage() {
   async function updateStatus(id: string, newStatus: string) {
     setJobs((prev) => prev.map((j) => {
       if (j.id !== id) return j
+      const wasApplied = j.status === 'applied'
       const applied_at =
         newStatus === 'applied' ? (j.applied_at ?? new Date().toISOString()) :
         ['new', 'reviewed', 'skipped'].includes(newStatus) ? null :
         j.applied_at
+      if (newStatus === 'applied' && !wasApplied) setTodayApplied((n) => n + 1)
+      if (newStatus !== 'applied' && wasApplied) setTodayApplied((n) => Math.max(0, n - 1))
       return { ...j, status: newStatus as any, applied_at }
     }))
     await fetch(`/api/jobs/${id}`, {
@@ -521,8 +528,11 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Update button — far right */}
+        {/* Today count + Update button — far right */}
         <div className="flex items-center gap-2 ml-auto">
+          {todayApplied > 0 && (
+            <span className="hidden sm:inline text-xs font-medium text-muted-foreground tabular-nums">{todayApplied} applied today</span>
+          )}
           {newCount > 0 && (
             <button type="button" onClick={() => { setNewCount(0); loadStats(); fetchJobs(0) }}
               className="text-xs text-primary font-medium hover:underline"
@@ -535,7 +545,7 @@ export default function DashboardPage() {
           ) : (
             <button type="button" onClick={handleUpdate}
               className="text-xs text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
-            ><svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>{lastUpdated ? `Updated ${timeAgo(new Date(lastUpdated).toISOString())}` : 'Update'}</button>
+            ><svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>{lastUpdated ? timeAgo(new Date(lastUpdated).toISOString()) : 'Update'}</button>
           )}
         </div>
       </div>
