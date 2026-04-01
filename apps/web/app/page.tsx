@@ -693,15 +693,14 @@ export default function DashboardPage() {
                   onNavigate={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}
                 />
               ))}
+              {/* Infinite scroll sentinel */}
+              <div ref={bottomRef} className="h-1" />
+              {loadingMore.current && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
+              {jobs.length > 0 && jobs.length >= total && <div className="text-center text-xs text-muted-foreground py-1">End of list</div>}
             </div>
           </>
         )}
       </div>
-
-      {/* Infinite scroll sentinel */}
-      <div ref={bottomRef} className="h-1" />
-      {loadingMore.current && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
-      {jobs.length > 0 && jobs.length >= total && <div className="text-center text-xs text-muted-foreground pb-2">End of list</div>}
     </div>
     </>
   )
