@@ -71,6 +71,16 @@ export function Nav() {
           >
             <div className="px-6 py-3 flex flex-col gap-3">
               {links.map(({ href, label }) => (
+                href === '/import' ? (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMenuOpen(false)}
+                    className="text-sm font-medium text-foreground transition-colors"
+                  >
+                    {label}
+                  </Link>
+                ) : (
                 <Link
                   key={href}
                   href={href}
@@ -79,6 +89,7 @@ export function Nav() {
                 >
                   {label}
                 </Link>
+                )
               ))}
             </div>
           </motion.div>

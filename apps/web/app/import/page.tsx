@@ -280,6 +280,9 @@ export default function ImportPage() {
           <span className="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
         </div>
       )}
+      {!historyLoading && history.length === 0 && (
+        <div className="text-sm text-muted-foreground py-12 text-center">No imports yet. Use the form above to add jobs manually or upload markdown files.</div>
+      )}
       {!historyLoading && history.length > 0 && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-medium text-muted-foreground">

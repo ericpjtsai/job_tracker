@@ -633,7 +633,7 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
   return (
     <section id={id} className="bg-card rounded-lg border overflow-hidden scroll-mt-16">
       <button type="button" onClick={() => setOpen(!open)}
-        className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted/40' : 'hover:bg-muted/30'}`}
+        className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
       >
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
@@ -643,8 +643,8 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
       </button>
       {open && (
         <>
-          <div className="px-5 py-4 space-y-4">{children}</div>
-          <div className="px-5 py-3 border-t flex items-center justify-between">
+          <div className="px-4 py-3 space-y-4">{children}</div>
+          <div className="px-4 py-3 border-t flex items-center justify-between">
             {hasChanges && (
               <button type="button" onClick={onReset} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Undo changes</button>
             )}
@@ -1057,7 +1057,7 @@ export default function SourcesPage() {
       {tab === 'config' && (
         <div className="space-y-3">
 
-          <h2 className="text-xs font-medium text-muted-foreground pt-1">Scoring</h2>
+          <h2 className="text-xs font-medium text-muted-foreground pt-3">Scoring</h2>
 
           {/* Editable: Keyword Groups */}
           <ConfigSection
@@ -1278,49 +1278,6 @@ export default function SourcesPage() {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function TapSection({ tap }: { tap: Tap }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="bg-muted/50 rounded-md">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2 flex items-center justify-between text-left text-xs hover:bg-muted"
-      >
-        <span className="flex items-center gap-2">
-          <span className="font-medium">{tap.name}</span>
-          <span className="text-muted-foreground/50">Account {tap.account}</span>
-          <span className="text-muted-foreground/50">&middot;</span>
-          <span className="text-muted-foreground/50">{tap.rules.length} rules</span>
-        </span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      {open && (
-        <div className="bg-muted/20">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-muted text-[10px] text-muted-foreground uppercase">
-                <th className="px-3 py-1.5 text-left font-medium">Tag</th>
-                <th className="px-3 py-1.5 text-left font-medium">Target</th>
-                <th className="px-3 py-1.5 text-left font-medium w-16">Type</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {tap.rules.map((rule) => (
-                <tr key={rule.tag} className="hover:bg-muted">
-                  <td className="px-3 py-1.5 font-mono text-[11px] text-gray-800 whitespace-nowrap">{rule.tag}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{rule.target}</td>
-                  <td className="px-3 py-1.5"><RuleTypeBadge type={rule.type} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Live Source Card ─────────────────────────────────────────────────────────
 
 function LiveSourceCard({ source, onTrigger, dbCount }: { source: LiveSource; onTrigger: () => void; dbCount?: number }) {
@@ -1447,30 +1404,3 @@ function LiveTapSection({ tap }: { tap: LiveTap }) {
   )
 }
 
-function KeywordGroupRow({ group }: { group: typeof KEYWORD_GROUPS[number] }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="bg-muted/50 rounded-md">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2 flex items-center justify-between text-left text-xs hover:bg-muted"
-      >
-        <span className="flex items-center gap-3">
-          <span className="font-medium text-foreground">{group.name}</span>
-          <span className="text-muted-foreground/50">weight: {group.weight}</span>
-          <span className="text-muted-foreground/50">&middot;</span>
-          <span className="text-muted-foreground/50">{group.terms.length} terms</span>
-        </span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      {open && (
-        <div className="px-3 pb-2 bg-muted/20 pt-2 flex flex-wrap gap-1">
-          {group.terms.map((term) => (
-            <span key={term} className="text-[10px] bg-muted text-foreground px-1.5 py-0.5 rounded">{term}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
