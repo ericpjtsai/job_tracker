@@ -124,7 +124,7 @@ export default function ImportPage() {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !loadingMore && history.length < historyTotal) {
+      if (entry.isIntersecting && !loadingMore && !historySearch && history.length < historyTotal) {
         loadHistory(historyPage + 1, true)
       }
     }, { rootMargin: '200px' })
