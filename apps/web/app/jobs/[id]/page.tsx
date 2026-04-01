@@ -114,6 +114,7 @@ export default function JobDetailPage() {
   const [notesOpen, setNotesOpen] = useState(true)
   const [editingNotes, setEditingNotes] = useState(false)
   const [draftNotes, setDraftNotes] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [editingUrl, setEditingUrl] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
   const [savingUrl, setSavingUrl] = useState(false)
@@ -189,7 +190,7 @@ export default function JobDetailPage() {
     }, 800)
   }
 
-  if (loading) return <div className="text-sm text-muted-foreground py-12 text-center">Loading...</div>
+  if (loading) return <div className="flex items-center justify-center py-24"><span className="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" /></div>
   if (!job) return <div className="text-sm text-muted-foreground py-12 text-center">Job not found.</div>
 
   const salary = formatSalary({ min: job.salary_min, max: job.salary_max })
@@ -288,19 +289,29 @@ export default function JobDetailPage() {
           </div>
 
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={async () => {
-              if (!confirm('Delete this job posting?')) return
-              await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
-              if (nextId) router.push(`/jobs/${nextId}`)
-              else router.back()
-            }}
-            className="text-muted-foreground/50 hover:text-destructive transition-colors"
-            aria-label="Delete job"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </button>
+          {confirmDelete ? (
+            <span className="flex items-center gap-2">
+              <button type="button" aria-label="Confirm delete" onClick={async () => {
+                await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
+                if (nextId) router.push(`/jobs/${nextId}`)
+                else router.back()
+              }} className="text-destructive hover:text-destructive/80 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              </button>
+              <button type="button" aria-label="Cancel delete" onClick={() => setConfirmDelete(false)} className="text-muted-foreground/40 hover:text-foreground transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="text-muted-foreground/50 hover:text-destructive transition-colors"
+              aria-label="Delete job"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -313,12 +324,12 @@ export default function JobDetailPage() {
             <div className={`px-6 py-4 flex items-center justify-between transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`}>
               <div className="flex items-center gap-3">
                 <div className="text-sm font-semibold cursor-pointer" onClick={() => !editingDesc && setDescOpen(!descOpen)}>Details</div>
-                <div className="relative inline-flex items-center bg-muted rounded-full p-[2px] text-[11px]">
+                <div className="relative inline-flex items-center bg-muted rounded-full p-[3px] text-xs">
                   <button type="button" onClick={() => setDetailsTab('description')}
-                    className={`relative z-10 px-2.5 py-0.5 rounded-full transition-colors duration-200 ${detailsTab === 'description' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                    className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${detailsTab === 'description' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
                   >Description</button>
                   <button type="button" onClick={() => setDetailsTab('link')}
-                    className={`relative z-10 px-2.5 py-0.5 rounded-full transition-colors duration-200 ${detailsTab === 'link' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                    className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${detailsTab === 'link' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
                   >Link</button>
                 </div>
               </div>

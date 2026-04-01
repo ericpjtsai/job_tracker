@@ -658,7 +658,9 @@ export default function DashboardPage() {
       {/* Jobs list */}
       <div className="min-h-[400px]">
         {loading && jobs.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-12 text-center">Loading...</div>
+          <div className="flex items-center justify-center py-24">
+            <span className="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
+          </div>
         ) : !loading && jobs.length === 0 ? (
           <div className="text-sm text-muted-foreground py-12 text-center">
             {hasActiveFilters || priority !== 'all' || since !== 'all'
