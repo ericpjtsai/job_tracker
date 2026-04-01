@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1054,53 +1054,11 @@ export default function SourcesPage() {
 
       {/* ══════════════ DATA SOURCES TAB ══════════════ */}
       {tab === 'sources' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-xs font-medium text-muted-foreground mb-3">Data Sources</h2>
-            <div className="grid gap-3 md:grid-cols-2 items-start">
-              {sources.map((s) => (
-                <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
-              <div className="space-y-3 pt-3">
-                {taps.map((tap) => (
-                  <LiveTapSection key={tap.tapName} tap={tap} />
-                ))}
-              </div>
-            </Section>
-
-            <Section title="Fallback Chain">
-              <div className="pt-3 text-xs space-y-3">
-                <p className="text-muted-foreground">Checked every 60 minutes. Activates when primary LinkedIn sources fail.</p>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
-                    <div>
-                      <div className="font-medium text-foreground">Normal operation</div>
-                      <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-semibold">2</span>
-                    <div>
-                      <div className="font-medium text-foreground">Mantiks + Scraper both down &gt; 8 hours</div>
-                      <div className="text-muted-foreground">Trigger SerpApi immediately as coverage backup</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-semibold">3</span>
-                    <div>
-                      <div className="font-medium text-foreground">All LinkedIn sources + SerpApi unavailable</div>
-                      <div className="text-muted-foreground">Activate LinkedIn Direct scraper (emergency HTML scraping, max 10 requests, 30-120s delays)</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Section>
+        <div>
+          <div className="grid gap-3 md:grid-cols-2 items-start">
+            {sources.map((s) => (
+              <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
+            ))}
           </div>
         </div>
       )}
@@ -1216,6 +1174,15 @@ export default function SourcesPage() {
             <TagEditor tags={localJobBoards} onChange={setLocalJobBoards} placeholder="Add domain (e.g. lever.co)..." />
           </ConfigSection>
 
+          {/* Read-only: Firehose Rules */}
+          <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
+            <div className="space-y-3 pt-3">
+              {taps.map((tap) => (
+                <LiveTapSection key={tap.tapName} tap={tap} />
+              ))}
+            </div>
+          </Section>
+
           {/* Read-only: Processor Filtering Pipeline */}
           <Section title="Processor Filtering Pipeline" badge={procStats ? `${procStats.received} received · ${procStats.inserted} inserted` : `${FILTER_PIPELINE.length} stages`}>
             <div className="space-y-2 pt-3">
@@ -1246,6 +1213,36 @@ export default function SourcesPage() {
                   </div>
                 )
               })}
+            </div>
+          </Section>
+
+          {/* Read-only: Fallback Chain */}
+          <Section title="Fallback Chain">
+            <div className="pt-3 text-xs space-y-3">
+              <p className="text-muted-foreground">Checked every 60 minutes. Activates when primary LinkedIn sources fail.</p>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
+                  <div>
+                    <div className="font-medium text-foreground">Normal operation</div>
+                    <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-semibold">2</span>
+                  <div>
+                    <div className="font-medium text-foreground">Mantiks + Scraper both down &gt; 8 hours</div>
+                    <div className="text-muted-foreground">Trigger SerpApi immediately as coverage backup</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-semibold">3</span>
+                  <div>
+                    <div className="font-medium text-foreground">All LinkedIn sources + SerpApi unavailable</div>
+                    <div className="text-muted-foreground">Activate LinkedIn Direct scraper (emergency HTML scraping, max 10 requests, 30-120s delays)</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </Section>
 
