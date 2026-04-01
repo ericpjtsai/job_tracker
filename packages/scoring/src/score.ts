@@ -1,6 +1,6 @@
 // Scoring engine — implements CLAUDE.md §4 formula exactly
 
-import { KEYWORD_GROUPS, type KeywordGroup } from './keywords'
+import { KEYWORD_GROUPS, getKeywordGroups, type KeywordGroup } from './keywords'
 import { companyFromDomain } from './companies'
 import { isSeniorityExcluded, getSeniorityBonus } from './seniority'
 import { extractSalary, type SalaryRange } from './salary'
@@ -73,22 +73,30 @@ function getLocationBonus(locationText: string): number {
 
 // ─── Keyword matching ─────────────────────────────────────────────────────────
 
-// Pre-compile all keyword regexes once at module load (avoids recompilation per job)
-const COMPILED_KEYWORDS: Array<{ group: KeywordGroup; term: string; re: RegExp }> = []
-for (const group of KEYWORD_GROUPS) {
-  for (const term of group.terms) {
-    const termLower = term.toLowerCase()
-    const pattern = termLower.includes(' ')
-      ? termLower
-      : `\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`
-    COMPILED_KEYWORDS.push({ group, term, re: new RegExp(pattern, 'gi') })
+type CompiledKeyword = { group: KeywordGroup; term: string; re: RegExp }
+
+function compileKeywords(groups: KeywordGroup[]): CompiledKeyword[] {
+  const result: CompiledKeyword[] = []
+  for (const group of groups) {
+    for (const term of group.terms) {
+      const termLower = term.toLowerCase()
+      const pattern = termLower.includes(' ')
+        ? termLower
+        : `\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`
+      result.push({ group, term, re: new RegExp(pattern, 'gi') })
+    }
   }
+  return result
 }
 
-/**
- * Count keyword matches in text, case-insensitive, whole-word where possible.
- * Returns { groupScores, matchedTerms }
- */
+// Initial compilation from defaults; rebuilt when setKeywordGroups() is called
+let compiledKeywords = compileKeywords(KEYWORD_GROUPS)
+
+/** Rebuild compiled keywords from current active groups. Call after setKeywordGroups(). */
+export function recompileKeywords(): void {
+  compiledKeywords = compileKeywords(getKeywordGroups())
+}
+
 function matchKeywords(text: string): {
   groupScores: Record<string, number>
   matched: string[]
@@ -97,8 +105,8 @@ function matchKeywords(text: string): {
   const groupScores: Record<string, number> = {}
   const matched: string[] = []
 
-  for (const { group, term, re } of COMPILED_KEYWORDS) {
-    re.lastIndex = 0 // reset stateful regex
+  for (const { group, term, re } of compiledKeywords) {
+    re.lastIndex = 0
     const hits = (lower.match(re) ?? []).length
     if (hits > 0) {
       groupScores[group.name] = (groupScores[group.name] ?? 0) + group.weight * Math.min(hits, 3)

@@ -4,7 +4,8 @@ import http from 'http'
 import EventSource from 'eventsource'
 import { createClient } from '@supabase/supabase-js'
 import { syncAllTaps, TAP_CONFIGS, type TapInfo } from './rules'
-import { processEvent, getProcessorStats, invalidateResumeCache, type FirehoseUpdateEvent } from './processor'
+import { processEvent, getProcessorStats, invalidateResumeCache, setBlockedCompanies, setBlockedLocations, setJobBoardHosts, type FirehoseUpdateEvent } from './processor'
+import { setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
 
 // ─── Import sources + their DataSource registrations ─────────────────────────
 import { pollAllAts, pollStatus, stopAts, atsSource } from './ats-poller'
@@ -215,6 +216,36 @@ process.on('SIGINT', shutdown)
 
 // ─── HTTP control server ──────────────────────────────────────────────────────
 
+// ─── Scoring config loader ───────────────────────────────────────────────────
+
+async function loadScoringConfig(): Promise<void> {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) { console.warn('⚠ Supabase not configured — using default scoring config'); return }
+
+  const supabase = createClient(url, key)
+  const { data, error } = await supabase.from('scoring_config').select('key, value')
+  if (error) { console.warn('⚠ Failed to load scoring config:', error.message); return }
+  if (!data || data.length === 0) { console.log('ℹ No scoring config in DB — using defaults'); return }
+
+  const config: Record<string, any> = {}
+  for (const row of data) config[row.key] = row.value
+
+  if (config.keyword_groups) { setKeywordGroups(config.keyword_groups); recompileKeywords() }
+  if (config.seniority_exclude || config.seniority_newgrad || config.non_design_titles) {
+    setSeniorityConfig({
+      exclude: config.seniority_exclude,
+      newgrad: config.seniority_newgrad,
+      nonDesign: config.non_design_titles,
+    })
+  }
+  if (config.blocked_companies) setBlockedCompanies(config.blocked_companies)
+  if (config.blocked_locations) setBlockedLocations(config.blocked_locations)
+  if (config.job_board_hosts) setJobBoardHosts(config.job_board_hosts)
+
+  console.log(`⚙ Scoring config loaded from DB (${data.length} keys)`)
+}
+
 function startControlServer() {
   const port = process.env.CONTROL_PORT ? Number(process.env.CONTROL_PORT) : 3001
   const server = http.createServer((req, res) => {
@@ -276,6 +307,13 @@ function startControlServer() {
     } else if (req.method === 'POST' && req.url === '/cache/invalidate') {
       invalidateResumeCache()
       res.end(JSON.stringify({ ok: true, message: 'Resume keyword cache invalidated' }))
+    } else if (req.method === 'POST' && req.url === '/config/reload') {
+      loadScoringConfig().then(() => {
+        res.end(JSON.stringify({ ok: true, message: 'Scoring config reloaded' }))
+      }).catch((err) => {
+        res.statusCode = 500
+        res.end(JSON.stringify({ error: err.message }))
+      })
     } else {
       res.statusCode = 404
       res.end(JSON.stringify({ error: 'Not found' }))
@@ -321,6 +359,10 @@ async function main() {
 
   startControlServer()
   console.log('🚀 Job Tracker Listener starting...')
+
+  // Load scoring config from DB (keywords, seniority, blocklists)
+  await loadScoringConfig()
+
   console.log('Syncing taps and rules...')
 
   const taps = await syncAllTaps()

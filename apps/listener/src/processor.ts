@@ -155,10 +155,18 @@ export function getProcessorStats() {
 
 // Role exclusion now handled by isRoleExcluded() from @job-tracker/scoring
 
-const BLOCKED_COMPANIES = new Set(['lensa', 'itjobswatch'])
+let blockedCompanies = new Set(['lensa', 'itjobswatch'])
+
+export function setBlockedCompanies(companies: string[]): void {
+  blockedCompanies = new Set(companies.map((c) => c.toLowerCase().trim()))
+}
+
+export function getBlockedCompanies(): string[] {
+  return [...blockedCompanies]
+}
 
 function isCompanyBlocked(company: string): boolean {
-  return BLOCKED_COMPANIES.has(company.toLowerCase().trim())
+  return blockedCompanies.has(company.toLowerCase().trim())
 }
 
 // Article/blog post title detection — blocks Firehose content marketing noise
@@ -173,7 +181,21 @@ function isArticleTitle(title: string): boolean {
 
 // Explicit non-US country/city signals — only block when clearly non-US.
 // Empty or ambiguous locations are allowed through.
-const NON_US_LOCATION = /\b(UK|United Kingdom|England|Scotland|Wales|Ireland|Canada|Australia|New Zealand|Germany|France|Spain|Italy|Netherlands|Sweden|Norway|Denmark|Finland|Switzerland|Austria|Belgium|Poland|Portugal|Czech|Romania|Hungary|Singapore|Japan|South Korea|Korea|China|Hong Kong|India|Brazil|Mexico|Argentina|Colombia|Chile|Israel|UAE|Dubai|Qatar|Saudi Arabia|South Africa|Nigeria|Kenya|Amsterdam|Berlin|Munich|Hamburg|London|Manchester|Edinburgh|Dublin|Paris|Lyon|Madrid|Barcelona|Rome|Milan|Stockholm|Gothenburg|Oslo|Copenhagen|Helsinki|Zurich|Geneva|Vienna|Brussels|Warsaw|Prague|Budapest|Toronto|Vancouver|Montreal|Calgary|Sydney|Melbourne|Brisbane|Auckland|Tel Aviv|Bangalore|Mumbai|Delhi|Hyderabad|Chennai|São Paulo|Rio de Janeiro|Mexico City|Buenos Aires|Bogotá|Santiago)\b/i
+const DEFAULT_BLOCKED_LOCATIONS = ['UK','United Kingdom','England','Scotland','Wales','Ireland','Canada','Australia','New Zealand','Germany','France','Spain','Italy','Netherlands','Sweden','Norway','Denmark','Finland','Switzerland','Austria','Belgium','Poland','Portugal','Czech','Romania','Hungary','Singapore','Japan','South Korea','Korea','China','Hong Kong','India','Brazil','Mexico','Argentina','Colombia','Chile','Israel','UAE','Dubai','Qatar','Saudi Arabia','South Africa','Nigeria','Kenya','Amsterdam','Berlin','Munich','Hamburg','London','Manchester','Edinburgh','Dublin','Paris','Lyon','Madrid','Barcelona','Rome','Milan','Stockholm','Gothenburg','Oslo','Copenhagen','Helsinki','Zurich','Geneva','Vienna','Brussels','Warsaw','Prague','Budapest','Toronto','Vancouver','Montreal','Calgary','Sydney','Melbourne','Brisbane','Auckland','Tel Aviv','Bangalore','Mumbai','Delhi','Hyderabad','Chennai','São Paulo','Rio de Janeiro','Mexico City','Buenos Aires','Bogotá','Santiago']
+let NON_US_LOCATION = buildLocationRegex(DEFAULT_BLOCKED_LOCATIONS)
+
+function buildLocationRegex(locations: string[]): RegExp {
+  const escaped = locations.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i')
+}
+
+export function setBlockedLocations(locations: string[]): void {
+  NON_US_LOCATION = buildLocationRegex(locations)
+}
+
+export function getBlockedLocations(): string[] {
+  return DEFAULT_BLOCKED_LOCATIONS
+}
 
 function isTitleBlocked(title: string): boolean {
   return isRoleExcluded(title)
@@ -410,7 +432,21 @@ async function enrichWithLLM(supabase: any, matchValue: string, description: str
 // Drops non-job-board URLs before any scoring/DB work.
 // HasData, ATS, and Mantiks call insertJobPosting() directly — not affected.
 
-const JOB_BOARD_HOSTS = /\b(linkedin\.com|greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|taleo\.net|bamboohr\.com|jobvite\.com|workable\.com|wellfound\.com|dover\.com|rippling\.com|recruitee\.com|hiring\.cafe)\b/
+const DEFAULT_JOB_BOARD_HOSTS = ['linkedin.com','greenhouse.io','lever.co','ashbyhq.com','myworkdayjobs.com','workday.com','smartrecruiters.com','icims.com','taleo.net','bamboohr.com','jobvite.com','workable.com','wellfound.com','dover.com','rippling.com','recruitee.com','hiring.cafe']
+let JOB_BOARD_HOSTS = buildHostsRegex(DEFAULT_JOB_BOARD_HOSTS)
+
+function buildHostsRegex(hosts: string[]): RegExp {
+  const escaped = hosts.map((h) => h.replace(/\./g, '\\.'))
+  return new RegExp(`\\b(${escaped.join('|')})\\b`)
+}
+
+export function setJobBoardHosts(hosts: string[]): void {
+  JOB_BOARD_HOSTS = buildHostsRegex(hosts)
+}
+
+export function getJobBoardHosts(): string[] {
+  return DEFAULT_JOB_BOARD_HOSTS
+}
 
 const JOB_PATH = /\/(jobs|careers|job|career|positions|openings)\//i
 

@@ -1,30 +1,21 @@
-// Seniority filters from CLAUDE.md §5
+// Seniority filters — dynamic, configurable at runtime
 
-const EXCLUDE_TITLE_PATTERNS = [
-  /\bstaff\b/i,
-  /\bprincipal\b/i,
-  /\bdirector\b/i,
-  /\bvp\b/i,
-  /\bvice president\b/i,
-  /\bhead of\b/i,
-  /\bmanager\b/i,
-]
+// ─── Default patterns (hardcoded fallbacks) ──────────────────────────────────
 
+const DEFAULT_EXCLUDE = ['staff', 'principal', 'director', 'vp', 'vice president', 'head of', 'manager']
+const DEFAULT_NEWGRAD = ['new grad', 'early career', '2026', 'associate', 'junior', 'entry.?level', 'university', 'recent graduate', 'graduate']
+const DEFAULT_NON_DESIGN = ['lead', 'intern', 'internship', 'scholarship', 'researcher', 'strategist', 'motion designer', 'content designer', 'graphic designer', 'interior designer', 'multimedia designer', 'packaging designer', 'engineer', 'ai trainer', 'job trends', 'salaries', 'data scientist', 'business analyst', 'client associate', 'product specialist', 'professor', 'nurse', 'licensed practical nurse', "founder.s office", 'growth marketing', 'creative producer', 'model kit']
+
+// ─── Compiled state ──────────────────────────────────────────────────────────
+
+let excludePatterns: RegExp[] = compilePatterns(DEFAULT_EXCLUDE)
+let newgradPatterns: RegExp[] = compilePatterns(DEFAULT_NEWGRAD)
+let nonDesignRegex: RegExp = buildNonDesignRegex(DEFAULT_NON_DESIGN)
+
+// These are not user-editable (complex regex with lookaheads/combined logic)
 const EXCLUDE_COMBINED_PATTERNS = [
   /\blead\b.*\b(7|8|9|10)\+?\s*years?\b/i,
   /\b(8|9|10)\+\s*years?\b/i,
-]
-
-const NEWGRAD_PATTERNS = [
-  /\bnew grad\b/i,
-  /\bearly career\b/i,
-  /\b2026\b/,
-  /\bassociate\b/i,
-  /\bjunior\b/i,
-  /\bentry.?level\b/i,
-  /\buniversity\b/i,
-  /\brecent graduate\b/i,
-  /\bgraduate\b/i,
 ]
 
 const SENIOR_NO_LEVEL_PATTERNS = [
@@ -41,42 +32,77 @@ const SENIOR_OVERQUALIFIED_PATTERNS = [
   /\b(7|8)\+\s*years?\b/i,
 ]
 
-// Non-design roles — hard block (job is dropped entirely, never inserted)
-// Note: avoid broad terms like "marketing" or "brand designer" — they match "Product Designer, Marketing" teams
-const NON_DESIGN_TITLE = /\b(lead|intern(ship)?|scholarship|researcher|strategist|motion designer|content designer|graphic designer|interior designer|multimedia designer|packaging designer|engineer|ai trainer|job trends|salaries|data scientist|business analyst|client associate|product specialist|professor|nurse|licensed practical nurse|founder.s office|marketing (representative|coordinator|specialist|assistant|associate)|growth marketing|creative producer|model kit)\b/i
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Returns true if the title indicates a non-design role.
- * These jobs are dropped entirely (not inserted into the DB).
- */
-export function isRoleExcluded(title: string): boolean {
-  return NON_DESIGN_TITLE.test(title)
+function compilePatterns(patterns: string[]): RegExp[] {
+  return patterns.map((p) => {
+    try { return new RegExp(`\\b${p}\\b`, 'i') }
+    catch { return new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
+  })
 }
 
-/**
- * Returns true if the posting should be excluded by seniority.
- * Job is inserted with priority = 'skip' (soft block — visible but deprioritized).
- */
+function buildNonDesignRegex(terms: string[]): RegExp {
+  // Build a single alternation regex: \b(term1|term2|...)\b/i
+  // Handle terms with special regex chars (like "founder.s office") by keeping them as-is
+  // since they're stored as regex-compatible strings
+  const escaped = terms.map((t) => {
+    // If it looks like it has intentional regex (. ? + etc.), keep as-is
+    if (/[.?+*\\()\[\]]/.test(t)) return t
+    return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  })
+  try {
+    return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i')
+  } catch {
+    // Fallback: escape everything
+    const safe = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    return new RegExp(`\\b(${safe.join('|')})\\b`, 'i')
+  }
+}
+
+// ─── Dynamic setters ─────────────────────────────────────────────────────────
+
+export interface SeniorityConfig {
+  exclude?: string[]
+  newgrad?: string[]
+  nonDesign?: string[]
+}
+
+export function setSeniorityConfig(config: SeniorityConfig): void {
+  if (config.exclude) excludePatterns = compilePatterns(config.exclude)
+  if (config.newgrad) newgradPatterns = compilePatterns(config.newgrad)
+  if (config.nonDesign) nonDesignRegex = buildNonDesignRegex(config.nonDesign)
+}
+
+export function getSeniorityConfig(): { exclude: string[]; newgrad: string[]; nonDesign: string[] } {
+  return {
+    exclude: DEFAULT_EXCLUDE,
+    newgrad: DEFAULT_NEWGRAD,
+    nonDesign: DEFAULT_NON_DESIGN,
+  }
+}
+
+export function resetSeniorityConfig(): void {
+  excludePatterns = compilePatterns(DEFAULT_EXCLUDE)
+  newgradPatterns = compilePatterns(DEFAULT_NEWGRAD)
+  nonDesignRegex = buildNonDesignRegex(DEFAULT_NON_DESIGN)
+}
+
+// ─── Public API (same signatures as before) ──────────────────────────────────
+
+export function isRoleExcluded(title: string): boolean {
+  return nonDesignRegex.test(title)
+}
+
 export function isSeniorityExcluded(title: string, text: string): boolean {
-  if (EXCLUDE_TITLE_PATTERNS.some((p) => p.test(title))) return true
+  if (excludePatterns.some((p) => p.test(title))) return true
   const combined = `${title} ${text}`
   return EXCLUDE_COMBINED_PATTERNS.some((p) => p.test(combined))
 }
 
-/**
- * Returns the seniority score bonus per CLAUDE.md §4.
- *   new grad / early career / associate = +10
- *   product designer (no level) / I / II = +5
- *   senior with 5+ yrs = +0
- *   senior with 7+ yrs = -10
- *   staff / principal / director = excluded (isSeniorityExcluded handles this)
- */
 export function getSeniorityBonus(title: string, text: string): number {
   const combined = `${title} ${text}`
-
-  if (NEWGRAD_PATTERNS.some((p) => p.test(combined))) return 10
+  if (newgradPatterns.some((p) => p.test(combined))) return 10
   if (SENIOR_NO_LEVEL_PATTERNS.some((p) => p.test(title))) return 5
   if (SENIOR_OVERQUALIFIED_PATTERNS.some((p) => p.test(combined))) return -10
-
   return 0
 }
