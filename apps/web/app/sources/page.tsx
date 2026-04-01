@@ -836,20 +836,20 @@ export default function SourcesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div>
+        <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-foreground">Sources</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} scoring keywords
-          </p>
+          <div className="text-xs text-muted-foreground">
+            {liveError ? (
+              <span className="text-red-500">Listener offline</span>
+            ) : lastFetch > 0 ? (
+              <span>Live &middot; updated {timeAgo(lastFetch)}</span>
+            ) : null}
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {liveError ? (
-            <span className="text-red-500">Listener offline</span>
-          ) : lastFetch > 0 ? (
-            <span>Live &middot; updated {timeAgo(lastFetch)}</span>
-          ) : null}
-        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} scoring keywords
+        </p>
       </div>
 
       {/* ── Source Cards ────────────────────────────────────────────────────── */}
