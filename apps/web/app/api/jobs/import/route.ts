@@ -12,10 +12,8 @@ export async function GET(req: NextRequest) {
   const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
 
-  // Today midnight in server's local timezone
-  const todayLocal = new Date()
-  todayLocal.setHours(0, 0, 0, 0)
-  const todayMidnight = todayLocal.toISOString()
+  // Today midnight in Pacific time (consistent across local dev and Vercel/UTC)
+  const todayMidnight = new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })).toISOString()
 
   // Run both queries in parallel
   const [listResult, todayResult] = await Promise.all([
