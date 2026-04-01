@@ -243,11 +243,12 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   }
 
   // ── Dedup check ──────────────────────────────────────────────────────────
-  const { data: existing } = await supabase
+  const { data: existingRows } = await supabase
     .from('job_postings')
     .select('id')
     .eq('url_hash', urlHash)
-    .maybeSingle()
+    .limit(1)
+  const existing = existingRows?.[0] ?? null
 
   if (existing) {
     processorStats.deduplicated++

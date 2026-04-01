@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords, setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +61,17 @@ export async function PATCH(
 
   // Re-score if page_content changed
   if (updates.page_content) {
+    // Load dynamic scoring config from DB so web re-scoring matches listener
+    const { data: configRows } = await supabase.from('scoring_config').select('key, value')
+    if (configRows) {
+      const cfg: Record<string, any> = {}
+      for (const r of configRows) cfg[r.key] = r.value
+      if (cfg.keyword_groups) { setKeywordGroups(cfg.keyword_groups); recompileKeywords() }
+      if (cfg.seniority_exclude || cfg.seniority_newgrad || cfg.non_design_titles) {
+        setSeniorityConfig({ exclude: cfg.seniority_exclude, newgrad: cfg.seniority_newgrad, nonDesign: cfg.non_design_titles })
+      }
+    }
+
     const [{ data: job }, { data: resume }] = await Promise.all([
       supabase.from('job_postings').select('title, company, location, url').eq('id', id).single(),
       supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single(),

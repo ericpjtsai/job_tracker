@@ -26,8 +26,7 @@ app/
   import/page.tsx         — Manual import (form + file upload), import history
   jobs/[id]/page.tsx      — Job detail: header, Details tab (desc/link), notes
   resume/page.tsx         — Resume upload, keyword display, re-score
-  sources/page.tsx        — Data source cards, health, scoring display
-  settings/page.tsx       — (planned) Editable scoring config
+  sources/page.tsx        — Data source cards, health, config editor (Data Sources / Configuration tabs)
   api/
     jobs/route.ts         — GET jobs list (filtered, paginated)
     jobs/[id]/route.ts    — GET/PATCH/DELETE single job
@@ -37,7 +36,7 @@ app/
     sources/route.ts      — Proxy to listener /sources + historical DB counts
     stats/route.ts        — Aggregated stats (high/med/low counts)
     poll/route.ts         — Proxy to listener /poll
-    scoring/route.ts      — (planned) GET/PATCH scoring config
+    scoring/route.ts      — GET/PATCH scoring config (keyword groups, seniority, blocklists)
 middleware.ts             — API auth gate (SECRET_API_TOKEN)
 lib/
   supabase.ts             — Client + server Supabase clients, types
@@ -85,6 +84,7 @@ src/
 001_init.sql              — job_postings, resume_versions, listener_state tables
 002_add_indexes.sql       — resume_fit, status, applied_at indexes
 003_add_missing_columns.sql — applied_at, source_type, resume_type columns
+004_scoring_config.sql    — scoring_config table (editable keyword groups, filters, blocklists)
 ```
 
 ### Key data flows

@@ -230,7 +230,8 @@ export async function POST(req: NextRequest) {
       .select('id, title, company, notes, page_content, applied_at')
       .ilike('title', parsed.title)
     if (parsed.company) dedupQuery = dedupQuery.ilike('company', parsed.company)
-    const { data: existing } = await dedupQuery.maybeSingle()
+    const { data: dedupRows } = await dedupQuery.limit(1)
+    const existing = dedupRows?.[0] ?? null
 
     if (existing) {
       // Update if there's new data (notes or description) — preserve original applied_at
