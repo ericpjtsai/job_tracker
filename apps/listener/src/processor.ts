@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js'
 import {
   scorePosting,
   computeResumeFit,
-  companyFromDomain,
   isRoleExcluded,
   extractKeywordsWithGemini,
   validateKeywords,
@@ -18,31 +17,6 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set')
   return createClient(url, key)
-}
-
-// ─── Firehose event types ─────────────────────────────────────────────────────
-
-interface DiffChunk {
-  typ: 'ins' | 'del'
-  text: string
-}
-
-interface FirehoseDocument {
-  url: string
-  title?: string
-  publish_time?: string
-  diff?: { chunks: DiffChunk[] }
-  page_category?: string[]
-  page_types?: string[]
-  language?: string
-  markdown?: string
-}
-
-export interface FirehoseUpdateEvent {
-  query_id: string
-  matched_at: string
-  tap_id: string
-  document: FirehoseDocument
 }
 
 // ─── URL normalization & hashing ─────────────────────────────────────────────
@@ -66,17 +40,6 @@ export function normalizeUrl(url: string): string {
 
 export function sha256(str: string): string {
   return crypto.createHash('sha256').update(str).digest('hex')
-}
-
-// ─── Company extraction ───────────────────────────────────────────────────────
-
-function extractCompany(url: string): string {
-  try {
-    const domain = new URL(url).hostname
-    return companyFromDomain(domain)
-  } catch {
-    return ''
-  }
 }
 
 // ─── Location extraction ──────────────────────────────────────────────────────
@@ -429,96 +392,14 @@ async function enrichWithLLM(supabase: any, matchValue: string, description: str
   console.log(`  🤖 LLM enriched: ${allKeywords.length} keywords (${llmResult.matched.length} matched, ${llmResult.missing.length} missing)`)
 }
 
-// ─── Job board URL allowlist (Firehose only) ──────────────────────────────────
-// Drops non-job-board URLs before any scoring/DB work.
-// HasData, ATS, and Mantiks call insertJobPosting() directly — not affected.
+// ─── Job board hosts (kept for setJobBoardHosts config compatibility) ────────
 
 const DEFAULT_JOB_BOARD_HOSTS = ['linkedin.com','greenhouse.io','lever.co','ashbyhq.com','myworkdayjobs.com','workday.com','smartrecruiters.com','icims.com','taleo.net','bamboohr.com','jobvite.com','workable.com','wellfound.com','dover.com','rippling.com','recruitee.com','hiring.cafe']
-let JOB_BOARD_HOSTS = buildHostsRegex(DEFAULT_JOB_BOARD_HOSTS)
 
-function buildHostsRegex(hosts: string[]): RegExp {
-  const escaped = hosts.map((h) => h.replace(/\./g, '\\.'))
-  return new RegExp(`\\b(${escaped.join('|')})\\b`)
-}
-
-export function setJobBoardHosts(hosts: string[]): void {
-  JOB_BOARD_HOSTS = buildHostsRegex(hosts)
+export function setJobBoardHosts(_hosts: string[]): void {
+  // No-op: job board filtering was firehose-only and has been removed
 }
 
 export function getJobBoardHosts(): string[] {
   return DEFAULT_JOB_BOARD_HOSTS
 }
-
-const JOB_PATH = /\/(jobs|careers|job|career|positions|openings)\//i
-
-const JOB_SUBDOMAIN = /^(jobs|careers|apply|work)\./i
-
-function isJobBoardUrl(url: string): boolean {
-  try {
-    const u = new URL(url)
-    const host = u.hostname.toLowerCase()
-    if (JOB_BOARD_HOSTS.test(host)) return true
-    if (JOB_SUBDOMAIN.test(host)) return true
-    if (JOB_PATH.test(u.pathname)) return true
-    return false
-  } catch {
-    return false
-  }
-}
-
-// ─── Firehose event processor ─────────────────────────────────────────────────
-
-export async function processEvent(event: FirehoseUpdateEvent): Promise<void> {
-  const doc = event.document
-  const normalizedUrl = normalizeUrl(doc.url)
-
-  if (!isJobBoardUrl(normalizedUrl)) {
-    processorStats.nonJobBoard++
-    console.log(`  ↷ Non-job-board URL skipped: ${normalizedUrl}`)
-    return
-  }
-  const pageContent = doc.markdown ?? ''
-  const title = doc.title ?? ''
-  const company = extractCompany(normalizedUrl)
-  const location = extractLocation(`${title} ${pageContent}`)
-
-  await insertJobPosting({
-    url: normalizedUrl,
-    title,
-    company,
-    location,
-    description: pageContent,
-    source: tagFromQueryId(event.query_id),
-    publishedAt: event.matched_at,
-  })
-}
-
-// ─── Rule tag cache ───────────────────────────────────────────────────────────
-
-const ruleTagCache: Map<string, string> = new Map()
-
-async function populateRuleTagCache() {
-  const token = process.env.FIREHOSE_TAP_TOKEN
-  if (!token || ruleTagCache.size > 0) return
-  try {
-    const https = await import('https')
-    const raw = await new Promise<string>((resolve, reject) => {
-      const req = https.default.request(
-        { hostname: 'api.firehose.com', path: '/v1/rules', headers: { Authorization: `Bearer ${token}` } },
-        (res) => { let d = ''; res.on('data', (c) => { d += c }); res.on('end', () => resolve(d)) }
-      )
-      req.on('error', reject)
-      req.end()
-    })
-    const { data } = JSON.parse(raw) as { data: Array<{ id: string; tag: string }> }
-    for (const r of data) ruleTagCache.set(r.id, r.tag)
-  } catch {
-    // Non-critical — falls back to query_id
-  }
-}
-
-function tagFromQueryId(queryId: string): string {
-  return ruleTagCache.get(queryId) ?? queryId
-}
-
-populateRuleTagCache()

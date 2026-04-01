@@ -5,14 +5,14 @@ Real-time B2B Product Design job search agent.
 ## Stack
 
 - **Web**: Next.js (Vercel) at `apps/web/`
-- **Listener**: Node.js SSE daemon (Railway) at `apps/listener/`
+- **Listener**: Node.js polling daemon (Railway) at `apps/listener/`
 - **Scoring**: Shared package at `packages/scoring/`
 - **DB**: Supabase (Postgres + Storage)
-- **Monorepo**: npm workspaces, `pnpm-workspace.yaml`
+- **Monorepo**: npm workspaces
 
 ## Architecture
 
-The listener is a persistent daemon — not serverless. It manages 9 data sources (Firehose SSE, ATS polling, LinkedIn scraper, Mantiks, SerpApi, HasData Indeed/Glassdoor, GitHub repos) and feeds jobs through `insertJobPosting()` in `processor.ts`. The processor handles title/seniority/location filtering, dedup, scoring, and async LLM enrichment.
+The listener is a persistent daemon — not serverless. It manages 8 data sources (ATS polling, LinkedIn scraper, Mantiks, SerpApi, HasData Indeed/Glassdoor, GitHub repos) and feeds jobs through `insertJobPosting()` in `processor.ts`. The processor handles title/seniority/location filtering, dedup, scoring, and async LLM enrichment.
 
 The web app is a Next.js dashboard with API routes that proxy to the listener's control server (port 3002) and query Supabase directly.
 
@@ -52,9 +52,8 @@ components/
 ### `apps/listener/` — Node.js daemon
 ```
 src/
-  index.ts                — Entry point: control server, scheduling, SSE streams
+  index.ts                — Entry point: control server, scheduling
   processor.ts            — insertJobPosting(): filters, dedup, scoring, LLM enrichment
-  rules.ts                — Firehose tap configs (7 taps, 78 Lucene rules)
   ats-poller.ts           — ATS API polling (Greenhouse, Lever, Ashby, SmartRecruiters)
   ats-companies.ts        — 236 company slugs
   linkedin-scraper.ts     — LinkedIn jobs via npm package

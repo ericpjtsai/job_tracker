@@ -24,24 +24,6 @@ interface Source {
 
 const SOURCES: Source[] = [
   {
-    id: 'firehose',
-    name: 'Firehose SSE',
-    type: 'stream',
-    schedule: 'Real-time',
-    cost: 'Firehose subscription',
-    endpoint: 'https://api.firehose.com/v1/stream',
-    auth: 'Bearer token (per tap)',
-    queries: ['78 rules across 7 taps (see Firehose Rules section below)'],
-    filters: [
-      'NON_US_EXCLUSION — blocks 30+ non-US cities/countries',
-      'FP_EXCLUSION — blocks non-design roles (graphic, interior, fashion, instructional, game, industrial designer) + freelance/contractor/part-time',
-      'DESIGN_TITLES — 19 title variants (product designer, UX designer, UI/UX, interaction designer, etc.)',
-    ],
-    notes: '7 concurrent SSE streams across 3 Firehose accounts. Auto-reconnects on error (5s delay). Offsets persisted in listener_state table for resume on restart.',
-    triggerPath: null,
-    envVars: ['FIREHOSE_MANAGEMENT_KEY', 'FIREHOSE_MANAGEMENT_KEY_2', 'FIREHOSE_MANAGEMENT_KEY_3', 'FIREHOSE_TAP_TOKEN..TOKEN_7'],
-  },
-  {
     id: 'ats',
     name: 'ATS Direct Polling',
     type: 'poll',
@@ -330,148 +312,6 @@ const ATS_COLORS: Record<string, { bg: string; text: string; label: string }> = 
   smartrecruiters: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'SmartRecruiters' },
 }
 
-// ─── Firehose Rules ──────────────────────────────────────────────────────────
-
-interface Rule {
-  tag: string
-  target: string
-  type: 'keyword' | 'domain'
-}
-
-interface Tap {
-  name: string
-  account: number
-  token: string
-  rules: Rule[]
-}
-
-const TAPS: Tap[] = [
-  {
-    name: 'Job Tracker',
-    account: 1,
-    token: 'FIREHOSE_TAP_TOKEN',
-    rules: [
-      { tag: 'b2b-core', target: 'Design titles, NOT senior/staff/principal/director/VP/manager/8+yr/10+yr', type: 'keyword' },
-      { tag: 'b2b-enterprise', target: 'Product/UX designer + B2B/enterprise/SaaS + design system/dashboard/workflow/devtools', type: 'keyword' },
-      { tag: 'b2b-ai', target: 'Product/UX/AI designer + generative AI/LLM/conversational UI/AI-powered/agentic', type: 'keyword' },
-      { tag: 'b2b-newgrad', target: 'Product/UX/associate designer + new grad/early career/2026/junior + B2B/AI', type: 'keyword' },
-      { tag: 'b2b-target-co', target: '100+ named target companies (Salesforce, OpenAI, Stripe, Figma, etc.)', type: 'keyword' },
-      { tag: 'b2b-tier3', target: 'Big Tech / finance / consulting (Microsoft, Google, Goldman, etc.)', type: 'keyword' },
-      { tag: 'b2b-design-systems', target: 'Design technologist/engineer/systems + design system/component library/tokens', type: 'keyword' },
-      { tag: 'b2b-fintech', target: 'Design titles + fintech/payments/banking/lending + B2B/enterprise', type: 'keyword' },
-      { tag: 'b2b-startup', target: 'Design titles + Series A/B/C/YC/a16z/Sequoia + B2B/enterprise', type: 'keyword' },
-      { tag: 'linkedin-design', target: 'linkedin.com/jobs/view/* + design titles', type: 'domain' },
-      { tag: 'linkedin-posts', target: 'linkedin.com (NOT /jobs/) + design titles + hiring language', type: 'domain' },
-      { tag: 'ats-design', target: 'greenhouse.io, lever.co, ashbyhq.com, workable.com, wellfound.com', type: 'domain' },
-    ],
-  },
-  {
-    name: 'Job Tracker Platforms',
-    account: 1,
-    token: 'FIREHOSE_TAP_TOKEN_2',
-    rules: [
-      { tag: 'glassdoor', target: 'glassdoor.com/job-listing/*', type: 'domain' },
-      { tag: 'indeed', target: 'indeed.com/viewjob*', type: 'domain' },
-      { tag: 'dice', target: 'dice.com/jobs/*', type: 'domain' },
-      { tag: 'builtin', target: 'builtin.com + 8 city subdomains (NYC, LA, SF, Seattle, Austin, Boston, Chicago, Colorado)', type: 'domain' },
-      { tag: 'remote-boards', target: 'weworkremotely.com, remotive.com, remote.co, flexjobs.com, nodesk.co', type: 'domain' },
-      { tag: 'design-boards', target: 'dribbble.com, coroflot.com, aiga.org, workingnotworking.com, authenticjobs.com, krop.com', type: 'domain' },
-    ],
-  },
-  {
-    name: 'Job Tracker Signals',
-    account: 1,
-    token: 'FIREHOSE_TAP_TOKEN_3',
-    rules: [
-      { tag: 'hacker-news', target: 'news.ycombinator.com + design titles + hiring signals', type: 'domain' },
-      { tag: 'twitter-x', target: 'twitter.com, x.com + design titles + hiring language', type: 'domain' },
-      { tag: 'wellfound', target: 'wellfound.com + design titles', type: 'domain' },
-      { tag: 'vc-jobs', target: 'workatastartup.com, ycombinator.com, jobs.a16z.com, jobs.sequoiacap.com, greylock.com', type: 'domain' },
-      { tag: 'producthunt', target: 'producthunt.com + design titles + hiring signals', type: 'domain' },
-      { tag: 'reddit-jobs', target: 'reddit.com (r/forhire, r/UXDesign, r/design, r/userexperience) + hiring signals', type: 'domain' },
-      { tag: 'company-careers', target: 'Any domain /careers/* + design titles + job posting signals', type: 'keyword' },
-    ],
-  },
-  {
-    name: 'Job Tracker Extended',
-    account: 2,
-    token: 'FIREHOSE_TAP_TOKEN_4',
-    rules: [
-      { tag: 'ziprecruiter', target: 'ziprecruiter.com/jobs/*', type: 'domain' },
-      { tag: 'simplyhired', target: 'simplyhired.com', type: 'domain' },
-      { tag: 'jobvite', target: 'jobs.jobvite.com', type: 'domain' },
-      { tag: 'smartrecruiters', target: 'jobs.smartrecruiters.com', type: 'domain' },
-      { tag: 'workday-jobs', target: 'myworkdayjobs.com', type: 'domain' },
-      { tag: 'icims', target: 'icims.com', type: 'domain' },
-      { tag: 'taleo', target: 'taleo.net', type: 'domain' },
-      { tag: 'bamboohr-jobs', target: 'bamboohr.com/jobs/*', type: 'domain' },
-      { tag: 'techjobs', target: 'techjobs.com, cybercoders.com, hired.com', type: 'domain' },
-      { tag: 'tier1-careers-direct', target: 'careers.salesforce.com, openai.com, stripe.com, atlassian, servicenow, adobe, zoom, cisco, datadog, snowflake, lever, twilio, intuit, sap, oracle', type: 'domain' },
-      { tag: 'tier2-careers-direct', target: 'canva, miro, ashby, writer, cohere, gusto, rippling, lattice, toast, procore, samsara, doordash, robinhood, coinbase, airbnb, databricks', type: 'domain' },
-      { tag: 'handshake', target: 'joinhandshake.com (new grad / entry-level focus)', type: 'domain' },
-    ],
-  },
-  {
-    name: 'Job Tracker Niche',
-    account: 2,
-    token: 'FIREHOSE_TAP_TOKEN_5',
-    rules: [
-      { tag: 'substack-jobs', target: 'substack.com + hiring signals', type: 'domain' },
-      { tag: 'tech-news-hiring', target: 'techcrunch, venturebeat, theverge, wired, forbes + hiring signals', type: 'domain' },
-      { tag: 'design-communities', target: 'uxdesign.cc, nngroup.com, smashingmagazine.com, medium.com + hiring signals', type: 'domain' },
-      { tag: 'angel-co', target: 'angel.co', type: 'domain' },
-      { tag: 'arc-dev', target: 'arc.dev', type: 'domain' },
-      { tag: 'jobs-lever-all', target: 'jobs.lever.co', type: 'domain' },
-      { tag: 'ashby-all', target: 'jobs.ashbyhq.com', type: 'domain' },
-      { tag: 'rippling-ats', target: 'ats.rippling.com', type: 'domain' },
-      { tag: 'workable-all', target: 'apply.workable.com', type: 'domain' },
-      { tag: 'toptal-jobs', target: 'toptal.com', type: 'domain' },
-      { tag: 'otta-jungle', target: 'welcometothejungle.com, otta.com', type: 'domain' },
-      { tag: 'simplify-cord', target: 'simplify.jobs, cord.com', type: 'domain' },
-      { tag: 'behance-ux', target: 'behance.net, uxjobsboard.com, uxdesignjobs.net, designerjobs.co', type: 'domain' },
-    ],
-  },
-  {
-    name: 'Job Tracker BigTech',
-    account: 3,
-    token: 'FIREHOSE_TAP_TOKEN_6',
-    rules: [
-      { tag: 'amazon-direct', target: 'amazon.jobs', type: 'domain' },
-      { tag: 'google-direct', target: 'careers.google.com, careers.googleplex.com', type: 'domain' },
-      { tag: 'meta-direct', target: 'metacareers.com', type: 'domain' },
-      { tag: 'apple-direct', target: 'jobs.apple.com', type: 'domain' },
-      { tag: 'microsoft-direct', target: 'careers.microsoft.com', type: 'domain' },
-      { tag: 'linkedin-direct', target: 'careers.linkedin.com', type: 'domain' },
-      { tag: 'chip-hardware', target: 'nvidia.com, amd.com, qualcomm.com, broadcom.com (career pages)', type: 'domain' },
-      { tag: 'media-social-direct', target: 'netflix, spotify, snap, discord, duolingo (career pages)', type: 'domain' },
-      { tag: 'bigbank-direct', target: 'Capital One, JPMorgan, Goldman Sachs, Morgan Stanley, American Express', type: 'domain' },
-      { tag: 'b2b-custom-careers', target: 'hubspot.com, airtable.com, asana.com, monday.com, amplitude.com', type: 'domain' },
-      { tag: 'mobility-direct', target: 'tesla.com, waymo.com, uber.com, rivian.com, cruise.com', type: 'domain' },
-      { tag: 'consulting-design', target: 'deloitte.com, thoughtworks.com, accenture.com, ideo.com, frog.co', type: 'domain' },
-    ],
-  },
-  {
-    name: 'Job Tracker Niche2',
-    account: 3,
-    token: 'FIREHOSE_TAP_TOKEN_7',
-    rules: [
-      { tag: 'ai-labs-direct', target: 'scale.com, cohere.com, mistral.ai, perplexity.ai, huggingface.co', type: 'domain' },
-      { tag: 'devtools-direct', target: 'github.com, vercel.com, hashicorp.com, getdbt.com, retool.com', type: 'domain' },
-      { tag: 'data-platform-direct', target: 'databricks.com, snowflake.com, fivetran.com, airbyte.com, dbt.com', type: 'domain' },
-      { tag: 'collab-creative-direct', target: 'miro.com, canva.com, figma.com, coda.io, loom.com', type: 'domain' },
-      { tag: 'hris-payroll-direct', target: 'gusto.com, rippling.com, deel.com, lattice.com, greenhouse.io', type: 'domain' },
-      { tag: 'ecom-direct', target: 'shopify.com, ebay.com, wayfair.com, etsy.com, instacart.com', type: 'domain' },
-      { tag: 'healthtech-direct', target: 'epic.com, athenahealth.com, veeva.com, teladoc.com, doximity.com', type: 'domain' },
-      { tag: 'cloud-security-direct', target: 'paloaltonetworks, crowdstrike, zscaler, cloudflare, sentinelone', type: 'domain' },
-      { tag: 'fintech-startup-direct', target: 'plaid.com, robinhood.com, coinbase.com, chime.com, affirm.com', type: 'domain' },
-      { tag: 'gaming-entertain-direct', target: 'roblox.com, unity.com, ea.com, epicgames.com, activision.com', type: 'domain' },
-      { tag: 'enterprise-legacy-direct', target: 'servicenow, zendesk, freshworks, sap, salesforce', type: 'domain' },
-      { tag: 'proptech-retail-direct', target: 'opendoor, realpage, appfolio, walmart, target', type: 'domain' },
-      { tag: 'research-platform-direct', target: 'dovetail, userinterviews, usertesting, qualtrics, fullstory', type: 'domain' },
-    ],
-  },
-]
-
 // ─── Scoring Data ────────────────────────────────────────────────────────────
 
 const KEYWORD_GROUPS = [
@@ -517,11 +357,9 @@ interface ProcessorStats {
   seniorityExcluded: number
   resumeFitZero: number
   inserted: number
-  nonJobBoard: number
 }
 
 const FILTER_PIPELINE: { name: string; scope: string; description: string; statsKey: keyof ProcessorStats | null }[] = [
-  { name: 'Job Board URL allowlist', scope: 'Firehose only', description: 'Must match known job board hosts (17 domains), job subdomains (jobs.*, careers.*), or job paths (/jobs/, /careers/). Configurable in Settings.', statsKey: 'nonJobBoard' },
   { name: 'Non-design title blocking', scope: 'All sources', description: 'Hard-blocks non-design roles (27+ keywords: engineer, intern, graphic designer, etc.). Strips "Apply now" prefix. Configurable in Settings.', statsKey: 'titleBlocked' },
   { name: 'Location blocking', scope: 'All sources', description: 'Blocks explicit non-US locations (92 cities/countries). Allows: empty, Remote, Hybrid, United States, US state abbreviations. Configurable in Settings.', statsKey: 'locationBlocked' },
   { name: 'Company blocking', scope: 'All sources', description: 'Blocks specific companies (configurable in Settings). Currently: lensa, itjobswatch.', statsKey: 'companyBlocked' },
@@ -861,13 +699,6 @@ interface LiveSource {
   health: LiveSourceHealth
 }
 
-interface LiveTap {
-  tapName: string
-  envKey: string
-  ruleCount: number
-  rules: { tag: string }[]
-}
-
 function timeAgo(ts: number | null): string {
   if (!ts) return 'never'
   const secs = Math.floor((Date.now() - ts) / 1000)
@@ -893,7 +724,6 @@ function StatusDot({ status }: { status: LiveSourceHealth['status'] }) {
 
 export default function SourcesPage() {
   const [liveSources, setLiveSources] = useState<LiveSource[]>([])
-  const [liveTaps, setLiveTaps] = useState<LiveTap[]>([])
   const [procStats, setProcStats] = useState<ProcessorStats | null>(null)
   const [historicalCounts, setHistoricalCounts] = useState<Record<string, number>>({})
   const [scoringConfig, setScoringConfig] = useState<Record<string, any>>({})
@@ -913,7 +743,7 @@ export default function SourcesPage() {
   const [localNonDesign, setLocalNonDesign] = useState<string[]>([])
   const [localBlockedCompanies, setLocalBlockedCompanies] = useState<string[]>([])
   const [localBlockedLocations, setLocalBlockedLocations] = useState<string[]>([])
-  const [localJobBoards, setLocalJobBoards] = useState<string[]>([])
+
 
   // Sync local state from scoring config
   useEffect(() => {
@@ -924,7 +754,6 @@ export default function SourcesPage() {
     setLocalNonDesign(scoringConfig.non_design_titles ?? [])
     setLocalBlockedCompanies(scoringConfig.blocked_companies ?? [])
     setLocalBlockedLocations(scoringConfig.blocked_locations ?? [])
-    setLocalJobBoards(scoringConfig.job_board_hosts ?? [])
   }, [scoringConfig])
 
   // Auto-select config tab on hash navigation
@@ -972,7 +801,6 @@ export default function SourcesPage() {
       if (!sourcesRes.ok) throw new Error()
       const data = await sourcesRes.json()
       setLiveSources(data.sources ?? [])
-      setLiveTaps(data.firehoseRules ?? [])
       if (data.processorStats) setProcStats(data.processorStats)
       if (data.historicalCounts) setHistoricalCounts(data.historicalCounts)
       if (scoringRes.ok) setScoringConfig(await scoringRes.json())
@@ -995,15 +823,6 @@ export default function SourcesPage() {
     cost: s.cost,
     health: { status: 'idle' as const, lastPollAt: null, lastErrorAt: null, lastError: null, jobsFound: 0, consecutiveFailures: 0 },
   }))
-  const taps = liveTaps.length > 0 ? liveTaps : TAPS.map((t) => ({
-    tapName: t.name,
-    envKey: t.token,
-    ruleCount: t.rules.length,
-    rules: t.rules.map((r) => ({ tag: r.tag })),
-  }))
-
-  const totalRules = taps.reduce((sum, t) => sum + t.ruleCount, 0)
-
   const liveGroups = scoringConfig.keyword_groups as KWGroup[] | undefined
   const totalTerms = (liveGroups ?? KEYWORD_GROUPS).reduce((s: number, g: any) => s + (g.terms?.length ?? 0), 0)
 
@@ -1021,7 +840,7 @@ export default function SourcesPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {totalTerms} scoring keywords
+          {sources.length} data sources &middot; {totalTerms} scoring keywords
         </p>
       </div>
 
@@ -1156,29 +975,7 @@ export default function SourcesPage() {
             </div>
           </ConfigSection>
 
-          {/* Editable: Job Board Allowlist */}
-          <ConfigSection
-            id="job-boards"
-            title="Allowed Job Boards"
-            description="Which websites to accept jobs from (Firehose source only)"
-            saving={savingKey === 'job_board_hosts'}
-            hasChanges={JSON.stringify(localJobBoards) !== JSON.stringify(scoringConfig.job_board_hosts)}
-            onSave={() => saveConfig('job_board_hosts', localJobBoards)}
-            onReset={reloadConfig}
-          >
-            <TagEditor tags={localJobBoards} onChange={setLocalJobBoards} placeholder="Add domain (e.g. lever.co)..." />
-          </ConfigSection>
-
           <h2 className="text-xs font-medium text-muted-foreground pt-3">System Reference</h2>
-
-          {/* Read-only: Firehose Rules */}
-          <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
-            <div className="space-y-3 pt-3">
-              {taps.map((tap) => (
-                <LiveTapSection key={tap.tapName} tap={tap} />
-              ))}
-            </div>
-          </Section>
 
           {/* Read-only: Processor Filtering Pipeline */}
           <Section title="Processor Filtering Pipeline" badge={procStats ? `${procStats.received} received · ${procStats.inserted} inserted` : `${FILTER_PIPELINE.length} stages`}>
@@ -1222,7 +1019,7 @@ export default function SourcesPage() {
                   <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
                   <div>
                     <div className="font-medium text-foreground">Normal operation</div>
-                    <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
+                    <div className="text-muted-foreground">ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
@@ -1375,32 +1172,4 @@ function LiveSourceCard({ source, onTrigger, dbCount }: { source: LiveSource; on
   )
 }
 
-// ─── Live Tap Section ────────────────────────────────────────────────────────
-
-function LiveTapSection({ tap }: { tap: LiveTap }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="bg-muted/50 rounded-md">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2 flex items-center justify-between text-left text-xs hover:bg-muted"
-      >
-        <span className="flex items-center gap-2">
-          <span className="font-medium">{tap.tapName}</span>
-          <span className="text-muted-foreground/50">&middot;</span>
-          <span className="text-muted-foreground/50 tabular-nums">{tap.ruleCount} rules</span>
-        </span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      {open && (
-        <div className="px-3 pb-2 bg-muted/20 pt-2 flex flex-wrap gap-1">
-          {tap.rules.map((r) => (
-            <span key={r.tag} className="font-mono text-[11px] bg-muted text-foreground px-1.5 py-0.5 rounded">{r.tag}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 

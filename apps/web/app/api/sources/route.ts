@@ -31,7 +31,7 @@ async function getHistoricalCounts(): Promise<Record<string, number>> {
     const counts: Record<string, number> = {}
     for (const row of data) {
       const rule = row.firehose_rule || ''
-      const sourceId = RULE_TO_SOURCE[rule] || 'firehose'
+      const sourceId = RULE_TO_SOURCE[rule] || 'other'
       counts[sourceId] = (counts[sourceId] || 0) + 1
     }
     return counts
@@ -51,7 +51,7 @@ export async function GET() {
       headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' },
     })
   } catch {
-    return NextResponse.json({ error: 'Listener not reachable', sources: [], firehoseRules: [], historicalCounts: {} }, { status: 503 })
+    return NextResponse.json({ error: 'Listener not reachable', sources: [], historicalCounts: {} }, { status: 503 })
   }
 }
 
