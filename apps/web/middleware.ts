@@ -1,30 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * Gate all /api/* routes with SECRET_API_TOKEN.
+ * API auth + cookie injection middleware.
  *
- * The token is checked in this order:
- *   1. Authorization: Bearer <token> header
- *   2. ?token=<token> query param
- *   3. x-api-token cookie (set by the app layout)
- *
- * If SECRET_API_TOKEN is not set (local dev), all requests pass through.
+ * - /api/* routes: require SECRET_API_TOKEN via header, query param, or cookie
+ * - Page routes: set the api-token cookie so client-side fetches pass auth
+ * - If SECRET_API_TOKEN is not set (local dev), everything passes through
  */
 export function middleware(req: NextRequest) {
   const secret = process.env.SECRET_API_TOKEN
-  if (!secret) return NextResponse.next() // dev mode — no gate
+  if (!secret) return NextResponse.next()
+
+  const isApi = req.nextUrl.pathname.startsWith('/api/')
 
   const bearerToken = req.headers.get('authorization')?.replace('Bearer ', '')
   const queryToken = req.nextUrl.searchParams.get('token')
   const cookieToken = req.cookies.get('api-token')?.value
+  const hasToken = bearerToken === secret || queryToken === secret || cookieToken === secret
 
-  if (bearerToken === secret || queryToken === secret || cookieToken === secret) {
+  // API routes: require auth
+  if (isApi) {
+    if (!hasToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     return NextResponse.next()
   }
 
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Page routes: set cookie if missing so client-side fetches pass auth
+  if (!cookieToken || cookieToken !== secret) {
+    const res = NextResponse.next()
+    res.cookies.set('api-token', secret, { httpOnly: true, sameSite: 'strict', secure: true, path: '/' })
+    return res
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

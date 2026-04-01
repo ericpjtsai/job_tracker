@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
-import { cookies } from 'next/headers'
 import './globals.css'
 import { Nav } from '@/components/nav'
 
@@ -12,16 +11,7 @@ export const metadata: Metadata = {
   description: 'B2B Product Design job search agent',
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Set api-token cookie so client-side fetches pass middleware auth
-  const secret = process.env.SECRET_API_TOKEN
-  if (secret) {
-    const jar = await cookies()
-    if (!jar.get('api-token')) {
-      jar.set('api-token', secret, { httpOnly: true, sameSite: 'strict', secure: true, path: '/' })
-    }
-  }
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${inter.className} ${spaceGrotesk.variable}`}>
