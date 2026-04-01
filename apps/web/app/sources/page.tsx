@@ -1066,11 +1066,14 @@ export default function SourcesPage() {
       {/* ══════════════ CONFIGURATION TAB ══════════════ */}
       {tab === 'config' && (
         <div className="space-y-3">
+
+          <h2 className="text-xs font-medium text-muted-foreground pt-1">Scoring</h2>
+
           {/* Editable: Keyword Groups */}
           <ConfigSection
             id="keywords"
-            title="Scoring Keyword Groups"
-            description={`${localKeywords.length} groups · ${localKeywords.reduce((s, g) => s + g.terms.length, 0)} total terms`}
+            title="Scoring Keywords"
+            description={`${localKeywords.reduce((s, g) => s + g.terms.length, 0)} words to look for in job posts — more matches = higher fit score`}
             saving={savingKey === 'keyword_groups'}
             hasChanges={JSON.stringify(localKeywords) !== JSON.stringify(scoringConfig.keyword_groups)}
             onSave={() => saveConfig('keyword_groups', localKeywords)}
@@ -1108,11 +1111,13 @@ export default function SourcesPage() {
             </div>
           </ConfigSection>
 
+          <h2 className="text-xs font-medium text-muted-foreground pt-3">Filtering</h2>
+
           {/* Editable: Seniority Filters */}
           <ConfigSection
             id="seniority"
-            title="Seniority Filters"
-            description="Title patterns that exclude jobs by seniority level or boost new-grad roles"
+            title="Seniority Levels"
+            description="Skip too-senior roles, boost new-grad roles"
             saving={savingKey === 'seniority_exclude' || savingKey === 'seniority_newgrad'}
             hasChanges={JSON.stringify(localSeniorityExclude) !== JSON.stringify(scoringConfig.seniority_exclude) || JSON.stringify(localSeniorityNewgrad) !== JSON.stringify(scoringConfig.seniority_newgrad)}
             onSave={async () => { await saveConfig('seniority_exclude', localSeniorityExclude); await saveConfig('seniority_newgrad', localSeniorityNewgrad) }}
@@ -1131,8 +1136,8 @@ export default function SourcesPage() {
           {/* Editable: Non-Design Title Blocklist */}
           <ConfigSection
             id="title-blocklist"
-            title="Non-Design Title Blocklist"
-            description="Jobs with these keywords in the title are dropped entirely (hard block)"
+            title="Blocked Titles"
+            description="Drop jobs with these words in the title (e.g. engineer, intern)"
             saving={savingKey === 'non_design_titles'}
             hasChanges={JSON.stringify(localNonDesign) !== JSON.stringify(scoringConfig.non_design_titles)}
             onSave={() => saveConfig('non_design_titles', localNonDesign)}
@@ -1144,8 +1149,8 @@ export default function SourcesPage() {
           {/* Editable: Company & Location Blocklists */}
           <ConfigSection
             id="blocklists"
-            title="Company & Location Blocklists"
-            description="Companies and non-US locations to always skip"
+            title="Blocked Companies & Locations"
+            description="Always skip these companies and non-US locations"
             saving={savingKey === 'blocked_companies' || savingKey === 'blocked_locations'}
             hasChanges={JSON.stringify(localBlockedCompanies) !== JSON.stringify(scoringConfig.blocked_companies) || JSON.stringify(localBlockedLocations) !== JSON.stringify(scoringConfig.blocked_locations)}
             onSave={async () => { await saveConfig('blocked_companies', localBlockedCompanies); await saveConfig('blocked_locations', localBlockedLocations) }}
@@ -1164,8 +1169,8 @@ export default function SourcesPage() {
           {/* Editable: Job Board Allowlist */}
           <ConfigSection
             id="job-boards"
-            title="Job Board Allowlist"
-            description="Only Firehose URLs from these domains are processed (other sources bypass this filter)"
+            title="Allowed Job Boards"
+            description="Which websites to accept jobs from (Firehose source only)"
             saving={savingKey === 'job_board_hosts'}
             hasChanges={JSON.stringify(localJobBoards) !== JSON.stringify(scoringConfig.job_board_hosts)}
             onSave={() => saveConfig('job_board_hosts', localJobBoards)}
@@ -1173,6 +1178,8 @@ export default function SourcesPage() {
           >
             <TagEditor tags={localJobBoards} onChange={setLocalJobBoards} placeholder="Add domain (e.g. lever.co)..." />
           </ConfigSection>
+
+          <h2 className="text-xs font-medium text-muted-foreground pt-3">System Reference</h2>
 
           {/* Read-only: Firehose Rules */}
           <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
