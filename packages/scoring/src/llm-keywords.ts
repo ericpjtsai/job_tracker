@@ -105,7 +105,7 @@ HARD RULES — override the base score:
 - If the job is primarily service design, content design, or UX research only: score ≤ 45
 - If the job requires 7+ years AND lead/principal/staff level: score ≤ 55
 - If the job is at a B2B/enterprise/SaaS company AND is a core Product/UX Designer role: score ≥ 70
-- If the job mentions design systems, AI/ML, complex workflows, OR is at a top-tier tech company (Salesforce, Google, Meta, Amazon, Microsoft, Apple, Figma, etc.): boost +5-10
+- If the job mentions design systems, AI/ML, complex workflows, or agentic AI: boost +5-10
 
 Respond with ONLY valid JSON, no markdown fences:
 {"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 85}`

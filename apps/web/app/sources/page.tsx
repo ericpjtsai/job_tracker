@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -555,6 +558,115 @@ function Section({ title, badge, defaultOpen = false, children }: {
   )
 }
 
+// ─── Tag Editor (for editable config sections) ──────────────────────────────
+
+function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
+  tags: string[]
+  onChange: (tags: string[]) => void
+  placeholder?: string
+  allTermsAcrossGroups?: Set<string>
+}) {
+  const [input, setInput] = useState('')
+  const [expanded, setExpanded] = useState(tags.length <= 20)
+  const [dupeWarning, setDupeWarning] = useState<string | null>(null)
+
+  const inputLower = input.trim().toLowerCase()
+  const isDupeInList = !!inputLower && tags.some((t) => t.toLowerCase() === inputLower)
+  const isDupeAcrossGroups = !!inputLower && !isDupeInList && !!allTermsAcrossGroups?.has(inputLower)
+
+  function addTag() {
+    const trimmed = input.trim()
+    if (!trimmed) return
+    if (isDupeInList) { setDupeWarning(`"${trimmed}" already exists in this list`); setTimeout(() => setDupeWarning(null), 2000); return }
+    if (isDupeAcrossGroups) { setDupeWarning(`"${trimmed}" already exists in another group`); setTimeout(() => setDupeWarning(null), 2000); return }
+    onChange([...tags, trimmed])
+    setInput('')
+    setDupeWarning(null)
+  }
+
+  const display = expanded ? tags : tags.slice(0, 20)
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {display.map((tag, i) => (
+          <span key={`${tag}-${i}`} className="inline-flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-1 rounded-md">
+            {tag}
+            <button type="button" aria-label="Remove tag" onClick={() => onChange(tags.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive transition-colors ml-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </span>
+        ))}
+        {!expanded && tags.length > 20 && (
+          <button type="button" onClick={() => setExpanded(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1">+{tags.length - 20} more</button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 relative">
+          <Input type="text" value={input} onChange={(e) => { setInput(e.target.value); setDupeWarning(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+            placeholder={placeholder ?? 'Add item...'} className={`h-8 text-xs ${isDupeInList || isDupeAcrossGroups ? 'border-amber-400' : ''}`}
+          />
+          {inputLower && (isDupeInList || isDupeAcrossGroups) && (
+            <div className="absolute -bottom-5 left-0 text-[10px] text-amber-600">{isDupeInList ? 'Already in this list' : 'Exists in another group'}</div>
+          )}
+        </div>
+        <Button size="xs" variant="outline" onClick={addTag} disabled={!input.trim() || isDupeInList || isDupeAcrossGroups}>Add</Button>
+      </div>
+      {dupeWarning && <div className="text-[11px] text-amber-600">{dupeWarning}</div>}
+    </div>
+  )
+}
+
+// ─── Config Section (editable, with save/reset/dirty) ───────────────────────
+
+function ConfigSection({ id, title, description, children, saving, hasChanges, onSave, onReset }: {
+  id: string; title: string; description: string; children: React.ReactNode
+  saving: boolean; hasChanges: boolean; onSave: () => void; onReset: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+
+  useEffect(() => {
+    if (window.location.hash === `#${id}`) setOpen(true)
+  }, [id])
+
+  return (
+    <section id={id} className="bg-card rounded-lg border overflow-hidden scroll-mt-16">
+      <button type="button" onClick={() => setOpen(!open)}
+        className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted/40' : 'hover:bg-muted/30'}`}
+      >
+        <div>
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 ml-3 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      {open && (
+        <>
+          <div className="px-5 py-4 space-y-4">{children}</div>
+          <div className="px-5 py-3 border-t flex items-center justify-between">
+            {confirmReset ? (
+              <span className="flex items-center gap-2">
+                <span className="text-xs text-destructive">Reset?</span>
+                <button type="button" aria-label="Confirm reset" onClick={() => { onReset(); setConfirmReset(false) }} className="text-destructive hover:text-destructive/80 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button type="button" aria-label="Cancel reset" onClick={() => setConfirmReset(false)} className="text-muted-foreground/40 hover:text-foreground transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmReset(true)} className="text-xs text-destructive/70 hover:text-destructive transition-colors">Reset to defaults</button>
+            )}
+            <Button size="sm" onClick={onSave} disabled={saving || !hasChanges}>{saving ? 'Saving...' : 'Save'}</Button>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 function TypeBadge({ type }: { type: 'stream' | 'poll' }) {
   return type === 'stream' ? (
     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 uppercase">Stream</span>
@@ -797,6 +909,69 @@ export default function SourcesPage() {
   const [scoringConfig, setScoringConfig] = useState<Record<string, any>>({})
   const [liveError, setLiveError] = useState(false)
   const [lastFetch, setLastFetch] = useState(0)
+  const [tab, setTab] = useState<'sources' | 'config'>('sources')
+
+  // ── Configuration editing state ────────────────────────────────────────────
+  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [configToast, setConfigToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const configToastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  interface KWGroup { name: string; weight: number; terms: string[] }
+  const [localKeywords, setLocalKeywords] = useState<KWGroup[]>([])
+  const [localSeniorityExclude, setLocalSeniorityExclude] = useState<string[]>([])
+  const [localSeniorityNewgrad, setLocalSeniorityNewgrad] = useState<string[]>([])
+  const [localNonDesign, setLocalNonDesign] = useState<string[]>([])
+  const [localBlockedCompanies, setLocalBlockedCompanies] = useState<string[]>([])
+  const [localBlockedLocations, setLocalBlockedLocations] = useState<string[]>([])
+  const [localJobBoards, setLocalJobBoards] = useState<string[]>([])
+
+  // Sync local state from scoring config
+  useEffect(() => {
+    if (!scoringConfig.keyword_groups) return
+    setLocalKeywords(scoringConfig.keyword_groups)
+    setLocalSeniorityExclude(scoringConfig.seniority_exclude ?? [])
+    setLocalSeniorityNewgrad(scoringConfig.seniority_newgrad ?? [])
+    setLocalNonDesign(scoringConfig.non_design_titles ?? [])
+    setLocalBlockedCompanies(scoringConfig.blocked_companies ?? [])
+    setLocalBlockedLocations(scoringConfig.blocked_locations ?? [])
+    setLocalJobBoards(scoringConfig.job_board_hosts ?? [])
+  }, [scoringConfig])
+
+  // Auto-select config tab on hash navigation
+  useEffect(() => {
+    const hash = window.location.hash.slice(1)
+    if (['keywords', 'seniority', 'title-blocklist', 'blocklists', 'job-boards'].includes(hash)) {
+      setTab('config')
+      setTimeout(() => document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' }), 200)
+    }
+  }, [])
+
+  function showConfigToast(message: string, type: 'success' | 'error' = 'success') {
+    setConfigToast({ message, type })
+    if (configToastTimeout.current) clearTimeout(configToastTimeout.current)
+    configToastTimeout.current = setTimeout(() => setConfigToast(null), 3000)
+  }
+
+  async function saveConfig(key: string, value: any) {
+    setSavingKey(key)
+    const res = await fetch('/api/scoring', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    })
+    if (res.ok) {
+      setScoringConfig((prev) => ({ ...prev, [key]: value }))
+      showConfigToast(`${key.replace(/_/g, ' ')} saved`)
+    } else {
+      const { error } = await res.json()
+      showConfigToast(error ?? 'Save failed', 'error')
+    }
+    setSavingKey(null)
+  }
+
+  function reloadConfig() {
+    fetch('/api/scoring').then(r => r.json()).then(data => setScoringConfig(data)).catch(() => {})
+  }
 
   async function fetchSources() {
     try {
@@ -839,6 +1014,9 @@ export default function SourcesPage() {
 
   const totalRules = taps.reduce((sum, t) => sum + t.ruleCount, 0)
 
+  const liveGroups = scoringConfig.keyword_groups as KWGroup[] | undefined
+  const totalTerms = (liveGroups ?? KEYWORD_GROUPS).reduce((s: number, g: any) => s + (g.terms?.length ?? 0), 0)
+
   return (
     <div className="space-y-6">
       <div>
@@ -853,246 +1031,253 @@ export default function SourcesPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {KEYWORD_GROUPS.reduce((s, g) => s + g.terms.length, 0)} scoring keywords
+          {sources.length} data sources &middot; {totalRules} Firehose rules across {taps.length} taps &middot; {totalTerms} scoring keywords
         </p>
       </div>
 
-      {/* ── Source Cards ────────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="text-xs font-medium text-muted-foreground mb-3">Data Sources</h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          {sources.map((s) => (
-            <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
-          ))}
-        </div>
+      {/* Tab toggle */}
+      <div className="relative inline-flex items-center bg-muted rounded-full p-[3px] text-xs">
+        <button type="button" onClick={() => setTab('sources')}
+          className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${tab === 'sources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+        >Data Sources</button>
+        <button type="button" onClick={() => setTab('config')}
+          className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${tab === 'config' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+        >Configuration</button>
       </div>
 
-      {/* ── Configuration & Rules ──────────────────────────────────────────── */}
-      <div>
-        <h2 className="text-xs font-medium text-muted-foreground mb-3">Configuration &amp; Rules</h2>
-        <div className="space-y-3">
-
-      <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
-        <div className="space-y-3 pt-3">
-          {taps.map((tap) => (
-            <LiveTapSection key={tap.tapName} tap={tap} />
-          ))}
+      {/* Toast */}
+      {configToast && (
+        <div className={`text-xs rounded-md px-3 py-2 ${configToast.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+          {configToast.message}
         </div>
-      </Section>
+      )}
 
-      {/* ── Processor Filtering Pipeline ──────────────────────────────────── */}
-      <Section title="Processor Filtering Pipeline" badge={procStats ? `${procStats.received} received · ${procStats.inserted} inserted` : `${FILTER_PIPELINE.length} stages`}>
-        <div className="space-y-2 pt-3">
-          {procStats && (
-            <div className="flex gap-3 text-xs mb-3 px-1">
-              <span className="bg-muted rounded-md px-2 py-1 tabular-nums">
-                <span className="text-muted-foreground">Received:</span> <span className="font-medium">{procStats.received}</span>
-              </span>
-              <span className="bg-green-50 text-green-800 rounded-md px-2 py-1 tabular-nums">
-                <span className="opacity-70">Inserted:</span> <span className="font-medium">{procStats.inserted}</span>
-              </span>
-            </div>
-          )}
-          {FILTER_PIPELINE.map((f, i) => {
-            const count = procStats && f.statsKey ? procStats[f.statsKey] : null
-            return (
-              <div key={i} className="flex gap-3 text-xs">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-medium mt-0.5">
-                  {i + 1}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">{f.name}</span>
-                    <span className="text-muted-foreground/50 font-normal">{f.scope}</span>
-                    {count !== null && count > 0 && (
-                      <span className="ml-auto tabular-nums text-[10px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">
-                        {count} blocked
-                      </span>
-                    )}
-                    {count !== null && count === 0 && (
-                      <span className="ml-auto tabular-nums text-[10px] text-muted-foreground/40 px-1.5 py-0.5">
-                        0
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-muted-foreground mt-0.5">{f.description}</div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </Section>
-
-      {/* ── Scoring System ────────────────────────────────────────────────── */}
-      {(() => {
-        const liveGroups = scoringConfig.keyword_groups as any[] | undefined
-        const liveSeniorityExclude = scoringConfig.seniority_exclude as string[] | undefined
-        const liveNewgrad = scoringConfig.seniority_newgrad as string[] | undefined
-        const liveNonDesign = scoringConfig.non_design_titles as string[] | undefined
-        const liveBlockedLocations = scoringConfig.blocked_locations as string[] | undefined
-        const liveBlockedCompanies = scoringConfig.blocked_companies as string[] | undefined
-        const displayGroups = liveGroups ?? KEYWORD_GROUPS
-        const totalTerms = displayGroups.reduce((s: number, g: any) => s + (g.terms?.length ?? 0), 0)
-        return (
-      <Section title="Scoring System" badge={`${totalTerms} keywords in ${displayGroups.length} groups`}>
-        <div className="space-y-4 pt-3">
-          {/* Keyword groups */}
+      {/* ══════════════ DATA SOURCES TAB ══════════════ */}
+      {tab === 'sources' && (
+        <div className="space-y-6">
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Keyword Groups</div>
-              <a href="/settings#keywords" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
-            </div>
-            <div className="space-y-2">
-              {displayGroups.map((group: any) => (
-                <KeywordGroupRow key={group.name} group={group} />
+            <h2 className="text-xs font-medium text-muted-foreground mb-3">Data Sources</h2>
+            <div className="grid gap-3 md:grid-cols-2 items-start">
+              {sources.map((s) => (
+                <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
               ))}
             </div>
           </div>
 
-          {/* Company tiers */}
-          <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Company Tier Bonuses</div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="bg-red-50 border rounded p-2">
-                <div className="font-semibold text-red-800">Tier 1: +20</div>
-                <div className="text-red-600 mt-0.5">Pure B2B/Enterprise SaaS (58 companies)</div>
-                <div className="text-red-500 text-[10px] mt-0.5">Salesforce, Figma, Stripe, Notion, Datadog...</div>
+          <div className="space-y-3">
+            <Section title="Firehose Rules Browser" badge={`${totalRules} rules across ${taps.length} taps`}>
+              <div className="space-y-3 pt-3">
+                {taps.map((tap) => (
+                  <LiveTapSection key={tap.tapName} tap={tap} />
+                ))}
               </div>
-              <div className="bg-amber-50 border rounded p-2">
-                <div className="font-semibold text-amber-800">Tier 2: +10</div>
-                <div className="text-amber-600 mt-0.5">Strong Enterprise DNA (85 companies)</div>
-                <div className="text-amber-500 text-[10px] mt-0.5">Anthropic, Brex, Ramp, Linear, Retool...</div>
-              </div>
-              <div className="bg-muted border rounded p-2">
-                <div className="font-semibold text-foreground">Tier 3: +5</div>
-                <div className="text-muted-foreground mt-0.5">B2B-Adjacent / Big Tech (78 companies)</div>
-                <div className="text-muted-foreground/50 text-[10px] mt-0.5">Google, Microsoft, Meta, Apple, Amazon...</div>
-              </div>
-            </div>
-          </div>
+            </Section>
 
-          {/* Seniority */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Seniority &amp; Title Filters</div>
-              <a href="/settings#seniority" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-green-700">+10</div>
-                <div className="text-muted-foreground">{liveNewgrad ? liveNewgrad.slice(0, 5).join(', ') : 'New grad / associate / junior'}{liveNewgrad && liveNewgrad.length > 5 ? '...' : ''}</div>
+            <Section title="Fallback Chain">
+              <div className="pt-3 text-xs space-y-3">
+                <p className="text-muted-foreground">Checked every 60 minutes. Activates when primary LinkedIn sources fail.</p>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
+                    <div>
+                      <div className="font-medium text-foreground">Normal operation</div>
+                      <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-semibold">2</span>
+                    <div>
+                      <div className="font-medium text-foreground">Mantiks + Scraper both down &gt; 8 hours</div>
+                      <div className="text-muted-foreground">Trigger SerpApi immediately as coverage backup</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-semibold">3</span>
+                    <div>
+                      <div className="font-medium text-foreground">All LinkedIn sources + SerpApi unavailable</div>
+                      <div className="text-muted-foreground">Activate LinkedIn Direct scraper (emergency HTML scraping, max 10 requests, 30-120s delays)</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-blue-700">+5</div>
-                <div className="text-muted-foreground">&quot;Product Designer&quot; or &quot;UX Designer&quot; (no level)</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-red-600">Excluded</div>
-                <div className="text-muted-foreground">{liveSeniorityExclude ? liveSeniorityExclude.join(', ') : 'Staff / principal / director / VP / manager'}</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-red-800">Hard blocked</div>
-                <div className="text-muted-foreground">{liveNonDesign ? `${liveNonDesign.length} non-design titles` : '27 non-design titles'}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Blocklists */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-muted-foreground/50 uppercase font-medium">Blocklists</div>
-              <a href="/settings#blocklists" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Edit</a>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-foreground">{liveBlockedCompanies?.length ?? 2} blocked companies</div>
-                <div className="text-muted-foreground mt-0.5">{liveBlockedCompanies ? liveBlockedCompanies.join(', ') : 'lensa, itjobswatch'}</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-foreground">{liveBlockedLocations?.length ?? 92} blocked locations</div>
-                <div className="text-muted-foreground mt-0.5">Non-US cities &amp; countries</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Location bonuses */}
-          <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Location Bonuses</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-green-700">+5</div>
-                <div className="text-muted-foreground">Remote / Hybrid / SF Bay Area / Seattle</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-blue-700">+3</div>
-                <div className="text-muted-foreground">NYC metro</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-muted-foreground">0</div>
-                <div className="text-muted-foreground">Other US locations</div>
-              </div>
-              <div className="bg-muted/50 rounded-md p-2">
-                <div className="font-semibold text-red-600">-20</div>
-                <div className="text-muted-foreground">Non-US ({liveBlockedLocations?.length ?? '92'}+ cities/countries)</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Priority */}
-          <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Priority Thresholds</div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: fit &ge; 80%</span>
-              <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: fit &ge; 50%</span>
-              <span className="bg-muted text-muted-foreground border px-2 py-1 rounded font-medium">Low: fit &ge; 1%</span>
-              <span className="bg-muted text-muted-foreground/50 border px-2 py-1 rounded font-medium">Skip: fit = 0%</span>
-            </div>
-          </div>
-
-          {/* Resume fit */}
-          <div>
-            <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-1">Resume Fit</div>
-            <p className="text-xs text-muted-foreground">
-              Percentage of posting&apos;s matched keywords that also appear in the active resume. LLM enrichment (Gemini/Anthropic) provides accurate role_fit scores after initial regex scoring. If resume is active and fit = 0%, the job is skipped.
-            </p>
+            </Section>
           </div>
         </div>
-      </Section>
-        )
-      })()}
+      )}
 
-      {/* ── Fallback Chain ────────────────────────────────────────────────── */}
-      <Section title="Fallback Chain">
-        <div className="pt-3 text-xs space-y-3">
-          <p className="text-muted-foreground">Checked every 60 minutes. Activates when primary LinkedIn sources fail.</p>
-          <div className="space-y-2">
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0 w-5 h-5 rounded bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-semibold">1</span>
-              <div>
-                <div className="font-medium text-foreground">Normal operation</div>
-                <div className="text-muted-foreground">Firehose (real-time) + ATS (hourly) + Mantiks (weekly) + LinkedIn Scraper (2x/day) + SerpApi (2x/day) + HasData (2x/day) + GitHub Jobright (2x/day)</div>
-              </div>
+      {/* ══════════════ CONFIGURATION TAB ══════════════ */}
+      {tab === 'config' && (
+        <div className="space-y-3">
+          {/* Editable: Keyword Groups */}
+          <ConfigSection
+            id="keywords"
+            title="Scoring Keyword Groups"
+            description={`${localKeywords.length} groups · ${localKeywords.reduce((s, g) => s + g.terms.length, 0)} total terms`}
+            saving={savingKey === 'keyword_groups'}
+            hasChanges={JSON.stringify(localKeywords) !== JSON.stringify(scoringConfig.keyword_groups)}
+            onSave={() => saveConfig('keyword_groups', localKeywords)}
+            onReset={reloadConfig}
+          >
+            <div className="space-y-4">
+              {localKeywords.map((group, gi) => (
+                <details key={group.name} className="group">
+                  <summary className="flex items-center justify-between cursor-pointer py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{group.name.replace(/_/g, ' ')}</span>
+                      <Badge variant="secondary" className="text-[10px]">{group.terms.length}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        Weight:
+                        <input type="number" min={0} max={10} value={group.weight}
+                          onChange={(e) => { const u = [...localKeywords]; u[gi] = { ...u[gi], weight: Number(e.target.value) }; setLocalKeywords(u) }}
+                          className="w-12 text-xs px-1.5 py-0.5 rounded border border-input bg-background text-center"
+                        />
+                      </label>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-muted-foreground/50 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                  </summary>
+                  <div className="pt-2 pb-3">
+                    <TagEditor
+                      tags={group.terms}
+                      onChange={(terms) => { const u = [...localKeywords]; u[gi] = { ...u[gi], terms }; setLocalKeywords(u) }}
+                      placeholder={`Add ${group.name.replace(/_/g, ' ')} term...`}
+                      allTermsAcrossGroups={new Set(localKeywords.filter((_, i) => i !== gi).flatMap(g => g.terms.map(t => t.toLowerCase())))}
+                    />
+                  </div>
+                </details>
+              ))}
             </div>
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0 w-5 h-5 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-semibold">2</span>
-              <div>
-                <div className="font-medium text-foreground">Mantiks + Scraper both down &gt; 8 hours</div>
-                <div className="text-muted-foreground">Trigger SerpApi immediately as coverage backup</div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0 w-5 h-5 rounded bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-semibold">3</span>
-              <div>
-                <div className="font-medium text-foreground">All LinkedIn sources + SerpApi unavailable</div>
-                <div className="text-muted-foreground">Activate LinkedIn Direct scraper (emergency HTML scraping, max 10 requests, 30-120s delays)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Section>
+          </ConfigSection>
 
+          {/* Editable: Seniority Filters */}
+          <ConfigSection
+            id="seniority"
+            title="Seniority Filters"
+            description="Title patterns that exclude jobs by seniority level or boost new-grad roles"
+            saving={savingKey === 'seniority_exclude' || savingKey === 'seniority_newgrad'}
+            hasChanges={JSON.stringify(localSeniorityExclude) !== JSON.stringify(scoringConfig.seniority_exclude) || JSON.stringify(localSeniorityNewgrad) !== JSON.stringify(scoringConfig.seniority_newgrad)}
+            onSave={async () => { await saveConfig('seniority_exclude', localSeniorityExclude); await saveConfig('seniority_newgrad', localSeniorityNewgrad) }}
+            onReset={reloadConfig}
+          >
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Excluded seniority levels (jobs deprioritized)</div>
+              <TagEditor tags={localSeniorityExclude} onChange={setLocalSeniorityExclude} placeholder="Add pattern (e.g. staff, principal)..." />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">New grad bonus patterns (+10 score)</div>
+              <TagEditor tags={localSeniorityNewgrad} onChange={setLocalSeniorityNewgrad} placeholder="Add pattern (e.g. junior, associate)..." />
+            </div>
+          </ConfigSection>
+
+          {/* Editable: Non-Design Title Blocklist */}
+          <ConfigSection
+            id="title-blocklist"
+            title="Non-Design Title Blocklist"
+            description="Jobs with these keywords in the title are dropped entirely (hard block)"
+            saving={savingKey === 'non_design_titles'}
+            hasChanges={JSON.stringify(localNonDesign) !== JSON.stringify(scoringConfig.non_design_titles)}
+            onSave={() => saveConfig('non_design_titles', localNonDesign)}
+            onReset={reloadConfig}
+          >
+            <TagEditor tags={localNonDesign} onChange={setLocalNonDesign} placeholder="Add blocked keyword (e.g. engineer, intern)..." />
+          </ConfigSection>
+
+          {/* Editable: Company & Location Blocklists */}
+          <ConfigSection
+            id="blocklists"
+            title="Company & Location Blocklists"
+            description="Companies and non-US locations to always skip"
+            saving={savingKey === 'blocked_companies' || savingKey === 'blocked_locations'}
+            hasChanges={JSON.stringify(localBlockedCompanies) !== JSON.stringify(scoringConfig.blocked_companies) || JSON.stringify(localBlockedLocations) !== JSON.stringify(scoringConfig.blocked_locations)}
+            onSave={async () => { await saveConfig('blocked_companies', localBlockedCompanies); await saveConfig('blocked_locations', localBlockedLocations) }}
+            onReset={reloadConfig}
+          >
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Blocked companies ({localBlockedCompanies.length})</div>
+              <TagEditor tags={localBlockedCompanies} onChange={setLocalBlockedCompanies} placeholder="Add company name..." />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Blocked locations ({localBlockedLocations.length})</div>
+              <TagEditor tags={localBlockedLocations} onChange={setLocalBlockedLocations} placeholder="Add city or country..." />
+            </div>
+          </ConfigSection>
+
+          {/* Editable: Job Board Allowlist */}
+          <ConfigSection
+            id="job-boards"
+            title="Job Board Allowlist"
+            description="Only Firehose URLs from these domains are processed (other sources bypass this filter)"
+            saving={savingKey === 'job_board_hosts'}
+            hasChanges={JSON.stringify(localJobBoards) !== JSON.stringify(scoringConfig.job_board_hosts)}
+            onSave={() => saveConfig('job_board_hosts', localJobBoards)}
+            onReset={reloadConfig}
+          >
+            <TagEditor tags={localJobBoards} onChange={setLocalJobBoards} placeholder="Add domain (e.g. lever.co)..." />
+          </ConfigSection>
+
+          {/* Read-only: Processor Filtering Pipeline */}
+          <Section title="Processor Filtering Pipeline" badge={procStats ? `${procStats.received} received · ${procStats.inserted} inserted` : `${FILTER_PIPELINE.length} stages`}>
+            <div className="space-y-2 pt-3">
+              {procStats && (
+                <div className="flex gap-3 text-xs mb-3 px-1">
+                  <span className="bg-muted rounded-md px-2 py-1 tabular-nums">
+                    <span className="text-muted-foreground">Received:</span> <span className="font-medium">{procStats.received}</span>
+                  </span>
+                  <span className="bg-green-50 text-green-800 rounded-md px-2 py-1 tabular-nums">
+                    <span className="opacity-70">Inserted:</span> <span className="font-medium">{procStats.inserted}</span>
+                  </span>
+                </div>
+              )}
+              {FILTER_PIPELINE.map((f, i) => {
+                const count = procStats && f.statsKey ? procStats[f.statsKey] : null
+                return (
+                  <div key={i} className="flex gap-3 text-xs">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-medium mt-0.5">{i + 1}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground">{f.name}</span>
+                        <span className="text-muted-foreground/50 font-normal">{f.scope}</span>
+                        {count !== null && count > 0 && <span className="ml-auto tabular-nums text-[10px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">{count} blocked</span>}
+                        {count !== null && count === 0 && <span className="ml-auto tabular-nums text-[10px] text-muted-foreground/40 px-1.5 py-0.5">0</span>}
+                      </div>
+                      <div className="text-muted-foreground mt-0.5">{f.description}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Section>
+
+          {/* Read-only: Priority & Location */}
+          <Section title="Scoring Rules" badge="Location bonuses · Priority thresholds · Resume fit">
+            <div className="space-y-4 pt-3">
+              <div>
+                <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Location Bonuses</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div className="bg-muted/50 rounded-md p-2"><div className="font-semibold text-green-700">+5</div><div className="text-muted-foreground">Remote / Hybrid / SF Bay Area / Seattle</div></div>
+                  <div className="bg-muted/50 rounded-md p-2"><div className="font-semibold text-blue-700">+3</div><div className="text-muted-foreground">NYC metro</div></div>
+                  <div className="bg-muted/50 rounded-md p-2"><div className="font-semibold text-muted-foreground">0</div><div className="text-muted-foreground">Other US locations</div></div>
+                  <div className="bg-muted/50 rounded-md p-2"><div className="font-semibold text-red-600">-20</div><div className="text-muted-foreground">Non-US ({localBlockedLocations.length}+ cities)</div></div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-2">Priority Thresholds</div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="bg-red-50/80 text-red-800 px-2 py-1 rounded-md font-medium">High: fit &ge; 80%</span>
+                  <span className="bg-amber-50/80 text-amber-800 px-2 py-1 rounded-md font-medium">Medium: fit &ge; 50%</span>
+                  <span className="bg-muted text-muted-foreground border px-2 py-1 rounded font-medium">Low: fit &ge; 1%</span>
+                  <span className="bg-muted text-muted-foreground/50 border px-2 py-1 rounded font-medium">Skip: fit = 0%</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground/50 uppercase font-medium mb-1">Resume Fit</div>
+                <p className="text-xs text-muted-foreground">Percentage of posting&apos;s matched keywords that also appear in the active resume. LLM enrichment provides accurate scoring. If fit = 0%, the job is skipped.</p>
+              </div>
+            </div>
+          </Section>
         </div>
-      </div>
+      )}
     </div>
   )
 }
