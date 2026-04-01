@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "sh -c 'set -a && . ./.env.local 2>/dev/null; set +a; tsx watch src/index.ts'",
+    "build": "tsc --noEmit",
     "start": "sh -c 'set -a && . ./.env.local 2>/dev/null; set +a; tsx src/index.ts'",
     "typecheck": "tsc --noEmit"
   },
