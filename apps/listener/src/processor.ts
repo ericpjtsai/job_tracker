@@ -237,12 +237,14 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
     return
   }
 
-  // ── Title+company dedup (catches cross-source duplicates) ───────────────
+  // ── Title+company+location dedup (catches cross-source duplicates) ──────
   // Skip dedup if existing row is manual import — never overwrite manual data
   if (opts.title) {
     let q = supabase.from('job_postings').select('id, page_content, source_type').ilike('title', opts.title)
     if (opts.company) q = q.ilike('company', opts.company)
-    const { data: titleMatch } = await q.maybeSingle()
+    if (opts.location) q = q.ilike('location', opts.location)
+    const { data: titleMatches } = await q.limit(1)
+    const titleMatch = titleMatches?.[0] ?? null
 
     if (titleMatch) {
       if (titleMatch.source_type === 'manual') {
@@ -254,10 +256,21 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
       console.log(`  ↷ Dedup (title+co): ${opts.title} — ${opts.company}`)
       // Merge: update last_seen + keep the longer description
       const updates: Record<string, any> = { last_seen: new Date().toISOString() }
-      if (opts.description && opts.description.length > (titleMatch.page_content || '').length) {
+      const contentUpgraded = opts.description && opts.description.length > (titleMatch.page_content || '').length
+      if (contentUpgraded) {
         updates.page_content = opts.description
       }
       await supabase.from('job_postings').update(updates).eq('id', titleMatch.id)
+      // Re-score via LLM when description was upgraded to a longer version
+      if (contentUpgraded && opts.description.length > 100) {
+        const geminiKey = process.env.GEMINI_API_KEY
+        const anthropicKey = process.env.ANTHROPIC_API_KEY
+        if (geminiKey || anthropicKey) {
+          const resumeKeywords = await getActiveResumeKeywords(supabase as any)
+          console.log(`  🤖 Re-scoring dedup (longer JD): ${opts.title}`)
+          enrichWithLLM(supabase, titleMatch.id, opts.description, resumeKeywords, geminiKey, anthropicKey).catch(() => {})
+        }
+      }
       return
     }
   }
@@ -329,7 +342,11 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
       : result.priority
 
   // ── Insert ───────────────────────────────────────────────────────────────
-  const now = opts.publishedAt ?? new Date().toISOString()
+  let now = new Date().toISOString()
+  if (opts.publishedAt) {
+    const d = new Date(opts.publishedAt)
+    now = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  }
   const { error } = await supabase.from('job_postings').insert({
     url: normalizedUrl,
     url_hash: urlHash,
@@ -370,7 +387,7 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   }
 }
 
-async function enrichWithLLM(supabase: any, url: string, description: string, resumeKeywords: string[], geminiKey?: string, anthropicKey?: string) {
+async function enrichWithLLM(supabase: any, matchValue: string, description: string, resumeKeywords: string[], geminiKey?: string, anthropicKey?: string) {
   const rawResult = await extractKeywordsWithGemini(description, resumeKeywords, geminiKey, anthropicKey)
   const llmResult = rawResult ? validateKeywords(rawResult, description, resumeKeywords) : null
   if (!llmResult) return
@@ -383,7 +400,9 @@ async function enrichWithLLM(supabase: any, url: string, description: string, re
   const updates: Record<string, any> = { keywords_matched: allKeywords }
   if (resumeFit !== null) { updates.resume_fit = resumeFit; updates.priority = priority }
 
-  await supabase.from('job_postings').update(updates).eq('url', url)
+  // Match by id (UUID) or url
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(matchValue)
+  await supabase.from('job_postings').update(updates).eq(isUuid ? 'id' : 'url', matchValue)
   console.log(`  🤖 LLM enriched: ${allKeywords.length} keywords (${llmResult.matched.length} matched, ${llmResult.missing.length} missing)`)
 }
 

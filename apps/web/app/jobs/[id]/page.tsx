@@ -117,6 +117,7 @@ export default function JobDetailPage() {
   const [editingUrl, setEditingUrl] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
   const [savingUrl, setSavingUrl] = useState(false)
+  const [detailsTab, setDetailsTab] = useState<'description' | 'link'>('description')
   const preSaveKeywordsRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -242,26 +243,25 @@ export default function JobDetailPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold leading-tight">{job.title ?? 'Untitled'}</h1>
-            <div className="text-sm font-medium mt-0.5">{job.company ?? '—'}</div>
+            <div className="text-sm mt-0.5">
+              {[
+                job.company && <span key="co" className="font-medium">{job.company}</span>,
+                job.location && <span key="loc" className="text-muted-foreground">{job.location}</span>,
+                salary && <span key="sal" className="text-green-600 tabular-nums">{salary}</span>,
+              ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) => {
+                if (i > 0) acc.push(<span key={`sep-${i}`} className="text-muted-foreground mx-1">&middot;</span>)
+                acc.push(el)
+                return acc
+              }, [])}
+            </div>
           </div>
           {job.resume_fit !== null && (
             <span className="text-lg font-semibold tabular-nums text-green-600 shrink-0">{job.resume_fit}%</span>
           )}
         </div>
 
-        {/* Location | Salary */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap mt-2">
-          {job.location && <span>{job.location}</span>}
-          {salary && (
-            <>
-              {job.location && <span className="text-muted-foreground/30">|</span>}
-              <span className="text-green-600 tabular-nums">{salary}</span>
-            </>
-          )}
-        </div>
-
         {/* Status + Open posting + Delete */}
-        <div className="flex items-center gap-3 mt-3">
+        <div className="flex items-start gap-3 mt-5">
           <a
             href={openUrl}
             target="_blank"
@@ -270,17 +270,22 @@ export default function JobDetailPage() {
             onClick={() => { if (job.status !== 'applied') updateStatus('applied') }}
           >{openLabel} ↗</a>
 
-          <select
-            aria-label="Job status"
-            value={job.status}
-            onChange={(e) => updateStatus(e.target.value)}
-            className="text-sm px-3 py-1.5 rounded-md border border-input bg-background text-foreground appearance-none bg-no-repeat cursor-pointer hover:bg-muted transition-colors"
-            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundSize: '12px', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
-          >
-            {JOB_STATUSES.map((s) => (
-              <option key={s} value={s}>{capitalize(s)}</option>
-            ))}
-          </select>
+          <div>
+            <select
+              aria-label="Job status"
+              value={job.status}
+              onChange={(e) => updateStatus(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded-md border border-input bg-background text-foreground appearance-none bg-no-repeat cursor-pointer hover:bg-muted transition-colors"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundSize: '12px', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
+            >
+              {JOB_STATUSES.map((s) => (
+                <option key={s} value={s}>{capitalize(s)}</option>
+              ))}
+            </select>
+            {job.applied_at && (
+              <div className="text-[11px] text-muted-foreground mt-1">Applied on {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            )}
+          </div>
 
           <div className="flex-1" />
           <button
@@ -288,7 +293,6 @@ export default function JobDetailPage() {
             onClick={async () => {
               if (!confirm('Delete this job posting?')) return
               await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
-              // Navigate to next job or go back
               if (nextId) router.push(`/jobs/${nextId}`)
               else router.back()
             }}
@@ -298,164 +302,172 @@ export default function JobDetailPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
           </button>
         </div>
-
-        {job.applied_at && (
-          <div className="text-xs text-muted-foreground mt-2">Applied on {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-        )}
       </div>
 
       {/* ── Content area ──────────────────────────────────────────────── */}
       <div className="space-y-5">
 
-          {/* Job description */}
+          {/* Details — merged description + link with tab switch */}
           <div className="bg-card rounded-lg border overflow-hidden">
-            {/* Header — clickable to collapse */}
-            <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingDesc && setDescOpen(!descOpen)}>
-              <div className="text-sm font-semibold">Job description</div>
+            {/* Header with tab switch */}
+            <div className={`px-6 py-4 flex items-center justify-between transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`}>
+              <div className="flex items-center gap-3">
+                <div className="text-sm font-semibold cursor-pointer" onClick={() => !editingDesc && setDescOpen(!descOpen)}>Details</div>
+                <div className="relative inline-flex items-center bg-muted rounded-full p-[2px] text-[11px]">
+                  <button type="button" onClick={() => setDetailsTab('description')}
+                    className={`relative z-10 px-2.5 py-0.5 rounded-full transition-colors duration-200 ${detailsTab === 'description' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >Description</button>
+                  <button type="button" onClick={() => setDetailsTab('link')}
+                    className={`relative z-10 px-2.5 py-0.5 rounded-full transition-colors duration-200 ${detailsTab === 'link' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >Link</button>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                {editingDesc ? (
-                  <>
-                    <button type="button" disabled={savingDesc} onClick={(e) => { e.stopPropagation()
-                      const content = draftDesc
-                      preSaveKeywordsRef.current = JSON.stringify(job.keywords_matched ?? [])
-                      setEditingDesc(false)
-                      setJob(prev => prev ? { ...prev, page_content: content } : prev)
-                      setSavingDesc(true)
-                      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
-                      fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
-                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
-                  </>
+                {detailsTab === 'description' ? (
+                  editingDesc ? (
+                    <>
+                      <button type="button" disabled={savingDesc} onClick={(e) => { e.stopPropagation()
+                        const content = draftDesc
+                        preSaveKeywordsRef.current = JSON.stringify(job.keywords_matched ?? [])
+                        setEditingDesc(false)
+                        setJob(prev => prev ? { ...prev, page_content: content } : prev)
+                        setSavingDesc(true)
+                        requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+                        fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
+                      }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDesc(false); setDraftDesc(job.page_content ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setDraftDesc(job.page_content ?? ''); setEditingDesc(true); setDescOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform cursor-pointer ${descOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={() => !editingDesc && setDescOpen(!descOpen)}><path d="m6 9 6 6 6-6"/></svg>
+                    </>
+                  )
                 ) : (
-                  <>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setDraftDesc(job.page_content ?? ''); setEditingDesc(true); setDescOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${descOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                  </>
+                  editingUrl ? (
+                    <>
+                      <button type="button" disabled={savingUrl} onClick={async () => {
+                        setSavingUrl(true)
+                        await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
+                        setJob({ ...job, url: draftUrl })
+                        setEditingUrl(false)
+                        setSavingUrl(false)
+                      }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
+                      <button type="button" onClick={() => { setEditingUrl(false); setDraftUrl(job.url ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => { setDraftUrl(job.url ?? ''); setEditingUrl(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                  )
                 )}
               </div>
             </div>
 
-            {/* Keywords — loading indicator or matched/missing */}
-            <AnimatePresence initial={false}>
-              {descOpen && savingDesc && (
-                <motion.div key="kw-saving" {...collapse}>
-                  <div className="px-6 py-4 border-b flex items-center gap-2">
-                    <span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
-                    <span className="text-xs text-muted-foreground">Updating keywords...</span>
-                  </div>
-                </motion.div>
-              )}
-              {descOpen && !editingDesc && !savingDesc && keywords.length > 0 && (
-                <motion.div key="kw" {...collapse}>
-                  <div className="px-6 py-4 border-b space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">
-                        {resumeKeywords.length > 0
-                          ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
-                          : <>{keywords.length} keywords</>
-                        }
+            {/* Description tab content */}
+            {detailsTab === 'description' && (
+              <>
+                {/* Keywords — loading indicator or matched/missing */}
+                <AnimatePresence initial={false}>
+                  {descOpen && savingDesc && (
+                    <motion.div key="kw-saving" {...collapse}>
+                      <div className="px-6 py-4 border-b flex items-center gap-2">
+                        <span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+                        <span className="text-xs text-muted-foreground">Updating keywords...</span>
                       </div>
-                      {resumeKeywords.length > 0 && (
-                        <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {matched.map((k) => (
-                        <Badge key={k} variant="success" className="text-xs">{k}</Badge>
-                      ))}
-                      {missing.map((k) => (
-                        <Badge key={k} variant="error" className="text-xs">{k}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    </motion.div>
+                  )}
+                  {descOpen && !editingDesc && !savingDesc && keywords.length > 0 && (
+                    <motion.div key="kw" {...collapse}>
+                      <div className="px-6 py-4 border-b space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-muted-foreground">
+                            {resumeKeywords.length > 0
+                              ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
+                              : <>{keywords.length} keywords</>
+                            }
+                          </div>
+                          {resumeKeywords.length > 0 && (
+                            <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {matched.map((k) => (
+                            <Badge key={k} variant="success" className="text-xs">{k}</Badge>
+                          ))}
+                          {missing.map((k) => (
+                            <Badge key={k} variant="error" className="text-xs">{k}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-            {/* Content — collapsible */}
-            <AnimatePresence initial={false}>
-            {descOpen && <motion.div key="desc" {...collapse}><div className="px-6 py-5">
-
-            {editingDesc ? (
-              <div
-                ref={(el) => { if (el && !el.innerHTML && draftDesc) el.innerHTML = prepareContent(draftDesc).content || draftDesc }}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={(e) => setDraftDesc((e.target as HTMLDivElement).innerHTML)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    const content = (e.target as HTMLDivElement).innerHTML
-                    preSaveKeywordsRef.current = JSON.stringify(job!.keywords_matched ?? [])
-                    setEditingDesc(false)
-                    setJob(prev => prev ? { ...prev, page_content: content } : prev)
-                    setSavingDesc(true)
-                    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
-                    fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
-                  }
-                }}
-                className="job-description min-h-[300px] max-h-[600px] overflow-y-auto p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                data-placeholder="Paste or edit job description..."
-              />
-            ) : prepared ? (
-              prepared.html ? (
-                <div className="job-description" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
-              ) : (
-                <div className="text-sm leading-relaxed text-foreground whitespace-pre-line" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
-              )
-            ) : (
-              <button type="button" onClick={() => { setDraftDesc(''); setEditingDesc(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add job description</button>
-            )}
-            </div></motion.div>}
-            </AnimatePresence>
-          </div>
-
-          {/* Job posting URL — always visible */}
-          <div className="bg-card rounded-lg border overflow-hidden">
-            <div className={`px-6 py-4 flex items-center justify-between transition-colors ${editingUrl ? 'bg-muted/40' : ''}`}>
-              <div className="text-sm font-semibold">Posting URL</div>
-              <div className="flex items-center gap-2">
-                {editingUrl ? (
-                  <>
-                    <button type="button" disabled={savingUrl} onClick={async () => {
-                      setSavingUrl(true)
-                      await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
-                      setJob({ ...job, url: draftUrl })
-                      setEditingUrl(false)
-                      setSavingUrl(false)
-                    }} className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Save</button>
-                    <button type="button" onClick={() => { setEditingUrl(false); setDraftUrl(job.url ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
-                  </>
+                {/* Content — collapsible */}
+                <AnimatePresence initial={false}>
+                {descOpen && <motion.div key="desc" {...collapse}><div className="px-6 py-5">
+                {editingDesc ? (
+                  <div
+                    ref={(el) => { if (el && !el.innerHTML && draftDesc) el.innerHTML = prepareContent(draftDesc).content || draftDesc }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => setDraftDesc((e.target as HTMLDivElement).innerHTML)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        const content = (e.target as HTMLDivElement).innerHTML
+                        preSaveKeywordsRef.current = JSON.stringify(job!.keywords_matched ?? [])
+                        setEditingDesc(false)
+                        setJob(prev => prev ? { ...prev, page_content: content } : prev)
+                        setSavingDesc(true)
+                        requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+                        fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_content: content }) })
+                      }
+                    }}
+                    className="job-description min-h-[300px] max-h-[600px] overflow-y-auto p-3 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    data-placeholder="Paste or edit job description..."
+                  />
+                ) : prepared ? (
+                  prepared.html ? (
+                    <div className="job-description" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
+                  ) : (
+                    <div className="text-sm leading-relaxed text-foreground whitespace-pre-line" dangerouslySetInnerHTML={{ __html: highlightKeywords(prepared.content, keywords) }} />
+                  )
                 ) : (
-                  <button type="button" onClick={() => { setDraftUrl(job.url ?? ''); setEditingUrl(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                  <button type="button" onClick={() => { setDraftDesc(''); setEditingDesc(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add job description</button>
+                )}
+                </div></motion.div>}
+                </AnimatePresence>
+              </>
+            )}
+
+            {/* Link tab content */}
+            {detailsTab === 'link' && (
+              <div className="px-6 py-4">
+                {editingUrl ? (
+                  <input
+                    type="url"
+                    value={draftUrl}
+                    onChange={(e) => setDraftUrl(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter') {
+                        setSavingUrl(true)
+                        await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
+                        setJob({ ...job, url: draftUrl })
+                        setEditingUrl(false)
+                        setSavingUrl(false)
+                      }
+                    }}
+                    placeholder="https://..."
+                    autoFocus
+                    className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background focus-visible:outline-none"
+                  />
+                ) : job.url ? (
+                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
+                ) : (
+                  <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
                 )}
               </div>
-            </div>
-            <div className="px-6 py-4">
-              {editingUrl ? (
-                <input
-                  type="url"
-                  value={draftUrl}
-                  onChange={(e) => setDraftUrl(e.target.value)}
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter') {
-                      setSavingUrl(true)
-                      await fetch(`/api/jobs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: draftUrl }) })
-                      setJob({ ...job, url: draftUrl })
-                      setEditingUrl(false)
-                      setSavingUrl(false)
-                    }
-                  }}
-                  placeholder="https://..."
-                  autoFocus
-                  className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background focus-visible:outline-none"
-                />
-              ) : job.url ? (
-                <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
-              ) : (
-                <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Notes — same card pattern as job description */}
@@ -503,7 +515,7 @@ export default function JobDetailPage() {
                   data-placeholder="Add notes, recruiter contact, follow-up reminders..."
                 />
               ) : job.notes ? (
-                <div className="job-description" dangerouslySetInnerHTML={{ __html: prepareContent(job.notes).content }} />
+                <div className="job-description text-foreground [&_*]:!text-foreground" dangerouslySetInnerHTML={{ __html: prepareContent(job.notes).content }} />
               ) : (
                 <button type="button" onClick={() => { setDraftNotes(''); setEditingNotes(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add notes</button>
               )}

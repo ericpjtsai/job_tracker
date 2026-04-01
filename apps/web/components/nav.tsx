@@ -25,13 +25,23 @@ export function Nav() {
         {/* Desktop links */}
         <div className="hidden sm:flex items-center gap-6 flex-1">
           {links.map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`text-sm transition-colors ${pathname === href ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              {label}
-            </Link>
+            href === '/import' ? (
+              <Link
+                key={href}
+                href={href}
+                className="text-sm ml-auto px-3 py-1 rounded-md bg-foreground text-background font-medium hover:bg-foreground/90 transition-colors"
+              >
+                {label}
+              </Link>
+            ) : (
+              <Link
+                key={href}
+                href={href}
+                className={`text-sm transition-colors ${pathname === href ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {label}
+              </Link>
+            )
           ))}
         </div>
 

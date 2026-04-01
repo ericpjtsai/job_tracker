@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const [listResult, todayResult] = await Promise.all([
     supabase
       .from('job_postings')
-      .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'exact' })
+      .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
       .eq('source_type', 'manual')
       .order('applied_at', { ascending: false, nullsFirst: false })
       .order('resume_fit', { ascending: false, nullsFirst: false })
@@ -35,7 +35,9 @@ export async function GET(req: NextRequest) {
 
   if (listResult.error) return NextResponse.json({ error: listResult.error.message }, { status: 500 })
 
-  return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, page, limit })
+  return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, page, limit }, {
+    headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' },
+  })
 }
 
 interface ParsedJob {

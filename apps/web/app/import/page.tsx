@@ -65,6 +65,7 @@ export default function ImportPage() {
   const [history, setHistory] = useState<JobPosting[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyPage, setHistoryPage] = useState(0)
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchOpen, setHistorySearchOpen] = useState(false)
@@ -86,6 +87,7 @@ export default function ImportPage() {
       setHistoryPage(page)
     }
     setLoadingMore(false)
+    setHistoryLoading(false)
   }, [])
 
   useEffect(() => { loadHistory() }, [loadHistory])
@@ -273,18 +275,23 @@ export default function ImportPage() {
       )}
 
       {/* Import history */}
-      {history.length > 0 && (
+      {historyLoading && (
+        <div className="flex items-center justify-center py-12">
+          <span className="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
+        </div>
+      )}
+      {!historyLoading && history.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
             <div className="flex items-center gap-2">
-              <span>Import history ({historyTotal})</span>
+              <span>Import history (<span className="tabular-nums">{historyTotal}</span>)</span>
               <button type="button" aria-label="Search" onClick={() => { setHistorySearchOpen(!historySearchOpen); if (historySearchOpen) setHistorySearch('') }}
                 className={`transition-colors ${historySearchOpen || historySearch ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
               </button>
             </div>
-            <span>{todayCount} roles applied today</span>
+            <span className="font-medium text-muted-foreground"><span className="tabular-nums">{todayCount}</span> roles applied today</span>
           </div>
           {historySearchOpen && (
             <Input
