@@ -19,8 +19,10 @@ const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto'
  * 3. Otherwise return as plain text.
  */
 function prepareContent(raw: string): { html: boolean; content: string } {
-  // Decode HTML entities first (content may be entity-encoded from ATS APIs)
+  // Strip manual-import metadata header (# Title, Company:, URL:, etc. + ## Description)
   let decoded = raw
+    .replace(/^#\s+.+\n+(?:(?:Company|URL|Date|Status|Note):.*\n)*\n*(?:##\s*Description\s*\n+)?/i, '')
+    .replace(/^##\s*Description\s*\n+/i, '')
   if (/&lt;[a-z/]/i.test(raw)) {
     decoded = raw
       .replace(/&lt;/g, '<')
@@ -35,52 +37,15 @@ function prepareContent(raw: string): { html: boolean; content: string } {
     const cleaned = decoded
       .replace(/font-family\s*:[^;"']*(;|(?=["']))/gi, '')
       .replace(/font-size\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/line-height\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/margin\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/padding\s*:[^;"']*(;|(?=["']))/gi, '')
+      .replace(/letter-spacing\s*:[^;"']*(;|(?=["']))/gi, '')
       .replace(/style="\s*"/gi, '')
     return { html: true, content: cleaned }
   }
 
-  // Case 2: stripped tag names (e.g., "strong About Us /strong p At Cloudflare...")
-  // Detect by checking for common closing tag patterns like " /p " or " /strong "
-  const hasStrippedTags = /\s\/(?:p|div|strong|h[1-6]|ul|ol|li|span|a|em|b|i|section|article)\b/i.test(decoded)
-
-  if (hasStrippedTags) {
-    let html = decoded
-      // 1. Entities first
-      .replace(/\bnbsp;/g, '&nbsp;')
-      .replace(/\bamp;/g, '&amp;')
-      .replace(/\bmdash;/g, '&mdash;')
-      // 2. Remove stray CSS numbers like "400;"
-      .replace(/\b\d{3};\s*/g, '')
-      // 3. Restore a href= URL text /a → <a href="URL">text</a>
-      .replace(/\ba\s+href=\s*(\S+)\s*/gi, '<a href="$1">')
-      // 4. Restore opening tags with attributes: div class= value → <div class="value">
-      .replace(/\b(div|span|section|article|header|footer)\s+(class|style|id)=\s*(\S+)\s*/gi, '<$1 $2="$3">')
-      // 5. Restore block opening tags: p, h1-h6, ul, ol, li, div etc.
-      .replace(/\b(p|h[1-6]|ul|ol|li|div|section|article|header|footer|table|tr|td|th|thead|tbody)\b(?=[^<]*(?:<|$))/gim,
-        (match, tag, offset, str) => {
-          // Only convert if not already inside a tag (check if preceded by <)
-          const before = str.slice(Math.max(0, offset - 1), offset)
-          if (before === '<' || before === '/') return match
-          return `<${tag}>`
-        })
-      // 6. Restore inline opening tags: strong, em, b, i
-      .replace(/\b(strong|em)\b(?=[^<]*(?:<|$))/gim,
-        (match, tag, offset, str) => {
-          const before = str.slice(Math.max(0, offset - 1), offset)
-          if (before === '<' || before === '/') return match
-          return `<${tag}>`
-        })
-      // 7. Restore closing tags: /tag → </tag>
-      .replace(/\s*\/(p|div|strong|em|b|i|h[1-6]|ul|ol|li|span|a|section|article|header|footer|table|tr|td|th|thead|tbody)\b/gi, '</$1>')
-      // 8. Restore br
-      .replace(/\bbr\b/gi, '<br>')
-      // 9. Clean up double spaces
-      .replace(/  +/g, ' ')
-
-    return { html: true, content: html }
-  }
-
-  // Case 3: markdown (detect ## headings, **bold**, - lists)
+  // Case 2: markdown (detect ## headings, **bold**, - lists)
   if (/^#{1,6}\s|^\*\*|^- |\*\*.+\*\*/m.test(decoded)) {
     const parsed = marked.parse(decoded, { async: false }) as string
     return { html: true, content: parsed }
