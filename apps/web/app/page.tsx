@@ -438,7 +438,7 @@ export default function DashboardPage() {
   }
 
   function growthColor(growth: number): string {
-    if (growth > 0) return 'text-green-600'
+    if (growth > 0) return 'text-emerald-700'
     if (growth < 0) return 'text-red-500'
     return ''
   }

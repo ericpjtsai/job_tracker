@@ -306,8 +306,8 @@ const ATS_COMPANIES: AtsCompany[] = [
 
 const ATS_PLATFORMS = ['greenhouse', 'lever', 'ashby', 'smartrecruiters'] as const
 const ATS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  greenhouse: { bg: 'bg-green-100', text: 'text-green-800', label: 'Greenhouse' },
-  lever: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Lever' },
+  greenhouse: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Greenhouse' },
+  lever: { bg: 'bg-teal-100', text: 'text-teal-800', label: 'Lever' },
   ashby: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Ashby' },
   smartrecruiters: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'SmartRecruiters' },
 }

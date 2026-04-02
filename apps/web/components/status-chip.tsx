@@ -10,9 +10,9 @@ interface StatusChipProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  new: 'bg-blue-500/15 text-blue-700',
+  new: 'bg-teal-500/15 text-teal-800',
   reviewed: 'bg-muted text-muted-foreground',
-  applied: 'bg-green-500/15 text-green-700',
+  applied: 'bg-emerald-500/15 text-emerald-800',
   skipped: 'bg-muted text-muted-foreground/60',
   unavailable: 'bg-muted text-muted-foreground/60',
 }

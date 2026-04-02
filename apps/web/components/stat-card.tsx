@@ -17,7 +17,7 @@ export function StatCard({ label, value, active, change, changeColor, onClick }:
             {value.toLocaleString()}
           </span>
           {change && (
-            <span className={`text-xs font-medium tabular-nums ${changeColor ?? 'text-green-600'}`}>{change}</span>
+            <span className={`text-xs font-medium tabular-nums ${changeColor ?? 'text-emerald-700'}`}>{change}</span>
           )}
         </div>
       </div>

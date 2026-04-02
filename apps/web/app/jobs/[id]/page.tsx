@@ -248,7 +248,7 @@ export default function JobDetailPage() {
               {[
                 job.company && <span key="co" className="font-medium">{job.company}</span>,
                 job.location && <span key="loc" className="text-muted-foreground">{job.location}</span>,
-                salary && <span key="sal" className="text-green-600 tabular-nums">{salary}</span>,
+                salary && <span key="sal" className="text-emerald-700 tabular-nums">{salary}</span>,
               ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) => {
                 if (i > 0) acc.push(<span key={`sep-${i}`} className="text-muted-foreground mx-1">&middot;</span>)
                 acc.push(el)
@@ -257,7 +257,7 @@ export default function JobDetailPage() {
             </div>
           </div>
           {job.resume_fit !== null && (
-            <span className="text-lg font-semibold tabular-nums text-green-600 shrink-0">{job.resume_fit}%</span>
+            <span className="text-lg font-semibold tabular-nums text-emerald-700 shrink-0">{job.resume_fit}%</span>
           )}
         </div>
 
@@ -392,12 +392,12 @@ export default function JobDetailPage() {
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-muted-foreground">
                             {resumeKeywords.length > 0
-                              ? <><span className="text-green-600 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
+                              ? <><span className="text-emerald-700 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
                               : <>{keywords.length} keywords</>
                             }
                           </div>
                           {resumeKeywords.length > 0 && (
-                            <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-green-600 font-medium">{job.resume_fit ?? 0}%</span></div>
+                            <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-emerald-700 font-medium">{job.resume_fit ?? 0}%</span></div>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -474,7 +474,7 @@ export default function JobDetailPage() {
                     className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background focus-visible:outline-none"
                   />
                 ) : job.url ? (
-                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{job.url}</a>
+                  <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-sm text-teal-700 hover:underline break-all">{job.url}</a>
                 ) : (
                   <button type="button" onClick={() => { setDraftUrl(''); setEditingUrl(true) }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">+ Add URL</button>
                 )}
@@ -499,7 +499,7 @@ export default function JobDetailPage() {
                   </>
                 ) : (
                   <>
-                    {saveState === 'saved' && <span className="text-xs text-green-600">Saved</span>}
+                    {saveState === 'saved' && <span className="text-xs text-emerald-700">Saved</span>}
                     <button type="button" onClick={(e) => { e.stopPropagation(); setDraftNotes(job.notes ?? ''); setEditingNotes(true); setNotesOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${notesOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                   </>

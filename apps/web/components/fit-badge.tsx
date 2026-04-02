@@ -11,9 +11,9 @@ export function FitBadge({ fit }: FitBadgeProps) {
 
   const color =
     fit >= 70
-      ? 'text-green-600'
+      ? 'text-emerald-700'
       : fit >= 40
-      ? 'text-amber-600'
+      ? 'text-amber-700'
       : 'text-muted-foreground'
 
   return <span className={cn('text-xs font-medium tabular-nums', color)}>{fit}%</span>
