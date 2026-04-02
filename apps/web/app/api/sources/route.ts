@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-const listenerUrl = () => process.env.LISTENER_URL ?? 'http://localhost:3001'
+const listenerUrl = () => process.env.LISTENER_URL ?? 'http://localhost:3002'
 
 // Map firehose_rule values in DB to source IDs on the sources page
 const RULE_TO_SOURCE: Record<string, string> = {

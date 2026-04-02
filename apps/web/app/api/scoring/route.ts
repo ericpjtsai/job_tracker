@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Notify listener to reload config
-  const listenerUrl = process.env.LISTENER_URL ?? 'http://localhost:3001'
+  const listenerUrl = process.env.LISTENER_URL ?? 'http://localhost:3002'
   fetch(`${listenerUrl}/config/reload`, { method: 'POST' }).catch(() => {})
 
   return NextResponse.json({ ok: true, key })

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const listenerUrl = () => process.env.LISTENER_URL ?? 'http://localhost:3001'
+const listenerUrl = () => process.env.LISTENER_URL ?? 'http://localhost:3002'
 
 export async function GET() {
   try {
