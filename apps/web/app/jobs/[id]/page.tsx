@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { type JobPosting, JOB_STATUSES } from '@/lib/supabase'
 import { formatSalary } from '@job-tracker/scoring'
 import { Badge } from '@/components/ui/badge'
-import { capitalize } from '@/lib/utils'
+import { capitalize, STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { marked } from 'marked'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
@@ -164,7 +164,7 @@ export default function JobDetailPage() {
     if (!job) return
     const applied_at =
       newStatus === 'applied' ? (job.applied_at ?? new Date().toISOString()) :
-      ['new', 'reviewed', 'skipped', 'unavailable'].includes(newStatus) ? null :
+      STATUSES_CLEARING_APPLIED_AT.includes(newStatus) ? null :
       job.applied_at
     setJob({ ...job, status: newStatus as any, applied_at })
     await fetch(`/api/jobs/${id}`, {

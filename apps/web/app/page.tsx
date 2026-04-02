@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase, type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { StatCard } from '@/components/stat-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -397,7 +397,7 @@ export default function DashboardPage() {
       const wasApplied = j.status === 'applied'
       const applied_at =
         newStatus === 'applied' ? (j.applied_at ?? new Date().toISOString()) :
-        ['new', 'reviewed', 'skipped', 'unavailable'].includes(newStatus) ? null :
+        STATUSES_CLEARING_APPLIED_AT.includes(newStatus) ? null :
         j.applied_at
       if (newStatus === 'applied' && !wasApplied) setTodayApplied((n) => n + 1)
       if (newStatus !== 'applied' && wasApplied) setTodayApplied((n) => Math.max(0, n - 1))

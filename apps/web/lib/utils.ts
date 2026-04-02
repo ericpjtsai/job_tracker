@@ -25,6 +25,9 @@ export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+/** Statuses that clear applied_at when set (i.e., not an application state) */
+export const STATUSES_CLEARING_APPLIED_AT = ['new', 'reviewed', 'skipped', 'unavailable']
+
 export function cycleOrder(current: 'asc' | 'desc' | null): 'asc' | 'desc' | null {
   if (current === null) return 'desc'
   if (current === 'desc') return 'asc'

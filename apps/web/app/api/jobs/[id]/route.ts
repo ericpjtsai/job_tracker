@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords, setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ export async function PATCH(
     if (body.status === 'applied') {
       const { data: current } = await supabase.from('job_postings').select('applied_at').eq('id', id).single()
       if (!current?.applied_at) updates.applied_at = new Date().toISOString()
-    } else if (['new', 'reviewed', 'skipped', 'unavailable'].includes(body.status)) {
+    } else if (STATUSES_CLEARING_APPLIED_AT.includes(body.status)) {
       updates.applied_at = null
     }
   }

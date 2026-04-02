@@ -392,14 +392,3 @@ async function enrichWithLLM(supabase: any, matchValue: string, description: str
   console.log(`  🤖 LLM enriched: ${allKeywords.length} keywords (${llmResult.matched.length} matched, ${llmResult.missing.length} missing)`)
 }
 
-// ─── Job board hosts (kept for setJobBoardHosts config compatibility) ────────
-
-const DEFAULT_JOB_BOARD_HOSTS = ['linkedin.com','greenhouse.io','lever.co','ashbyhq.com','myworkdayjobs.com','workday.com','smartrecruiters.com','icims.com','taleo.net','bamboohr.com','jobvite.com','workable.com','wellfound.com','dover.com','rippling.com','recruitee.com','hiring.cafe']
-
-export function setJobBoardHosts(_hosts: string[]): void {
-  // No-op: job board filtering was firehose-only and has been removed
-}
-
-export function getJobBoardHosts(): string[] {
-  return DEFAULT_JOB_BOARD_HOSTS
-}

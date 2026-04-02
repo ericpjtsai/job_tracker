@@ -2,7 +2,7 @@
 
 import http from 'http'
 import { createClient } from '@supabase/supabase-js'
-import { getProcessorStats, invalidateResumeCache, setBlockedCompanies, setBlockedLocations, setJobBoardHosts } from './processor'
+import { getProcessorStats, invalidateResumeCache, setBlockedCompanies, setBlockedLocations } from './processor'
 import { setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
 
 // ─── Import sources + their DataSource registrations ─────────────────────────
@@ -100,7 +100,6 @@ async function loadScoringConfig(): Promise<void> {
   }
   if (config.blocked_companies) setBlockedCompanies(config.blocked_companies)
   if (config.blocked_locations) setBlockedLocations(config.blocked_locations)
-  if (config.job_board_hosts) setJobBoardHosts(config.job_board_hosts)
 
   console.log(`⚙ Scoring config loaded from DB (${data.length} keys)`)
 }

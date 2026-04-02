@@ -229,7 +229,7 @@ export default function ImportPage() {
                       }
                     }}>
                     {visible.map((c, i) => (
-                      <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx ? true : false}
+                      <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx ? "true" : "false"}
                         className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === companyIdx ? 'bg-muted' : 'hover:bg-muted/50'}`}
                         onPointerDown={() => { setManualForm(f => ({ ...f, company: c })); setCompanyOpen(false) }}
                       >{c}</button>
