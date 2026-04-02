@@ -231,37 +231,32 @@ export async function POST(req: NextRequest) {
 
     const urlHash = crypto.createHash('sha256').update(parsed.url || `manual-${parsed.title}-${parsed.company}`).digest('hex')
 
-    // Dedup: check by title+company across all sources
-    let dedupQuery = supabase
-      .from('job_postings')
-      .select('id, title, company, notes, page_content, applied_at')
-      .ilike('title', parsed.title)
-    if (parsed.company) dedupQuery = dedupQuery.ilike('company', parsed.company)
-    const { data: dedupRows } = await dedupQuery.limit(1)
-    const existing = dedupRows?.[0] ?? null
+    // Dedup: check by URL first, then title+company (case-insensitive, strip company suffixes)
+    let existing: any = null
+
+    // 1. Exact URL match
+    if (parsed.url) {
+      const { data: urlRows } = await supabase.from('job_postings')
+        .select('id, title, company, notes, page_content, applied_at, status')
+        .eq('url', parsed.url).limit(1)
+      existing = urlRows?.[0] ?? null
+    }
+
+    // 2. Title + company match (strip Inc/LLC/Corp/Ltd suffixes)
+    if (!existing) {
+      const normalizeCompany = (c: string) => c.replace(/[,.]?\s*(Inc\.?|LLC|Corp\.?|Ltd\.?|Co\.?|Corporation|Incorporated)$/i, '').trim()
+      const companyNorm = normalizeCompany(parsed.company || '')
+      let dedupQuery = supabase.from('job_postings')
+        .select('id, title, company, notes, page_content, applied_at, status')
+        .ilike('title', parsed.title)
+      if (companyNorm) dedupQuery = dedupQuery.ilike('company', `${companyNorm}%`)
+      const { data: dedupRows } = await dedupQuery.limit(5)
+      // Filter client-side: normalized company must match
+      existing = dedupRows?.find(r => normalizeCompany(r.company || '').toLowerCase() === companyNorm.toLowerCase()) ?? null
+    }
 
     if (existing) {
-      // Update if there's new data (notes or description) — preserve original applied_at
-      const updates: Record<string, any> = { last_seen: new Date().toISOString(), source_type: 'manual' }
-      if (parsed.notes && parsed.notes !== existing.notes) updates.notes = parsed.notes
-      if (parsed.description && parsed.description !== existing.page_content) {
-        updates.page_content = parsed.description
-        updates.score = scoreResult.total
-        updates.priority = scoreResult.priority
-        updates.keywords_matched = scoreResult.keywords_matched
-        updates.resume_fit = resume_fit
-      }
-      const mapped = mapStatus(parsed.status)
-      if (mapped.isApplied) {
-        updates.status = mapped.status
-        // Only set applied_at if not already set
-        if (!existing.applied_at && appliedAt) updates.applied_at = appliedAt
-      }
-      if (parsed.salary_min) updates.salary_min = parsed.salary_min
-      if (parsed.salary_max) updates.salary_max = parsed.salary_max
-
-      await supabase.from('job_postings').update(updates).eq('id', existing.id)
-      results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: updates.status ?? mapStatus(parsed.status).status, resume_fit })
+      results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'duplicate', jobStatus: existing.status ?? 'new', resume_fit })
       continue
     }
 

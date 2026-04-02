@@ -13,7 +13,7 @@ interface ImportResult {
   title: string
   company: string
   id?: string
-  action: 'imported' | 'updated' | 'failed'
+  action: 'imported' | 'updated' | 'duplicate' | 'failed'
   jobStatus: string
   resume_fit?: number
   error?: string
@@ -52,13 +52,15 @@ export default function ImportPage() {
     const result = data.results?.[0]
     if (result) {
       setManualResult(result)
-      setTimeout(() => setManualResult(null), 2000)
+      if (result.action !== 'duplicate') setTimeout(() => setManualResult(null), 2000)
     }
     setManualSubmitting(false)
-    setManualForm({ title: '', company: '', url: '', description: '', notes: '' })
-    if (descRef.current) descRef.current.innerHTML = ''
-    if (notesRef.current) notesRef.current.innerHTML = ''
-    setNotesOpen(false)
+    if (!result || result.action !== 'duplicate') {
+      setManualForm({ title: '', company: '', url: '', description: '', notes: '' })
+      if (descRef.current) descRef.current.innerHTML = ''
+      if (notesRef.current) notesRef.current.innerHTML = ''
+      setNotesOpen(false)
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
     loadHistory()
   }
@@ -275,8 +277,10 @@ export default function ImportPage() {
             </Button>
           </div>
           {manualResult && (
-            <div className={`text-xs rounded-md px-3 py-2 ${manualResult.action === 'failed' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-              {manualResult.action === 'failed' ? `Failed: ${manualResult.error}` : `${manualResult.title} — ${manualResult.action}`}
+            <div className={`text-xs rounded-md px-3 py-2 ${manualResult.action === 'failed' ? 'bg-red-50 text-red-800' : manualResult.action === 'duplicate' ? 'bg-muted text-foreground' : 'bg-emerald-50 text-emerald-800'}`}>
+              {manualResult.action === 'failed' ? `Failed: ${manualResult.error}`
+                : manualResult.action === 'duplicate' ? <span>Already exists — <a href={`/jobs/${manualResult.id}`} target="_blank" className="underline font-medium">View job</a></span>
+                : `${manualResult.title} — ${manualResult.action}`}
             </div>
           )}
         </div>
@@ -298,7 +302,7 @@ export default function ImportPage() {
       {importResults && importResults.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-medium text-muted-foreground">
-            Results — {importResults.filter(r => r.action === 'imported').length} imported, {importResults.filter(r => r.action === 'updated').length} updated{importResults.some(r => r.action === 'failed') && `, ${importResults.filter(r => r.action === 'failed').length} failed`}
+            Results — {importResults.filter(r => r.action === 'imported').length} imported{importResults.some(r => r.action === 'duplicate') && `, ${importResults.filter(r => r.action === 'duplicate').length} duplicates`}{importResults.some(r => r.action === 'failed') && `, ${importResults.filter(r => r.action === 'failed').length} failed`}
           </div>
           <div className="space-y-2">
             {importResults.map((r, i) => (

@@ -19,10 +19,8 @@ const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto'
  * 3. Otherwise return as plain text.
  */
 function prepareContent(raw: string): { html: boolean; content: string } {
-  // Strip manual-import metadata header (# Title, Company:, URL:, etc. + ## Description)
+  // Decode HTML entities first (content may be entity-encoded from ATS APIs)
   let decoded = raw
-    .replace(/^#\s+.+\n+(?:(?:Company|URL|Date|Status|Note):.*\n)*\n*(?:##\s*Description\s*\n+)?/i, '')
-    .replace(/^##\s*Description\s*\n+/i, '')
   if (/&lt;[a-z/]/i.test(raw)) {
     decoded = raw
       .replace(/&lt;/g, '<')
@@ -32,16 +30,14 @@ function prepareContent(raw: string): { html: boolean; content: string } {
       .replace(/&#39;/g, "'")
   }
 
-  // Case 1: real HTML tags present — strip inline font styles for consistency
+  // Strip manual-import metadata header (# Title, Company:, URL:, etc. + ## Description)
+  decoded = decoded
+    .replace(/^#\s+.+\n+(?:(?:Company|URL|Date|Status|Note):.*\n)*\n*(?:##\s*Description\s*\n+)?/i, '')
+    .replace(/^##\s*Description\s*\n+/i, '')
+
+  // Case 1: real HTML tags present — strip ALL inline styles to let .job-description CSS handle layout
   if (/<[a-z][\s\S]*>/i.test(decoded)) {
-    const cleaned = decoded
-      .replace(/font-family\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/font-size\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/line-height\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/margin\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/padding\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/letter-spacing\s*:[^;"']*(;|(?=["']))/gi, '')
-      .replace(/style="\s*"/gi, '')
+    const cleaned = decoded.replace(/\s*style="[^"]*"/gi, '')
     return { html: true, content: cleaned }
   }
 
