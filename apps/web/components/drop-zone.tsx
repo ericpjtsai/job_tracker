@@ -11,18 +11,20 @@ interface DropZoneProps {
   uploading?: boolean
   progress?: number
   progressLabel?: string
+  disabled?: boolean
   onFiles: (files: File[]) => void
 }
 
-export function DropZone({ accept, multiple = false, label, sublabel, dragLabel, uploading, progress, progressLabel, onFiles }: DropZoneProps) {
+export function DropZone({ accept, multiple = false, label, sublabel, dragLabel, uploading, progress, progressLabel, disabled, onFiles }: DropZoneProps) {
   const [dragOver, setDragOver] = useState(false)
 
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+      onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
         e.preventDefault(); setDragOver(false)
+        if (disabled) return
         const files = Array.from(e.dataTransfer.files).filter(f => {
           const ext = '.' + f.name.split('.').pop()?.toLowerCase()
           return accept.split(',').some(a => a.trim() === ext || a.trim() === f.type)
@@ -30,7 +32,7 @@ export function DropZone({ accept, multiple = false, label, sublabel, dragLabel,
         if (files.length) onFiles(files)
       }}
       onClick={() => {
-        if (uploading) return
+        if (uploading || disabled) return
         const input = document.createElement('input')
         input.type = 'file'
         input.accept = accept
@@ -41,11 +43,13 @@ export function DropZone({ accept, multiple = false, label, sublabel, dragLabel,
         input.click()
       }}
       className={`rounded-xl p-8 text-center transition-all border-2 border-dashed ${
-        uploading
-          ? 'border-border bg-card cursor-default'
-          : dragOver
-            ? 'border-primary bg-primary/5 scale-[1.01] cursor-pointer'
-            : 'border-border hover:border-primary/50 bg-card cursor-pointer'
+        disabled
+          ? 'border-border bg-card opacity-50 cursor-not-allowed'
+          : uploading
+            ? 'border-border bg-card cursor-default'
+            : dragOver
+              ? 'border-primary bg-primary/5 scale-[1.01] cursor-pointer'
+              : 'border-border hover:border-primary/50 bg-card cursor-pointer'
       }`}
     >
       {uploading ? (

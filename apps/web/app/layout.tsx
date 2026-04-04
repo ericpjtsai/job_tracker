@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { Nav } from '@/components/nav'
+import { DemoModeProvider } from '@/lib/demo-mode'
 
 const inter = Inter({ subsets: ['latin'] })
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-label' })
@@ -15,10 +16,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${inter.className} ${spaceGrotesk.variable}`}>
-        <div className="min-h-screen bg-background">
-          <Nav />
-          <main className="max-w-[1128px] mx-auto px-6 py-6">{children}</main>
-        </div>
+        <DemoModeProvider>
+          <div className="min-h-screen bg-background">
+            <Nav />
+            <main className="max-w-[1128px] mx-auto px-6 py-6">{children}</main>
+          </div>
+        </DemoModeProvider>
       </body>
     </html>
   )

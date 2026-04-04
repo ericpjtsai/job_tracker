@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useIsDemo } from '@/lib/demo-mode'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -398,11 +399,12 @@ function Section({ title, badge, defaultOpen = false, children }: {
 
 // ─── Tag Editor (for editable config sections) ──────────────────────────────
 
-function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
+function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups, disabled }: {
   tags: string[]
   onChange: (tags: string[]) => void
   placeholder?: string
   allTermsAcrossGroups?: Set<string>
+  disabled?: boolean
 }) {
   const [input, setInput] = useState('')
   const [expanded, setExpanded] = useState(tags.length <= 20)
@@ -430,7 +432,7 @@ function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
         {display.map((tag, i) => (
           <span key={`${tag}-${i}`} className="inline-flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-1 rounded-md">
             {tag}
-            <button type="button" aria-label="Remove tag" onClick={() => onChange(tags.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive transition-colors ml-0.5">
+            <button type="button" aria-label="Remove tag" disabled={disabled} onClick={() => onChange(tags.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive transition-colors ml-0.5 disabled:opacity-30 disabled:cursor-not-allowed">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </button>
           </span>
@@ -441,7 +443,7 @@ function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 relative">
-          <Input type="text" value={input} onChange={(e) => { setInput(e.target.value); setDupeWarning(null) }}
+          <Input type="text" value={input} disabled={disabled} onChange={(e) => { setInput(e.target.value); setDupeWarning(null) }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
             placeholder={placeholder ?? 'Add item...'} className={`h-8 text-xs ${isDupeInList || isDupeAcrossGroups ? 'border-amber-400' : ''}`}
           />
@@ -449,7 +451,7 @@ function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
             <div className="absolute -bottom-5 left-0 text-[10px] text-amber-600">{isDupeInList ? 'Already in this list' : 'Exists in another group'}</div>
           )}
         </div>
-        <Button size="xs" variant="outline" onClick={addTag} disabled={!input.trim() || isDupeInList || isDupeAcrossGroups}>Add</Button>
+        <Button size="xs" variant="outline" onClick={addTag} disabled={disabled || !input.trim() || isDupeInList || isDupeAcrossGroups}>Add</Button>
       </div>
       {dupeWarning && <div className="text-[11px] text-amber-600">{dupeWarning}</div>}
     </div>
@@ -458,9 +460,9 @@ function TagEditor({ tags, onChange, placeholder, allTermsAcrossGroups }: {
 
 // ─── Config Section (editable, with save/reset/dirty) ───────────────────────
 
-function ConfigSection({ id, title, description, children, saving, hasChanges, onSave, onReset }: {
+function ConfigSection({ id, title, description, children, saving, hasChanges, onSave, onReset, disabled }: {
   id: string; title: string; description: string; children: React.ReactNode
-  saving: boolean; hasChanges: boolean; onSave: () => void; onReset: () => void
+  saving: boolean; hasChanges: boolean; onSave: () => void; onReset: () => void; disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -484,10 +486,10 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
           <div className="px-4 py-3 space-y-4">{children}</div>
           <div className="px-4 py-3 border-t flex items-center justify-between">
             {hasChanges && (
-              <button type="button" onClick={onReset} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Undo changes</button>
+              <button type="button" onClick={onReset} disabled={disabled} className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Undo changes</button>
             )}
             {!hasChanges && <span />}
-            <Button size="sm" onClick={onSave} disabled={saving || !hasChanges}>{saving ? 'Saving...' : 'Save'}</Button>
+            <Button size="sm" onClick={onSave} disabled={disabled || saving || !hasChanges}>{saving ? 'Saving...' : 'Save'}</Button>
           </div>
         </>
       )}
@@ -723,6 +725,7 @@ function StatusDot({ status }: { status: LiveSourceHealth['status'] }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SourcesPage() {
+  const isDemo = useIsDemo()
   const [liveSources, setLiveSources] = useState<LiveSource[]>([])
   const [procStats, setProcStats] = useState<ProcessorStats | null>(null)
   const [historicalCounts, setHistoricalCounts] = useState<Record<string, number>>({})
@@ -866,7 +869,7 @@ export default function SourcesPage() {
         <div>
           <div className="grid gap-3 md:grid-cols-2 items-start">
             {sources.map((s) => (
-              <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} />
+              <LiveSourceCard key={s.id} source={s} onTrigger={fetchSources} dbCount={historicalCounts[s.id]} disabled={isDemo} />
             ))}
           </div>
         </div>
@@ -887,6 +890,7 @@ export default function SourcesPage() {
             hasChanges={JSON.stringify(localKeywords) !== JSON.stringify(scoringConfig.keyword_groups)}
             onSave={() => saveConfig('keyword_groups', localKeywords)}
             onReset={reloadConfig}
+            disabled={isDemo}
           >
             <div className="space-y-4">
               {localKeywords.map((group, gi) => (
@@ -899,9 +903,9 @@ export default function SourcesPage() {
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-muted-foreground flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         Weight:
-                        <input type="number" min={0} max={10} value={group.weight}
+                        <input type="number" min={0} max={10} value={group.weight} disabled={isDemo}
                           onChange={(e) => { const u = [...localKeywords]; u[gi] = { ...u[gi], weight: Number(e.target.value) }; setLocalKeywords(u) }}
-                          className="w-12 text-xs px-1.5 py-0.5 rounded border border-input bg-background text-center"
+                          className="w-12 text-xs px-1.5 py-0.5 rounded border border-input bg-background text-center disabled:opacity-50"
                         />
                       </label>
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-muted-foreground/50 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -913,6 +917,7 @@ export default function SourcesPage() {
                       onChange={(terms) => { const u = [...localKeywords]; u[gi] = { ...u[gi], terms }; setLocalKeywords(u) }}
                       placeholder={`Add ${group.name.replace(/_/g, ' ')} term...`}
                       allTermsAcrossGroups={new Set(localKeywords.filter((_, i) => i !== gi).flatMap(g => g.terms.map(t => t.toLowerCase())))}
+                      disabled={isDemo}
                     />
                   </div>
                 </details>
@@ -931,14 +936,15 @@ export default function SourcesPage() {
             hasChanges={JSON.stringify(localSeniorityExclude) !== JSON.stringify(scoringConfig.seniority_exclude) || JSON.stringify(localSeniorityNewgrad) !== JSON.stringify(scoringConfig.seniority_newgrad)}
             onSave={async () => { await saveConfig('seniority_exclude', localSeniorityExclude); await saveConfig('seniority_newgrad', localSeniorityNewgrad) }}
             onReset={reloadConfig}
+            disabled={isDemo}
           >
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">Excluded seniority levels (jobs deprioritized)</div>
-              <TagEditor tags={localSeniorityExclude} onChange={setLocalSeniorityExclude} placeholder="Add pattern (e.g. staff, principal)..." />
+              <TagEditor tags={localSeniorityExclude} onChange={setLocalSeniorityExclude} placeholder="Add pattern (e.g. staff, principal)..." disabled={isDemo} />
             </div>
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">New grad bonus patterns (+10 score)</div>
-              <TagEditor tags={localSeniorityNewgrad} onChange={setLocalSeniorityNewgrad} placeholder="Add pattern (e.g. junior, associate)..." />
+              <TagEditor tags={localSeniorityNewgrad} onChange={setLocalSeniorityNewgrad} placeholder="Add pattern (e.g. junior, associate)..." disabled={isDemo} />
             </div>
           </ConfigSection>
 
@@ -951,8 +957,9 @@ export default function SourcesPage() {
             hasChanges={JSON.stringify(localNonDesign) !== JSON.stringify(scoringConfig.non_design_titles)}
             onSave={() => saveConfig('non_design_titles', localNonDesign)}
             onReset={reloadConfig}
+            disabled={isDemo}
           >
-            <TagEditor tags={localNonDesign} onChange={setLocalNonDesign} placeholder="Add blocked keyword (e.g. engineer, intern)..." />
+            <TagEditor tags={localNonDesign} onChange={setLocalNonDesign} placeholder="Add blocked keyword (e.g. engineer, intern)..." disabled={isDemo} />
           </ConfigSection>
 
           {/* Editable: Company & Location Blocklists */}
@@ -964,14 +971,15 @@ export default function SourcesPage() {
             hasChanges={JSON.stringify(localBlockedCompanies) !== JSON.stringify(scoringConfig.blocked_companies) || JSON.stringify(localBlockedLocations) !== JSON.stringify(scoringConfig.blocked_locations)}
             onSave={async () => { await saveConfig('blocked_companies', localBlockedCompanies); await saveConfig('blocked_locations', localBlockedLocations) }}
             onReset={reloadConfig}
+            disabled={isDemo}
           >
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">Blocked companies ({localBlockedCompanies.length})</div>
-              <TagEditor tags={localBlockedCompanies} onChange={setLocalBlockedCompanies} placeholder="Add company name..." />
+              <TagEditor tags={localBlockedCompanies} onChange={setLocalBlockedCompanies} placeholder="Add company name..." disabled={isDemo} />
             </div>
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">Blocked locations ({localBlockedLocations.length})</div>
-              <TagEditor tags={localBlockedLocations} onChange={setLocalBlockedLocations} placeholder="Add city or country..." />
+              <TagEditor tags={localBlockedLocations} onChange={setLocalBlockedLocations} placeholder="Add city or country..." disabled={isDemo} />
             </div>
           </ConfigSection>
 
@@ -1077,7 +1085,7 @@ export default function SourcesPage() {
 
 // ─── Live Source Card ─────────────────────────────────────────────────────────
 
-function LiveSourceCard({ source, onTrigger, dbCount }: { source: LiveSource; onTrigger: () => void; dbCount?: number }) {
+function LiveSourceCard({ source, onTrigger, dbCount, disabled }: { source: LiveSource; onTrigger: () => void; dbCount?: number; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const h = source.health
@@ -1160,7 +1168,7 @@ function LiveSourceCard({ source, onTrigger, dbCount }: { source: LiveSource; on
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); triggerPoll() }}
-              disabled={triggering || h.status === 'polling'}
+              disabled={disabled || triggering || h.status === 'polling'}
               className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {triggering || h.status === 'polling' ? 'Running...' : 'Run Now'}

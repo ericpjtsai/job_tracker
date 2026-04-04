@@ -6,6 +6,7 @@ import { type ResumeVersion } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useIsDemo } from '@/lib/demo-mode'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
 const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto', opacity: 1 }, exit: { height: 0, opacity: 0 }, transition: spring, style: { overflow: 'hidden' as const } }
@@ -107,6 +108,7 @@ function categorize(keywords: string[]): Record<string, string[]> {
 const TYPE_LABELS: Record<string, string> = { ats: 'ATS', hiring_manager: 'Hiring Manager' }
 
 export default function ResumePage() {
+  const isDemo = useIsDemo()
   const [versions, setVersions] = useState<ResumeVersion[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -127,10 +129,11 @@ export default function ResumePage() {
   function dropHandlers(type: 'ats' | 'hiring_manager') {
     const setDrag = type === 'ats' ? setDragOverAts : setDragOverHm
     return {
-      onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDrag(true) },
+      onDragOver: (e: React.DragEvent) => { e.preventDefault(); if (!isDemo) setDrag(true) },
       onDragLeave: () => setDrag(false),
       onDrop: (e: React.DragEvent) => {
         e.preventDefault(); setDrag(false)
+        if (isDemo) return
         const file = e.dataTransfer.files?.[0]
         if (file) handleFile(file, type)
       },
@@ -301,13 +304,13 @@ export default function ResumePage() {
                   <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 sm:hidden ${atsOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(atsActive.storage_path) }}>
+                  <Button size="xs" variant="ghost" aria-label="Download" disabled={isDemo} onClick={(e) => { e.stopPropagation(); handleDownload(atsActive.storage_path) }}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   </Button>
-                  <Button size="xs" onClick={(e) => { e.stopPropagation(); handleRescore() }} disabled={rescoring}>
+                  <Button size="xs" onClick={(e) => { e.stopPropagation(); handleRescore() }} disabled={isDemo || rescoring} className={isDemo ? 'opacity-50 cursor-not-allowed' : ''}>
                     {rescoring ? `Re-scoring ${rescoreProgress.current}/${rescoreProgress.total}` : 'Re-score all jobs'}
                   </Button>
-                  <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); atsFileRef.current?.click() }}>
+                  <Button size="xs" variant="outline" disabled={isDemo} className={isDemo ? 'opacity-50 cursor-not-allowed' : ''} onClick={(e) => { e.stopPropagation(); if (!isDemo) atsFileRef.current?.click() }}>
                     Upload new
                   </Button>
                   <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 hidden sm:block ${atsOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -364,8 +367,8 @@ export default function ResumePage() {
           </div>
         ) : (
           <div
-            onClick={() => atsFileRef.current?.click()}
-            className="rounded-xl p-6 text-center cursor-pointer transition-colors border-2 border-dashed border-border hover:border-primary/50 bg-card"
+            onClick={() => { if (!isDemo) atsFileRef.current?.click() }}
+            className={`rounded-xl p-6 text-center transition-colors border-2 border-dashed border-border bg-card ${isDemo ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50'}`}
           >
             {uploading === 'ats' ? (
               <div className="w-full max-w-xs mx-auto space-y-2">
@@ -384,7 +387,7 @@ export default function ResumePage() {
           </div>
         )}
 
-        <input ref={atsFileRef} type="file" accept=".pdf" aria-label="Upload ATS resume PDF" className="hidden" onChange={(e) => {
+        <input ref={atsFileRef} type="file" accept=".pdf" aria-label="Upload ATS resume PDF" className="hidden" disabled={isDemo} onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) handleFile(file, 'ats')
           e.target.value = ''
@@ -417,10 +420,10 @@ export default function ResumePage() {
                   <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 sm:hidden ${hmOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button size="xs" variant="ghost" aria-label="Download" onClick={(e) => { e.stopPropagation(); handleDownload(hmActive.storage_path) }}>
+                  <Button size="xs" variant="ghost" aria-label="Download" disabled={isDemo} onClick={(e) => { e.stopPropagation(); handleDownload(hmActive.storage_path) }}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   </Button>
-                  <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); hmFileRef.current?.click() }}>
+                  <Button size="xs" variant="outline" disabled={isDemo} className={isDemo ? 'opacity-50 cursor-not-allowed' : ''} onClick={(e) => { e.stopPropagation(); if (!isDemo) hmFileRef.current?.click() }}>
                     Upload new
                   </Button>
                   <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 hidden sm:block ${hmOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -440,8 +443,8 @@ export default function ResumePage() {
           </div>
         ) : (
           <div
-            onClick={() => hmFileRef.current?.click()}
-            className="rounded-xl p-6 text-center cursor-pointer transition-colors border-2 border-dashed border-border hover:border-primary/50 bg-card"
+            onClick={() => { if (!isDemo) hmFileRef.current?.click() }}
+            className={`rounded-xl p-6 text-center transition-colors border-2 border-dashed border-border bg-card ${isDemo ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50'}`}
           >
             {uploading === 'hiring_manager' ? (
               <div className="w-full max-w-xs mx-auto space-y-2">
@@ -460,7 +463,7 @@ export default function ResumePage() {
           </div>
         )}
 
-        <input ref={hmFileRef} type="file" accept=".pdf" aria-label="Upload Hiring Manager resume PDF" className="hidden" onChange={(e) => {
+        <input ref={hmFileRef} type="file" accept=".pdf" aria-label="Upload Hiring Manager resume PDF" className="hidden" disabled={isDemo} onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) handleFile(file, 'hiring_manager')
           e.target.value = ''
@@ -491,11 +494,11 @@ export default function ResumePage() {
                     ) : (
                       <>
                         {v.storage_path && (
-                          <Button size="xs" variant="ghost" aria-label="Download" onClick={() => handleDownload(v.storage_path)}>
+                          <Button size="xs" variant="ghost" aria-label="Download" disabled={isDemo} onClick={() => handleDownload(v.storage_path)}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                           </Button>
                         )}
-                        <Button size="xs" variant="outline" disabled={settingActive === v.id} onClick={() => handleSetActive(v.id)}>
+                        <Button size="xs" variant="outline" disabled={isDemo || settingActive === v.id} className={isDemo ? 'opacity-50 cursor-not-allowed' : ''} onClick={() => handleSetActive(v.id)}>
                           {settingActive === v.id ? 'Setting...' : 'Set Active'}
                         </Button>
                       </>

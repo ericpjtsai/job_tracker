@@ -8,6 +8,7 @@ import { formatSalary } from '@job-tracker/scoring'
 import { Badge } from '@/components/ui/badge'
 import { capitalize, STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { marked } from 'marked'
+import { useIsDemo } from '@/lib/demo-mode'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
 const collapse = { initial: { height: 0, opacity: 0 }, animate: { height: 'auto', opacity: 1 }, exit: { height: 0, opacity: 0 }, transition: spring, style: { overflow: 'hidden' as const } }
@@ -61,6 +62,7 @@ function highlightKeywords(text: string, keywords: string[]): string {
 export default function JobDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const isDemo = useIsDemo()
   const id = params.id as string
 
   const [job, setJob] = useState<JobPosting | null>(null)
@@ -236,8 +238,9 @@ export default function JobDetailPage() {
             <select
               aria-label="Job status"
               value={job.status}
+              disabled={isDemo}
               onChange={(e) => updateStatus(e.target.value)}
-              className="text-sm px-3 py-1.5 rounded-md border border-input bg-background text-foreground appearance-none bg-no-repeat cursor-pointer hover:bg-muted transition-colors"
+              className="text-sm px-3 py-1.5 rounded-md border border-input bg-background text-foreground appearance-none bg-no-repeat cursor-pointer hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundSize: '12px', backgroundPosition: 'right 8px center', paddingRight: '28px' }}
             >
               {JOB_STATUSES.map((s) => (
@@ -250,7 +253,7 @@ export default function JobDetailPage() {
           </div>
 
           <div className="flex-1" />
-          {confirmDelete ? (
+          {!isDemo && (confirmDelete ? (
             <span className="flex items-center gap-2">
               <button type="button" aria-label="Confirm delete" onClick={async () => {
                 await fetch(`/api/jobs/${id}`, { method: 'DELETE' })
@@ -272,7 +275,7 @@ export default function JobDetailPage() {
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
-          )}
+          ))}
         </div>
       </div>
 
@@ -311,7 +314,7 @@ export default function JobDetailPage() {
                     </>
                   ) : (
                     <>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setDraftDesc(job.page_content ?? ''); setEditingDesc(true); setDescOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                      <button type="button" disabled={isDemo} onClick={(e) => { e.stopPropagation(); setDraftDesc(job.page_content ?? ''); setEditingDesc(true); setDescOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
                       <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform cursor-pointer ${descOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" onClick={() => !editingDesc && setDescOpen(!descOpen)}><path d="m6 9 6 6 6-6"/></svg>
                     </>
                   )
@@ -328,7 +331,7 @@ export default function JobDetailPage() {
                       <button type="button" onClick={() => { setEditingUrl(false); setDraftUrl(job.url ?? '') }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Discard</button>
                     </>
                   ) : (
-                    <button type="button" onClick={() => { setDraftUrl(job.url ?? ''); setEditingUrl(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                    <button type="button" disabled={isDemo} onClick={() => { setDraftUrl(job.url ?? ''); setEditingUrl(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
                   )
                 )}
               </div>
@@ -466,7 +469,7 @@ export default function JobDetailPage() {
                 ) : (
                   <>
                     {saveState === 'saved' && <span className="text-xs text-emerald-700">Saved</span>}
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setDraftNotes(job.notes ?? ''); setEditingNotes(true); setNotesOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors">Edit</button>
+                    <button type="button" disabled={isDemo} onClick={(e) => { e.stopPropagation(); setDraftNotes(job.notes ?? ''); setEditingNotes(true); setNotesOpen(true) }} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${notesOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                   </>
                 )}

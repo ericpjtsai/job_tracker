@@ -10,12 +10,13 @@ import { timeAgo, STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { StatCard } from '@/components/stat-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useIsDemo } from '@/lib/demo-mode'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 30 }
 
 const PAGE_SIZE = 50
 
-function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onNavigate }: {
+function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onNavigate, isDemo }: {
   job: JobPosting
   deletingId: string | null
   confirmDeleteId: string | null
@@ -24,6 +25,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
   onDeleteConfirm: () => void
   onDeleteCancel: () => void
   onNavigate: () => void
+  isDemo: boolean
 }) {
   const router = useRouter()
   const [swipeX, setSwipeX] = useState(0)
@@ -44,6 +46,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
     if (swiping.current && dx < 0) setSwipeX(Math.max(dx, -DELETE_THRESHOLD - 20))
   }
   const onTouchEnd = () => {
+    if (isDemo) { setSwipeX(0); return }
     if (swipeX <= -DELETE_THRESHOLD) {
       setSwipeX(-DELETE_THRESHOLD)
       onDeleteRequest()
@@ -88,13 +91,14 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
           <div className="shrink-0 flex items-center gap-3 relative z-10">
             {/* Desktop: interactive status chip */}
             <div className="hidden sm:block">
-              <StatusChip status={job.status} onChange={onStatusChange} />
+              <StatusChip status={job.status} onChange={isDemo ? undefined : onStatusChange} />
             </div>
             {/* Mobile: read-only status chip */}
             <div className="sm:hidden">
               <StatusChip status={job.status} />
             </div>
             {/* Desktop delete */}
+            {!isDemo && (
             <div className="hidden sm:flex items-center">
               {deletingId === job.id ? (
                 <span className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-destructive rounded-full animate-spin" />
@@ -113,6 +117,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
                 </button>
               )}
             </div>
+            )}
           </div>
         </div>
         {/* Row 2: Fit · Company · Location */}
@@ -140,6 +145,8 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
 }
 
 export default function DashboardPage() {
+  const isDemo = useIsDemo()
+
   // ── Stats ──────────────────────────────────────────────────────────────────
   const [stats, setStats] = useState({ total: 0, high: 0, medium: 0, low: 0, growthHigh: 0, growthMedium: 0, growthLow: 0 })
   const [newCount, setNewCount] = useState(0)
@@ -537,7 +544,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Pending rejections banner */}
-      {pendingRejections.length > 0 && (
+      {!isDemo && pendingRejections.length > 0 && (
         <div className="bg-card border rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             <span className="text-sm font-medium text-rose-800">{pendingRejections.length} potential rejection{pendingRejections.length > 1 ? 's' : ''} detected</span>
@@ -654,8 +661,8 @@ export default function DashboardPage() {
               className="text-xs text-destructive border border-destructive/30 rounded-md px-3 py-1.5 hover:bg-destructive/10 transition-colors"
             ><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 bg-destructive rounded-sm" />{pollProgress.total > 0 ? `Stop (${pollProgress.current}/${pollProgress.total})` : 'Stop'}</span></button>
           ) : (
-            <button type="button" onClick={handleUpdate}
-              className="text-xs text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            <button type="button" onClick={handleUpdate} disabled={isDemo}
+              className={`text-xs text-muted-foreground border border-border rounded-md px-3 py-1.5 hover:text-foreground transition-colors inline-flex items-center gap-1.5 ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
             ><svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>{lastUpdated ? timeAgo(new Date(lastUpdated).toISOString()) : 'Update'}</button>
           )}
         </div>
@@ -802,6 +809,7 @@ export default function DashboardPage() {
                   onDeleteConfirm={() => { deleteJob(job.id); setConfirmDeleteId(null) }}
                   onDeleteCancel={() => setConfirmDeleteId(null)}
                   onNavigate={() => { if (job.status === 'new') updateStatus(job.id, 'reviewed') }}
+                  isDemo={isDemo}
                 />
               ))}
               {/* Infinite scroll sentinel */}

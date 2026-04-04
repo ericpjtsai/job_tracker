@@ -8,6 +8,7 @@ import { DropZone } from '@/components/drop-zone'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useIsDemo } from '@/lib/demo-mode'
 
 interface ImportResult {
   title: string
@@ -20,6 +21,8 @@ interface ImportResult {
 }
 
 export default function ImportPage() {
+  const isDemo = useIsDemo()
+
   // ── Import mode toggle ─────────────────────────────────────────────────────
   const [mode, setMode] = useState<'manual' | 'file'>('manual')
   const [todayCount, setTodayCount] = useState(0)
@@ -272,7 +275,7 @@ export default function ImportPage() {
             </button>
           )}
           <div className="flex justify-end">
-            <Button size="sm" disabled={manualSubmitting || !manualForm.title.trim() || !manualForm.company.trim() || !manualForm.url.trim() || !manualForm.description.trim()} onClick={handleManualSubmit}>
+            <Button size="sm" disabled={manualSubmitting || isDemo || !manualForm.title.trim() || !manualForm.company.trim() || !manualForm.url.trim() || !manualForm.description.trim()} onClick={handleManualSubmit}>
               {manualSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
           </div>
@@ -287,7 +290,8 @@ export default function ImportPage() {
           uploading={importing}
           progress={progressPct}
           progressLabel={progressPct < 100 ? `Reading files... ${progress.current}/${progress.total}` : 'Importing to database...'}
-          onFiles={(files) => handleFiles(files)}
+          disabled={isDemo}
+          onFiles={isDemo ? () => {} : (files) => handleFiles(files)}
         />
       )}
 
@@ -310,7 +314,7 @@ export default function ImportPage() {
                   )}
                   <div className="shrink-0">
                     {r.id ? (
-                      <StatusChip status={r.jobStatus} onChange={async (s) => {
+                      <StatusChip status={r.jobStatus} onChange={isDemo ? undefined : async (s) => {
                         await fetch(`/api/jobs/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
                         setImportResults(prev => prev?.map((item, j) => j === i ? { ...item, jobStatus: s } : item) ?? null)
                       }} />

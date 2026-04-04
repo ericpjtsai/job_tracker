@@ -21,6 +21,14 @@ export function middleware(req: NextRequest) {
   // API routes: require auth
   if (isApi) {
     if (!hasToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Demo mode: block write operations unless admin session cookie is present
+    const isWrite = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS'
+    const hasAdminSession = req.cookies.get('admin-session')?.value === 'true'
+    if (isWrite && !hasAdminSession && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+      return NextResponse.json({ error: 'Demo mode: write operations disabled' }, { status: 403 })
+    }
+
     return NextResponse.next()
   }
 
