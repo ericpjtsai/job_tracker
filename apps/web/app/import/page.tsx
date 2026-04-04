@@ -52,7 +52,7 @@ export default function ImportPage() {
     const result = data.results?.[0]
     if (result) {
       setManualResult(result)
-      if (result.action !== 'duplicate') setTimeout(() => setManualResult(null), 2000)
+      setTimeout(() => setManualResult(null), 10000)
     }
     setManualSubmitting(false)
     if (!result || result.action !== 'duplicate') {
@@ -276,13 +276,6 @@ export default function ImportPage() {
               {manualSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
           </div>
-          {manualResult && (
-            <div className={`text-xs rounded-md px-3 py-2 ${manualResult.action === 'failed' ? 'bg-red-50 text-red-800' : manualResult.action === 'duplicate' ? 'bg-muted text-foreground' : 'bg-emerald-50 text-emerald-800'}`}>
-              {manualResult.action === 'failed' ? `Failed: ${manualResult.error}`
-                : manualResult.action === 'duplicate' ? <span>Already exists — <a href={`/jobs/${manualResult.id}`} target="_blank" className="underline font-medium">View job</a></span>
-                : `${manualResult.title} — ${manualResult.action}`}
-            </div>
-          )}
         </div>
       ) : (
         <DropZone
@@ -401,6 +394,16 @@ export default function ImportPage() {
           <div ref={sentinelRef} className="h-1" />
           {loadingMore && <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-2"><span className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />Loading more...</div>}
           {history.length >= historyTotal && historyTotal > 0 && <div className="text-center text-xs text-muted-foreground py-1">End of list</div>}
+        </div>
+      )}
+      {/* Floating import status toast */}
+      {manualResult && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50" onClick={() => setManualResult(null)}>
+          <div className={`text-sm rounded-lg px-4 py-2.5 shadow-lg cursor-pointer ${manualResult.action === 'failed' ? 'bg-red-50 text-red-800 border border-red-200' : manualResult.action === 'duplicate' ? 'bg-card text-foreground border' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+            {manualResult.action === 'failed' ? `Failed: ${manualResult.error}`
+              : manualResult.action === 'duplicate' ? <span>Already exists — <a href={`/jobs/${manualResult.id}`} target="_blank" className="underline font-medium" onClick={(e) => e.stopPropagation()}>View job</a></span>
+              : `${manualResult.title} — ${manualResult.action}`}
+          </div>
         </div>
       )}
     </div>

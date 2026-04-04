@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   // ── New-first sort: two paginated queries ──────────────────────────────
   if (newFirst && (!status || status === 'all')) {
     // Count new jobs first to calculate pagination offsets
-    let qNewCount = supabase.from('job_postings').select('id', { count: 'exact', head: true }).eq('status', 'new')
+    let qNewCount = supabase.from('job_postings').select('id', { count: 'estimated', head: true }).eq('status', 'new')
     qNewCount = applyFilters(qNewCount)
     const { count: newCount } = await qNewCount
     const totalNew = newCount ?? 0
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const offset = page * limit
 
     // Total count query — will run in parallel with data queries
-    let qTotal = supabase.from('job_postings').select('id', { count: 'exact', head: true })
+    let qTotal = supabase.from('job_postings').select('id', { count: 'estimated', head: true })
     qTotal = applyFilters(qTotal)
 
     let data: any[] = []
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
   // ── Standard sort ───────────────────────────────────────────────────────
   let query = supabase
     .from('job_postings')
-    .select(LIST_COLS, { count: 'exact' })
+    .select(LIST_COLS, { count: 'estimated' })
     .range(page * limit, (page + 1) * limit - 1)
 
   if (fitOrder) query = query.order('resume_fit', { ascending: fitOrder === 'asc', nullsFirst: false })

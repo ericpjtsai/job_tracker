@@ -14,7 +14,7 @@ export function createServerClient() {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const JOB_STATUSES = ['new', 'reviewed', 'applied', 'skipped', 'unavailable'] as const
+export const JOB_STATUSES = ['new', 'reviewed', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'unavailable'] as const
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ export interface JobPosting {
   notes: string | null
   first_seen: string
   last_seen: string
-  status: 'new' | 'reviewed' | 'applied' | 'skipped' | 'unavailable'
+  status: 'new' | 'reviewed' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'unavailable'
   applied_at: string | null
   source_type: 'auto' | 'manual' | null
 }

@@ -6,6 +6,10 @@ import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
+// Cache company list — refreshes every 5 minutes instead of every page load
+let companiesCache: { data: string[]; ts: number } | null = null
+const COMPANIES_TTL = 5 * 60 * 1000
+
 // GET: list manual imports with pagination
 export async function GET(req: NextRequest) {
   const supabase = createServerClient()
@@ -15,8 +19,8 @@ export async function GET(req: NextRequest) {
   // Today midnight in Pacific time (consistent across local dev and Vercel/UTC)
   const todayMidnight = new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })).toISOString()
 
-  // Run all queries in parallel
-  const [listResult, todayResult, companiesResult] = await Promise.all([
+  // Run queries in parallel
+  const [listResult, todayResult] = await Promise.all([
     supabase
       .from('job_postings')
       .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
@@ -29,16 +33,23 @@ export async function GET(req: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .not('applied_at', 'is', null)
       .gte('applied_at', todayMidnight),
-    page === 0
-      ? supabase.from('job_postings').select('company').not('company', 'is', null)
-      : Promise.resolve({ data: null }),
   ])
 
   if (listResult.error) return NextResponse.json({ error: listResult.error.message }, { status: 500 })
 
-  const companies = companiesResult.data
-    ? [...new Set(companiesResult.data.map((r: any) => r.company).filter(Boolean))].sort()
-    : undefined
+  // Company autocomplete — cached, only on page 0
+  let companies: string[] | undefined
+  if (page === 0) {
+    if (companiesCache && Date.now() - companiesCache.ts < COMPANIES_TTL) {
+      companies = companiesCache.data
+    } else {
+      const { data } = await supabase.from('job_postings').select('company').not('company', 'is', null)
+      if (data) {
+        companies = [...new Set(data.map((r: any) => r.company).filter(Boolean))].sort() as string[]
+        companiesCache = { data: companies, ts: Date.now() }
+      }
+    }
+  }
 
   return NextResponse.json({ jobs: listResult.data ?? [], total: listResult.count ?? 0, todayCount: todayResult.count ?? 0, companies, page, limit }, {
     headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' },
@@ -256,6 +267,30 @@ export async function POST(req: NextRequest) {
     }
 
     if (existing) {
+      const newDesc = parsed.description || ''
+      const oldDesc = existing.page_content || ''
+      const hasMoreContent = newDesc.length > oldDesc.length
+      const notYetApplied = existing.status !== 'applied'
+
+      if (hasMoreContent && notYetApplied) {
+        // Richer description + not yet applied → update content and mark as applied
+        const updates: Record<string, any> = {
+          page_content: newDesc,
+          status: 'applied',
+          applied_at: existing.applied_at ?? new Date().toISOString(),
+          source_type: 'manual',
+          last_seen: new Date().toISOString(),
+          score: scoreResult.total,
+          priority: scoreResult.priority,
+          keywords_matched: scoreResult.keywords_matched,
+          resume_fit,
+        }
+        if (parsed.notes) updates.notes = parsed.notes
+        await supabase.from('job_postings').update(updates).eq('id', existing.id)
+        results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: 'applied', resume_fit })
+        continue
+      }
+
       results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'duplicate', jobStatus: existing.status ?? 'new', resume_fit })
       continue
     }

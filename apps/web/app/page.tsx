@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase, type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
@@ -24,6 +25,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
   onDeleteCancel: () => void
   onNavigate: () => void
 }) {
+  const router = useRouter()
   const [swipeX, setSwipeX] = useState(0)
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
@@ -71,8 +73,9 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
 
       {/* Card content */}
       <div
-        className="bg-card border px-4 py-3 rounded-lg relative"
+        className="bg-card border px-4 py-3 rounded-lg relative cursor-pointer"
         style={{ transform: `translateX(${swipeX}px)`, transition: swiping.current ? 'none' : 'transform 0.2s ease-out' }}
+        onClick={() => { if (!swiping.current && swipeX === 0) { onNavigate(); router.push(`/jobs/${job.id}`) } }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -165,6 +168,44 @@ export default function DashboardPage() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // ── Pending rejections ────────────────────────────────────────────────────
+  const [pendingRejections, setPendingRejections] = useState<{ id: string; job_id: string; job_title: string | null; job_company: string | null; rejection_company: string; rejection_role: string | null; rejection_date: string | null; email_snippet: string | null; email_body: string | null }[]>([])
+  const [rejectingIds, setRejectingIds] = useState<Set<string>>(new Set())
+  const [expandedRejection, setExpandedRejection] = useState<string | null>(null)
+  const [confirmAllPending, setConfirmAllPending] = useState<'confirm' | 'dismiss' | null>(null)
+
+  useEffect(() => {
+    fetch('/api/jobs/detect-rejections').then(r => r.json()).then(data => {
+      if (data.pending) setPendingRejections(data.pending)
+    }).catch(() => {})
+  }, [])
+
+  async function handleRejection(id: string, action: 'confirm' | 'dismiss') {
+    setExpandedRejection(null)
+    setRejectingIds(prev => new Set(prev).add(id))
+    await fetch('/api/jobs/detect-rejections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions: [{ id, action }] }),
+    })
+    setPendingRejections(prev => prev.filter(r => r.id !== id))
+    setRejectingIds(prev => { const next = new Set(prev); next.delete(id); return next })
+    if (action === 'confirm') loadStats()
+  }
+
+  async function handleAllRejections(action: 'confirm' | 'dismiss') {
+    const ids = pendingRejections.map(r => r.id)
+    setRejectingIds(new Set(ids))
+    await fetch('/api/jobs/detect-rejections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions: ids.map(id => ({ id, action })) }),
+    })
+    setPendingRejections([])
+    setRejectingIds(new Set())
+    if (action === 'confirm') loadStats()
+  }
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [priority, setPriority] = useState('high')
@@ -475,7 +516,7 @@ export default function DashboardPage() {
               className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
             >
               <div className="text-[10px] text-muted-foreground">{s.label}</div>
-              <div className={`text-lg font-semibold font-mono tabular-nums ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
+              <div className={`text-2xl font-semibold font-mono tabular-nums ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
                 {s.value}
               </div>
               {growthLabel(s.growth) ? <div className={`text-[10px] tabular-nums ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</div> : <div className="text-[10px]">&nbsp;</div>}
@@ -489,6 +530,71 @@ export default function DashboardPage() {
           <StatCard label="Low Priority" value={stats.low} active={priority === 'low'} change={growthLabel(stats.growthLow)} changeColor={growthColor(stats.growthLow)} onClick={() => togglePriority('low')} />
         </div>
       </div>
+
+      {/* Pending rejections banner */}
+      {pendingRejections.length > 0 && (
+        <div className="bg-card border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+            <span className="text-sm font-medium text-rose-800">{pendingRejections.length} potential rejection{pendingRejections.length > 1 ? 's' : ''} detected</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {confirmAllPending ? (
+                <>
+                  <button type="button" onClick={() => { handleAllRejections(confirmAllPending); setConfirmAllPending(null) }} className="text-xs font-medium text-rose-700 hover:text-rose-900 px-2 py-1 rounded-md hover:bg-rose-100/40 transition-colors">{confirmAllPending === 'confirm' ? `Confirm all ${pendingRejections.length}?` : `Dismiss all ${pendingRejections.length}?`}</button>
+                  <button type="button" onClick={() => setConfirmAllPending(null)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 transition-colors">Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => setConfirmAllPending('confirm')} className="text-xs font-medium text-rose-700 hover:text-rose-900 px-2 py-1 transition-colors">Confirm all</button>
+                  <button type="button" onClick={() => setConfirmAllPending('dismiss')} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 transition-colors">Dismiss all</button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="divide-y divide-border">
+            {pendingRejections.map((r) => {
+              const isExpanded = expandedRejection === r.id
+              const emailContent = r.email_body || r.email_snippet
+              return (
+                <motion.div key={r.id} layout transition={spring} className={`${rejectingIds.has(r.id) ? 'opacity-50' : ''}`}>
+                  <div
+                    className="px-4 py-3 flex items-center gap-3 cursor-pointer"
+                    onClick={() => setExpandedRejection(isExpanded ? null : r.id)}
+                    role="button"
+                    aria-expanded={isExpanded ? 'true' : 'false'}
+                    aria-label={isExpanded ? 'Collapse email content' : 'Expand email content'}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm text-foreground truncate">{r.job_company ?? r.rejection_company}{r.rejection_role ? ` · ${r.rejection_role}` : r.job_title ? ` · ${r.job_title}` : ''}</div>
+                      {r.rejection_date && <div className="text-xs text-muted-foreground">{new Date(r.rejection_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); handleRejection(r.id, 'dismiss') }} disabled={rejectingIds.has(r.id)} className="text-muted-foreground/40 hover:text-foreground transition-colors p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                      </button>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                  </div>
+                  <AnimatePresence>
+                    {isExpanded && emailContent && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={spring}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="px-4 pb-3">
+                          <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line max-h-[200px] overflow-y-auto">{emailContent}</div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filters row */}
       <div className={`flex items-center gap-2 ${scrolled ? 'hidden' : ''}`}>
