@@ -8,104 +8,82 @@ export interface LLMKeywordResult {
   role_fit: number  // 0-100 LLM-assessed fit score
 }
 
-const PROMPT = `You are an enterprise-grade ATS (Applicant Tracking System) keyword extraction engine, matching the accuracy of Workday, Greenhouse, Ashby, Glassdoor, and Indeed's keyword scanners.
+const PROMPT = `You are an AI recruiting agent that screens job descriptions against a candidate's resume using a structured rubric. Analyze this job description and classify every requirement against the candidate's resume keywords.
 
-Your task: Extract ALL job-relevant keywords from a job description and classify them against a candidate's resume.
+## Rubric — extract keywords under each category (ordered by importance for matching)
 
-## Extraction Rules
+### 1. Domain & Industry Signals (highest weight)
+Extract keywords showing what industry/domain this role operates in.
+Look for: B2B, SaaS, enterprise, fintech, healthtech, ecommerce, marketplace, CRM, dashboard, analytics, workflow automation, developer tools, platform, API, data visualization, internal tools, complex systems.
+INFER domain from company context (e.g. Stripe → "fintech", "payments", "B2B"; Salesforce → "CRM", "enterprise", "B2B SaaS").
+Also extract: onboarding, retention, conversion, growth, revenue, go-to-market, product strategy, business impact.
 
-### MUST extract (these categories are what real ATS systems scan for):
+### 2. AI & Emerging Technology
+Extract: AI-powered, generative AI, LLM, agentic, conversational UI, copilot, prompt engineering, RAG, human-in-the-loop, multi-agent, machine learning.
+Infer from context (e.g. "design for our AI assistant" → "conversational UI", "AI-powered").
 
-**Hard Skills & Disciplines:**
-- Design disciplines: product design, UX design, UI design, interaction design, visual design, service design, content design, motion design, brand design
-- Technical skills: HTML, CSS, JavaScript, React, Swift, frontend development, design-to-code
-- Specializations: design systems, information architecture, responsive design, accessibility, WCAG, localization, internationalization
+### 3. Core Design Competencies
+Extract: product design, UX design, interaction design, visual design, design systems, prototyping, wireframing, information architecture, responsive design, accessibility, WCAG, mobile design, design critique, craft, component library, design tokens, high-fidelity, pixel-perfect, 0-to-1, end-to-end design.
+Extract deliverables: wireframes, prototypes, mockups, user flows, design specs, style guides.
 
-**Tools & Platforms:**
-- Design: Figma, Sketch, Adobe XD, Framer, InVision, Principle, ProtoPie, Axure, Webflow, Storybook
-- Research: Maze, UserTesting, Hotjar, FullStory, Amplitude, Mixpanel, Dovetail, Qualtrics, Lookback
-- Collaboration: Miro, Mural, FigJam, Notion, Confluence, Jira, Asana, Linear, Slack
-- Code: Git, GitHub, VS Code, Cursor, Claude Code
+### 4. Research & Methods
+Extract: user research, usability testing, A/B testing, design thinking, user interviews, journey mapping, personas, competitive analysis, data-driven design, design sprint, rapid prototyping, heuristic evaluation, lean UX, jobs to be done, card sorting.
+Also: Agile, Scrum, OKRs, DesignOps.
 
-**Methodologies & Processes:**
-- Research: user research, usability testing, A/B testing, heuristic evaluation, competitive analysis, card sorting, journey mapping, persona development, user interviews
-- Design: design thinking, lean UX, design sprints, double diamond, jobs to be done, rapid prototyping
-- Agile: Agile, Scrum, Kanban, sprint planning, OKRs, KPIs
-- Operations: DesignOps, ResearchOps, design critique, design review, design handoff
+### 5. Soft Skills & Leadership Signals
+Extract from context: cross-functional collaboration, stakeholder management, mentorship, storytelling, presenting to executives, ambiguity, strategic thinking, systems thinking, facilitation, coaching.
+Also extract misfit signals: people management, team lead, managing designers, hiring (these indicate senior/management roles).
 
-**Soft Skills & Leadership:**
-- Collaboration: cross-functional, stakeholder management, storytelling, presentation skills, facilitation, mentorship, coaching
-- Mindset: ambiguity, problem solving, strategic thinking, systems thinking, growth mindset, curiosity, proactive, self-starter, adaptability
-- Communication: written communication, verbal communication, design rationale, feedback
+### 6. Tools & Technologies
+Extract explicit mentions: Figma, Sketch, Framer, Adobe Creative Cloud, Miro, FigJam, HTML, CSS, React, JavaScript, Git, GitHub, Jira, Notion, Cursor, Claude Code, Maze, UserTesting, Hotjar, Amplitude, Mixpanel.
 
-**Domain & Business:**
-- Industry: B2B, B2C, SaaS, enterprise, fintech, healthtech, ecommerce, marketplace, media
-- Product: onboarding, retention, conversion, growth, engagement, analytics, dashboard, data visualization, API, CRM, CMS
-- Business: business impact, business outcomes, revenue, ROI, product strategy, go-to-market
+## Classification Rules
+- **"matched"**: Keyword in BOTH the JD AND the candidate's resume. Use SEMANTIC matching — synonyms count:
+  - "user-centered design" ↔ "user-centered" = MATCHED
+  - "UI/UX" ↔ "UX design" = MATCHED
+  - "cross-team collaboration" ↔ "cross-functional collaboration" = MATCHED
+  - "data-driven decisions" ↔ "data-driven design" = MATCHED
+- **"missing"**: Keyword in the JD but NOT in the resume (even accounting for synonyms)
+- Only extract keywords ACTUALLY PRESENT in the job description
+- "missing" must contain ALL skills/tools/qualifications the JD asks for that aren't in the resume — be EXHAUSTIVE
+- Include misfit signals: years of experience, management duties, specific technical requirements
+- Aim for 30-60 total keywords. Be thorough.
 
-**Deliverables & Artifacts:**
-- wireframes, prototypes, mockups, user flows, sitemaps, storyboards, design specs, style guides, component libraries, design tokens
+## DO NOT extract
+- Generic filler: "team", "work", "experience", "role", "opportunity", "responsibilities"
+- Salary/benefits, legal/EEO boilerplate, location names
+- Resume keywords that don't appear in the JD
 
-### Classification Rules:
-- **"matched"**: Keyword appears in BOTH the JD AND the candidate's resume. Use SEMANTIC matching — synonyms count:
-  - "user-centered design" in JD ↔ "user-centered" in resume = MATCHED
-  - "UI/UX" in JD ↔ "UX design" in resume = MATCHED
-  - "cross-team collaboration" in JD ↔ "cross-functional" in resume = MATCHED
-  - "rapid iteration" in JD ↔ "prototyping" in resume = MATCHED
-  - "data-driven decisions" in JD ↔ "data-informed" in resume = MATCHED
-- **"missing"**: Keyword appears in the JD but NOT in the resume (even accounting for synonyms)
-
-### DO NOT extract:
-- Generic filler: "team", "work", "experience", "role", "position", "company", "candidate", "opportunity", "responsibilities"
-- Salary/benefits text
-- Legal/compliance boilerplate (EEO, accommodation notices)
-- Location names (unless they're a skill like "remote collaboration")
-- CRITICAL: Only extract keywords that are ACTUALLY PRESENT in the job description text
-- If a resume keyword does NOT appear in the JD, do NOT include it anywhere
-- The "missing" list should contain ALL skills/tools/qualifications the JD asks for that are NOT in the resume — be EXHAUSTIVE with missing keywords
-- Include role-specific requirements that signal fit/misfit: years of experience level, management duties, specific technical skills, domain expertise
-- Aim for 30-60 total keywords. Be thorough — extract every meaningful skill, tool, and qualification mentioned
-
-### Scoring guidance:
-- Weight DOMAIN-SPECIFIC and SPECIALIZED keywords more heavily than generic ones
-- Generic design skills (e.g., "wireframes", "prototyping", "cross-functional") appear in almost every design JD — these should still be extracted but they're less differentiating
-- DOMAIN keywords matter more: B2B, enterprise, SaaS, fintech, AI, design systems, etc.
-- TOOL-SPECIFIC matches matter: Figma, specific frameworks, specific methodologies
-- If a JD is for a role outside core product/UX design (e.g., graphic designer, design engineer, head of design), extract ALL keywords including ones that signal the role is NOT a fit (e.g., "illustration", "print design", "people management", "engineering", "coding")
-
-### Format:
-- Keep keywords concise: 1-3 words each
-- Use lowercase for consistency
-- Deduplicate — no repeats
-- Be thorough with "missing" keywords — extract ALL skills the JD asks for that aren't in the resume
+## Format
+- Lowercase, 1-3 words each, deduplicated
 
 Resume keywords: {RESUME_KEYWORDS}
 
 Job description:
 {JOB_DESCRIPTION}
 
-Also provide a role_fit score from 0-100 representing how well this job matches this SPECIFIC candidate profile:
-- Ex-Salesforce B2B Product Designer (mid-level, 3-5 years)
-- Core strengths: enterprise SaaS, design systems, interaction design, AI/emerging tech, prototyping with code
-- Target roles: Product Designer, UX Designer at B2B/enterprise/SaaS companies
-- NOT targeting: management/lead roles, visual-only roles, service design, content design, engineering, research-only
+Also provide a role_fit score (0-100) for this SPECIFIC candidate:
+- B2B Product Designer (mid-level, 3-5 years), ex-Salesforce
+- Strengths: enterprise SaaS, design systems, interaction design, AI/emerging tech, prototyping with code
+- Target: Product Designer, UX Designer at B2B/enterprise/SaaS companies
+- NOT targeting: management/lead, visual-only, service design, content design, engineering, research-only
 
-Scoring rubric (be STRICT — most jobs should score 40-70, not 80+):
-- 90-100: Perfect match — B2B/enterprise Product Designer with AI + design systems focus. VERY rare.
-- 75-89: Strong match — Product/UX Designer at B2B/SaaS company with meaningful domain overlap
-- 60-74: Good match — Product/UX design role, some domain overlap but not core B2B/enterprise
-- 45-59: Partial match — related role but different specialty or level mismatch (lead/senior+, junior, visual-only, service design)
-- 30-44: Weak match — adjacent role with some transferable skills (design engineer, content designer, UX researcher, design coordinator)
-- 15-29: Poor match — mostly unrelated (graphic designer, product manager, software engineer, data analyst)
-- 0-14: No match — completely different field (therapist, specialist, inspector, fellowship)
+Scoring rubric (STRICT — most jobs should score 40-70):
+- 90-100: Perfect — B2B/enterprise Product Designer + AI + design systems. VERY rare.
+- 75-89: Strong — Product/UX Designer at B2B/SaaS with meaningful domain overlap
+- 60-74: Good — Product/UX design role, some domain overlap
+- 45-59: Partial — related but different specialty or level mismatch
+- 30-44: Weak — adjacent role (design engineer, content designer, UX researcher)
+- 15-29: Poor — mostly unrelated (graphic designer, PM, engineer, analyst)
+- 0-14: No match — completely different field
 
-HARD RULES — override the base score:
-- If the job title contains "engineer", "developer", "analyst", "scientist", "manager" (non-design), "coordinator", "specialist", "therapist", "inspector", "packer", "receptionist", "admin", "aide", "leader" (shift leader), "scrum master", "fellowship": score ≤ 15
-- If the job is primarily graphic/brand/print design with no UX/product work: score ≤ 30
-- If the job is primarily service design, content design, or UX research only: score ≤ 45
-- If the job requires 7+ years AND lead/principal/staff level: score ≤ 55
-- If the job is at a B2B/enterprise/SaaS company AND is a core Product/UX Designer role: score ≥ 70
-- If the job mentions design systems, AI/ML, complex workflows, or agentic AI: boost +5-10
+HARD OVERRIDES:
+- Title contains "engineer"/"developer"/"analyst"/"scientist"/"manager"(non-design)/"coordinator"/"specialist"/"therapist"/"fellowship": score ≤ 15
+- Primarily graphic/brand/print design, no UX/product: score ≤ 30
+- Primarily service design, content design, or research-only: score ≤ 45
+- Requires 7+ years AND lead/principal/staff level: score ≤ 55
+- B2B/enterprise/SaaS company AND core Product/UX Designer role: score ≥ 70
+- Mentions design systems, AI/ML, complex workflows, agentic AI: boost +5-10
 
 Respond with ONLY valid JSON, no markdown fences:
 {"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 85}`
@@ -206,6 +184,85 @@ async function callClaude(prompt: string, apiKey: string): Promise<string> {
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`)
   const data = await res.json()
   return data.content?.[0]?.text ?? ''
+}
+
+/**
+ * Extract keywords from a resume using Claude Opus.
+ * Returns a flat array of lowercase keyword strings, or null on failure.
+ */
+export async function extractResumeKeywordsWithLLM(
+  resumeText: string,
+  anthropicKey: string,
+): Promise<string[] | null> {
+  if (!resumeText || resumeText.length < 100) return null
+
+  const prompt = `You are an AI recruiting agent that screens candidates using a structured rubric. Analyze this resume as if you are evaluating a candidate for B2B Product Designer / UX Designer roles.
+
+## Rubric — extract keywords under each category
+
+### 1. Domain & Industry Signals (highest weight)
+Extract keywords showing experience in specific industries or business domains.
+Look for: B2B, SaaS, enterprise, fintech, marketplace, CRM, dashboard, analytics, workflow automation, developer tools, platform, API, data visualization, internal tools, complex systems, multi-product.
+Also infer domains from company context (e.g. worked at Salesforce → "CRM", "enterprise", "B2B SaaS").
+
+### 2. AI & Emerging Technology
+Extract keywords showing AI/ML, LLM, generative AI, agentic, conversational UI, prompt engineering, RAG, copilot, human-in-the-loop, AI-powered product design.
+Infer from project context (e.g. "designed an AI assistant" → "conversational UI", "AI-powered").
+
+### 3. Core Design Competencies
+Extract: product design, UX design, interaction design, visual design, design systems, prototyping, wireframing, information architecture, responsive design, accessibility, WCAG, mobile design, design critique, craft.
+Infer depth from descriptions (e.g. "led redesign of component library" → "design systems", "component library").
+
+### 4. Research & Methods
+Extract: user research, usability testing, A/B testing, design thinking, user interviews, surveys, journey mapping, personas, competitive analysis, data-driven design, design sprint, rapid prototyping, heuristic evaluation.
+
+### 5. Soft Skills & Leadership Signals
+Extract from context, not just buzzwords: cross-functional collaboration, stakeholder management, mentorship, presenting to executives, ambiguity, strategic thinking, storytelling.
+Look for evidence: "partnered with engineering and PM" → "cross-functional collaboration".
+
+### 6. Tools & Technologies
+Extract explicit tool mentions: Figma, Sketch, Framer, Adobe Creative Cloud, Miro, FigJam, HTML, CSS, React, Git, GitHub, Jira, Notion, Maze, UserTesting, Hotjar, Mixpanel, Amplitude, Looker, Tableau.
+
+## Rules
+- Extract both EXPLICIT keywords (directly stated) and INFERRED keywords (derived from context, responsibilities, and company background)
+- Lowercase all keywords
+- 50-100 keywords total across all categories
+- Do NOT include company names, dates, degree names, or people names
+- Return ONLY a flat JSON array of strings, no grouping, no other text
+
+Resume:
+${resumeText.slice(0, 8000)}`
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-6',
+        max_tokens: 2000,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!res.ok) throw new Error(`Claude Opus API ${res.status}: ${await res.text()}`)
+    const data = await res.json()
+    const text = data.content?.[0]?.text ?? ''
+
+    // Parse JSON array from response
+    const match = text.match(/\[[\s\S]*\]/)
+    if (!match) return null
+    const keywords: unknown = JSON.parse(match[0])
+    if (!Array.isArray(keywords)) return null
+    return keywords.filter((k): k is string => typeof k === 'string').map(k => k.toLowerCase().trim()).filter(Boolean)
+  } catch (err) {
+    console.error('Claude Opus resume extraction failed:', (err as Error).message)
+    return null
+  }
 }
 
 /**

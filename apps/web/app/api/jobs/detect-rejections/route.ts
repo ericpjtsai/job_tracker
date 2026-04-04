@@ -63,12 +63,21 @@ export async function POST(req: NextRequest) {
 
   for (const rej of rejections) {
     const normRej = normalize(rej.company)
-    // Find best match: company name contains or starts with
-    const match = jobs.find((j) => {
+    // Try company name match first
+    let match = jobs.find((j) => {
       if (!j.company) return false
       const normJob = normalize(j.company)
       return normJob === normRej || normJob.includes(normRej) || normRej.includes(normJob)
     })
+
+    // Fallback: match by role title if company didn't match (handles parent company aliases like World/Tools For Humanity)
+    if (!match && rej.role) {
+      const normRole = rej.role.toLowerCase()
+      match = jobs.find((j) => {
+        if (!j.title) return false
+        return j.title.toLowerCase() === normRole || j.title.toLowerCase().includes(normRole) || normRole.includes(j.title.toLowerCase())
+      })
+    }
 
     if (match) {
       matched.push({
@@ -126,17 +135,21 @@ export async function PATCH(req: NextRequest) {
   const confirms = actions.filter((a) => a.action === 'confirm').map((a) => a.id)
   const dismisses = actions.filter((a) => a.action === 'dismiss').map((a) => a.id)
 
-  // Confirm: update job status to rejected, mark pending as confirmed
+  // Confirm: update job status to rejected with rejection date, mark pending as confirmed
   if (confirms.length > 0) {
     const { data: pendingRows } = await supabase
       .from('pending_rejections')
-      .select('id, job_id')
+      .select('id, job_id, rejection_date')
       .in('id', confirms)
 
     if (pendingRows) {
-      const jobIds = pendingRows.map((r) => r.job_id).filter(Boolean)
-      if (jobIds.length > 0) {
-        await supabase.from('job_postings').update({ status: 'rejected' }).in('id', jobIds)
+      for (const row of pendingRows) {
+        if (row.job_id) {
+          await supabase.from('job_postings').update({
+            status: 'rejected',
+            rejected_at: row.rejection_date ?? new Date().toISOString(),
+          }).eq('id', row.job_id)
+        }
       }
       await supabase.from('pending_rejections').update({ status: 'confirmed' }).in('id', confirms)
     }

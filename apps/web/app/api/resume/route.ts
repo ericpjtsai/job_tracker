@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { extractResumeKeywords } from '@job-tracker/scoring'
+import { extractResumeKeywords, extractResumeKeywordsWithLLM } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,7 +87,10 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Extract keywords from resume text ────────────────────────────────────
-  const keywords = extractResumeKeywords(pdfText)
+  // Try Claude Opus for richer keyword extraction, fall back to regex
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const llmKeywords = anthropicKey ? await extractResumeKeywordsWithLLM(pdfText, anthropicKey) : null
+  const keywords = llmKeywords ?? extractResumeKeywords(pdfText)
 
   // ── Store PDF in Supabase Storage ────────────────────────────────────────
   const storagePath = `resumes/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`

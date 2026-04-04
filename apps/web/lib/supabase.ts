@@ -49,6 +49,7 @@ export interface JobPosting {
   last_seen: string
   status: 'new' | 'reviewed' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'unavailable'
   applied_at: string | null
+  rejected_at: string | null
   source_type: 'auto' | 'manual' | null
 }
 

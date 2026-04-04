@@ -20,11 +20,13 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'developer tools', 'internal tools', 'admin tools', 'CRM', 'CMS',
       'dashboard', 'data visualization', 'reporting', 'analytics',
       'workflow automation', 'collaboration tools', 'productivity tools',
-      'platform ecosystem', 'multi-product platform', 'complex systems',
+      'platform ecosystem', 'platform', 'multi-product platform', 'multi-product', 'complex systems',
       'API', 'HR technology', 'talent platform',
       'agreement management', 'contract management',
       'customer platform', 'go-to-market', 'GTM', 'contact center',
       'financial services', 'fraud', 'risk',
+      'logistics', 'B2B SaaS', 'B2B logistics SaaS', 'B2B credit card platform',
+      'scalable solutions',
       // Product types
       'mobile app', 'web application', 'native app', 'progressive web app',
       'iOS', 'Android', 'omnichannel',
@@ -37,8 +39,8 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
     name: 'ai_emerging',
     weight: 4,
     terms: [
-      'AI-powered', 'AI-first', 'agentic AI', 'AI agents',
-      'conversational UI', 'conversational design', 'chatbot',
+      'AI-powered', 'AI-first', 'agentic AI', 'agentic', 'AI agents',
+      'conversational UI', 'conversational design', 'chatbot', 'AI chatbot',
       'voice', 'voice UI', 'LLM', 'generative AI', 'gen AI',
       'AI-assisted design', 'AI-assisted', 'machine learning',
       'probabilistic systems', 'AI concierge', 'digital twin',
@@ -46,6 +48,7 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'human-in-the-loop', 'AI design patterns', 'MCP',
       'prompt engineering', 'natural language',
       'personalization', 'recommendation',
+      'multi-agent orchestration', 'copilot', 'AI-powered product design',
     ],
   },
   {
@@ -61,12 +64,15 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'user experience', 'user interface', 'UX principles', 'UX',
       'end-to-end design', 'user-centered', 'human-centered',
       'user flows', 'wireframes', 'wireframing', 'prototyping', 'prototype',
-      'high-fidelity', 'low-fidelity', 'mockups',
+      'high-fidelity', 'high-fidelity prototyping', 'low-fidelity', 'mockups',
+      'pixel-perfect delivery', '0-to-1 product design', 'end-to-end design',
+      'production-ready prototypes',
       'information architecture', 'IA',
       'responsive design', 'responsive', 'cross-platform', 'multi-platform',
       'pixel-perfect', 'attention to detail', 'detail-oriented',
       // Systems & components
-      'design system', 'design systems', 'component library', 'pattern library',
+      'design system', 'design systems', 'enterprise design system',
+      'component library', 'pattern library',
       'design language', 'style guide', 'design tokens', 'atomic design',
       'component-based', 'scalable design', 'design patterns',
       // Accessibility
@@ -75,7 +81,7 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       // Specialized
       'typography', 'color theory', 'iconography', 'illustration',
       'microinteractions', 'empty state', 'edge cases', 'error state',
-      'dark mode', 'localization', 'internationalization',
+      'mobile design', 'dark mode', 'localization', 'internationalization',
       'progressive disclosure',
       // Quality
       'craft', 'polish', 'intuitive', 'seamless', 'delightful',
@@ -109,11 +115,12 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'Agile', 'Scrum', 'Kanban', 'sprint', 'sprint planning',
       'OKRs', 'KPIs', 'north star metric',
       'MVP', 'minimum viable product',
-      'design critique', 'design review', 'design decisions',
+      'design critique', 'design review', 'design decisions', 'design rationale',
       'design handoff', 'developer handoff', 'design QA',
+      'development-ready specifications',
       'DesignOps', 'ResearchOps',
       // Metrics
-      'data-driven', 'data-informed', 'metrics-driven',
+      'data-driven', 'data-driven design', 'data-informed', 'data-informed iteration', 'metrics-driven', 'metrics-driven insights',
       'funnel analysis', 'conversion optimization', 'conversion rate',
       'NPS', 'CSAT', 'task success rate',
       'scalable design patterns', '0-to-1', 'zero to one',
@@ -135,7 +142,7 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'remote collaboration',
       // Leadership
       'mentorship', 'coaching', 'design leadership', 'design culture',
-      'thought leadership',
+      'thought leadership', 'presenting to executives', 'leading cross-functional team',
       // Mindset
       'navigate ambiguity', 'ambiguity', 'complex problems',
       'problem solving', 'creative problem solving', 'critical thinking',
@@ -171,7 +178,7 @@ export const KEYWORD_GROUPS: KeywordGroup[] = [
       'Jira', 'Asana', 'Trello', 'Linear', 'Slack',
       // Code & technical
       'HTML', 'CSS', 'JavaScript', 'React', 'Swift', 'SwiftUI',
-      'Git', 'GitHub', 'VS Code', 'Cursor', 'Claude Code',
+      'Git', 'GitHub', 'VS Code', 'Cursor', 'Claude Code', 'Vercel',
       'frontend development', 'design-to-code',
       // Platforms & systems
       'Phenom', 'Workday', 'ServiceNow', 'Salesforce',
