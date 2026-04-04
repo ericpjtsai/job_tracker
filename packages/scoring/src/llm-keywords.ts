@@ -115,8 +115,20 @@ function parseResponse(text: string): LLMKeywordResult | null {
 }
 
 /**
- * Post-process LLM results: remove hallucinated keywords from "missing"
- * that exist in the resume but NOT in the JD text.
+ * Check if a keyword actually appears in the text (exact or close variant).
+ */
+function keywordExistsInText(keyword: string, textLower: string): boolean {
+  const words = keyword.split(/\s+/)
+  if (words.length === 1) {
+    return new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(textLower)
+  }
+  // Multi-word: check if all words appear in the text
+  return words.every(w => textLower.includes(w))
+}
+
+/**
+ * Post-process LLM results: remove hallucinated keywords from both "matched"
+ * and "missing" that don't actually appear in the JD text.
  */
 export function validateKeywords(
   result: LLMKeywordResult,
@@ -126,21 +138,20 @@ export function validateKeywords(
   const jdLower = jobDescription.toLowerCase()
   const resumeSet = new Set(resumeKeywords.map(k => k.toLowerCase()))
 
-  // Filter missing: only keep keywords that actually appear in the JD
-  const validMissing = result.missing.filter(k => {
-    // If this keyword is in the resume but NOT in the JD, it's hallucinated
-    if (resumeSet.has(k) && !jdLower.includes(k)) return false
-    // Verify keyword (or close variant) appears somewhere in the JD
-    const words = k.split(/\s+/)
-    if (words.length === 1) {
-      // Single word: check with word boundary
-      return new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(jdLower)
-    }
-    // Multi-word: check if all words appear near each other in the JD
-    return words.every(w => jdLower.includes(w))
+  // Filter matched: keyword must appear in BOTH the JD and the resume
+  const validMatched = result.matched.filter(k => {
+    const inJD = keywordExistsInText(k, jdLower)
+    const inResume = resumeSet.has(k)
+    return inJD && inResume
   })
 
-  return { matched: result.matched, missing: validMissing, role_fit: result.role_fit }
+  // Filter missing: keyword must appear in the JD but NOT in the resume
+  const validMissing = result.missing.filter(k => {
+    if (resumeSet.has(k) && !keywordExistsInText(k, jdLower)) return false
+    return keywordExistsInText(k, jdLower)
+  })
+
+  return { matched: validMatched, missing: validMissing, role_fit: result.role_fit }
 }
 
 /**
@@ -275,7 +286,7 @@ export async function extractKeywordsWithGemini(
   geminiKey?: string,
   anthropicKey?: string,
 ): Promise<LLMKeywordResult | null> {
-  if (!jobDescription || jobDescription.length < 50) return null
+  if (!jobDescription || jobDescription.length < 200) return null
 
   const prompt = buildPrompt(jobDescription, resumeKeywords)
 

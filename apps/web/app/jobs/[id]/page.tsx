@@ -353,7 +353,7 @@ export default function JobDetailPage() {
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-muted-foreground">
                             {resumeKeywords.length > 0
-                              ? <><span className="text-emerald-700 font-medium">{matched.length}</span> matched · <span className="text-red-500 font-medium">{missing.length}</span> missing</>
+                              ? <><span className="text-emerald-700 font-medium">{matched.length}</span> matched · <span className="text-rose-600 font-medium">{missing.length}</span> missing</>
                               : <>{keywords.length} keywords</>
                             }
                           </div>
@@ -361,6 +361,11 @@ export default function JobDetailPage() {
                             <div className="text-xs text-muted-foreground">Fit <span className="tabular-nums text-emerald-700 font-medium">{job.resume_fit ?? 0}%</span></div>
                           )}
                         </div>
+                        {resumeKeywords.length > 0 && keywords.length > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            Your resume covers <span className="text-emerald-700 font-medium tabular-nums">{matched.length}/{keywords.length}</span> ({Math.round(matched.length / keywords.length * 100)}%) of this job's requirements
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-1.5">
                           {matched.map((k) => (
                             <Badge key={k} variant="success" className="text-xs">{k}</Badge>
