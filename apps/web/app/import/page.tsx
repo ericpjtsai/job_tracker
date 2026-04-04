@@ -191,11 +191,12 @@ export default function ImportPage() {
       {mode === 'manual' ? (
         <div className="bg-card rounded-lg border px-4 py-4 space-y-3">
           <div className="grid sm:grid-cols-3 gap-3">
-            <Input placeholder="Job title *" value={manualForm.title} onChange={(e) => setManualForm(f => ({ ...f, title: e.target.value }))} />
+            <Input placeholder="Job title *" value={manualForm.title} disabled={isDemo} onChange={(e) => setManualForm(f => ({ ...f, title: e.target.value }))} />
             <div className="relative" ref={companyRef}>
               <Input
                 placeholder="Company *"
                 value={manualForm.company}
+                disabled={isDemo}
                 autoComplete="off"
                 role="combobox"
                 aria-expanded={companyOpen}
@@ -244,33 +245,33 @@ export default function ImportPage() {
                 )
               })()}
             </div>
-            <Input placeholder="URL *" value={manualForm.url} onChange={(e) => setManualForm(f => ({ ...f, url: e.target.value }))} />
+            <Input placeholder="URL *" value={manualForm.url} disabled={isDemo} onChange={(e) => setManualForm(f => ({ ...f, url: e.target.value }))} />
           </div>
           <div
             ref={descRef}
-            contentEditable
+            contentEditable={!isDemo}
             suppressContentEditableWarning
             onInput={(e) => setManualForm(f => ({ ...f, description: (e.target as HTMLDivElement).innerHTML }))}
             onKeyDown={(e) => {
               if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold') }
               else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleManualSubmit() }
             }}
-            className="job-description w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[100px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+            className={`job-description w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[100px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
             data-placeholder="Job description *"
           />
           <p className="text-[10px] text-muted-foreground/60 -mt-1.5">⌘B to bold</p>
           {notesOpen ? (
             <div
               ref={notesRef}
-              contentEditable
+              contentEditable={!isDemo}
               suppressContentEditableWarning
               onInput={(e) => setManualForm(f => ({ ...f, notes: (e.target as HTMLDivElement).innerHTML }))}
               onKeyDown={(e) => { if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold') } }}
-              className="w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[60px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+              className={`w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[60px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-placeholder="Notes"
             />
           ) : (
-            <button type="button" onClick={() => setNotesOpen(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <button type="button" disabled={isDemo} onClick={() => setNotesOpen(true)} className={`text-xs text-muted-foreground hover:text-foreground transition-colors ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}>
               + Notes
             </button>
           )}
