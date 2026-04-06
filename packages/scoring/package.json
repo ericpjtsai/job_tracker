@@ -10,7 +10,5 @@
   "devDependencies": {
     "typescript": "^5.4.0"
   },
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1"
-  }
+  "dependencies": {}
 }

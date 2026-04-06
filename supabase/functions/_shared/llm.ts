@@ -1,12 +1,12 @@
-// LLM-powered keyword extraction — Claude Haiku via fetch (Deno-compatible).
-// Gemini SDK was removed during the Edge Function migration: SDK has Node-only deps and
-// adds bundle weight; Claude via fetch works in both Node and Deno without changes.
-// Designed to match enterprise ATS extraction quality (Workday, Greenhouse, Ashby, Indeed, Glassdoor)
+// LLM-powered keyword extraction — Claude Haiku via fetch.
+// VENDORED from packages/scoring/src/llm-keywords.ts (Gemini path removed).
+// Claude is used because the Anthropic API is fetch-based and Deno-compatible
+// without any SDK. Same prompt + validation as the Node listener.
 
 export interface LLMKeywordResult {
   matched: string[]
   missing: string[]
-  role_fit: number  // 0-100 LLM-assessed fit score
+  role_fit: number
 }
 
 const PROMPT = `You are an AI recruiting agent that screens job descriptions against a candidate's resume using a structured rubric. Analyze this job description and classify every requirement against the candidate's resume keywords.
@@ -106,7 +106,7 @@ function parseResponse(text: string): LLMKeywordResult | null {
     const matched = [...new Set<string>(parsed.matched.map((k: string) => k.trim().toLowerCase()).filter(Boolean))]
     const matchedSet = new Set(matched)
     const missing = [...new Set<string>(parsed.missing.map((k: string) => k.trim().toLowerCase()).filter(Boolean))]
-      .filter(k => !matchedSet.has(k))
+      .filter((k: string) => !matchedSet.has(k))
     const role_fit = typeof parsed.role_fit === 'number' ? Math.max(0, Math.min(100, parsed.role_fit)) : 50
 
     return { matched, missing, role_fit }
@@ -115,39 +115,33 @@ function parseResponse(text: string): LLMKeywordResult | null {
   }
 }
 
-/**
- * Check if a keyword actually appears in the text (exact or close variant).
- */
 function keywordExistsInText(keyword: string, textLower: string): boolean {
   const words = keyword.split(/\s+/)
   if (words.length === 1) {
     return new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(textLower)
   }
-  // Multi-word: check if all words appear in the text
-  return words.every(w => textLower.includes(w))
+  return words.every((w) => textLower.includes(w))
 }
 
 /**
- * Post-process LLM results: remove hallucinated keywords from both "matched"
- * and "missing" that don't actually appear in the JD text.
+ * Filter hallucinated keywords — keep only those that actually appear in the JD
+ * (and, for "matched", that also exist in the resume).
  */
 export function validateKeywords(
   result: LLMKeywordResult,
   jobDescription: string,
-  resumeKeywords: string[]
+  resumeKeywords: string[],
 ): LLMKeywordResult {
   const jdLower = jobDescription.toLowerCase()
-  const resumeSet = new Set(resumeKeywords.map(k => k.toLowerCase()))
+  const resumeSet = new Set(resumeKeywords.map((k) => k.toLowerCase()))
 
-  // Filter matched: keyword must appear in BOTH the JD and the resume
-  const validMatched = result.matched.filter(k => {
+  const validMatched = result.matched.filter((k) => {
     const inJD = keywordExistsInText(k, jdLower)
     const inResume = resumeSet.has(k)
     return inJD && inResume
   })
 
-  // Filter missing: keyword must appear in the JD but NOT in the resume
-  const validMissing = result.missing.filter(k => {
+  const validMissing = result.missing.filter((k) => {
     if (resumeSet.has(k) && !keywordExistsInText(k, jdLower)) return false
     return keywordExistsInText(k, jdLower)
   })
@@ -155,9 +149,6 @@ export function validateKeywords(
   return { matched: validMatched, missing: validMissing, role_fit: result.role_fit }
 }
 
-/**
- * Extract keywords using Claude Haiku via fetch.
- */
 async function callClaude(prompt: string, apiKey: string): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -180,100 +171,22 @@ async function callClaude(prompt: string, apiKey: string): Promise<string> {
 }
 
 /**
- * Extract keywords from a resume using Claude Opus.
- * Returns a flat array of lowercase keyword strings, or null on failure.
- */
-export async function extractResumeKeywordsWithLLM(
-  resumeText: string,
-  anthropicKey: string,
-): Promise<string[] | null> {
-  if (!resumeText || resumeText.length < 100) return null
-
-  const prompt = `You are an AI recruiting agent that screens candidates using a structured rubric. Analyze this resume as if you are evaluating a candidate for B2B Product Designer / UX Designer roles.
-
-## Rubric — extract keywords under each category
-
-### 1. Domain & Industry Signals (highest weight)
-Extract keywords showing experience in specific industries or business domains.
-Look for: B2B, SaaS, enterprise, fintech, marketplace, CRM, dashboard, analytics, workflow automation, developer tools, platform, API, data visualization, internal tools, complex systems, multi-product.
-Also infer domains from company context (e.g. worked at Salesforce → "CRM", "enterprise", "B2B SaaS").
-
-### 2. AI & Emerging Technology
-Extract keywords showing AI/ML, LLM, generative AI, agentic, conversational UI, prompt engineering, RAG, copilot, human-in-the-loop, AI-powered product design.
-Infer from project context (e.g. "designed an AI assistant" → "conversational UI", "AI-powered").
-
-### 3. Core Design Competencies
-Extract: product design, UX design, interaction design, visual design, design systems, prototyping, wireframing, information architecture, responsive design, accessibility, WCAG, mobile design, design critique, craft.
-Infer depth from descriptions (e.g. "led redesign of component library" → "design systems", "component library").
-
-### 4. Research & Methods
-Extract: user research, usability testing, A/B testing, design thinking, user interviews, surveys, journey mapping, personas, competitive analysis, data-driven design, design sprint, rapid prototyping, heuristic evaluation.
-
-### 5. Soft Skills & Leadership Signals
-Extract from context, not just buzzwords: cross-functional collaboration, stakeholder management, mentorship, presenting to executives, ambiguity, strategic thinking, storytelling.
-Look for evidence: "partnered with engineering and PM" → "cross-functional collaboration".
-
-### 6. Tools & Technologies
-Extract explicit tool mentions: Figma, Sketch, Framer, Adobe Creative Cloud, Miro, FigJam, HTML, CSS, React, Git, GitHub, Jira, Notion, Maze, UserTesting, Hotjar, Mixpanel, Amplitude, Looker, Tableau.
-
-## Rules
-- Extract both EXPLICIT keywords (directly stated) and INFERRED keywords (derived from context, responsibilities, and company background)
-- Lowercase all keywords
-- 50-100 keywords total across all categories
-- Do NOT include company names, dates, degree names, or people names
-- Return ONLY a flat JSON array of strings, no grouping, no other text
-
-Resume:
-${resumeText.slice(0, 8000)}`
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 2000,
-        temperature: 0.1,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    })
-    if (!res.ok) throw new Error(`Claude Opus API ${res.status}: ${await res.text()}`)
-    const data = await res.json()
-    const text = data.content?.[0]?.text ?? ''
-
-    // Parse JSON array from response
-    const match = text.match(/\[[\s\S]*\]/)
-    if (!match) return null
-    const keywords: unknown = JSON.parse(match[0])
-    if (!Array.isArray(keywords)) return null
-    return keywords.filter((k): k is string => typeof k === 'string').map(k => k.toLowerCase().trim()).filter(Boolean)
-  } catch (err) {
-    console.error('Claude Opus resume extraction failed:', (err as Error).message)
-    return null
-  }
-}
-
-/**
  * Extract keywords from a job description using Claude Haiku.
  * Returns null if no API key, JD too short, or extraction failed.
  */
 export async function extractKeywordsLLM(
   jobDescription: string,
   resumeKeywords: string[],
-  anthropicKey?: string,
 ): Promise<LLMKeywordResult | null> {
   if (!jobDescription || jobDescription.length < 200) return null
-  if (!anthropicKey) return null
+
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
+  if (!apiKey) return null
 
   const prompt = buildPrompt(jobDescription, resumeKeywords)
 
   try {
-    const text = await callClaude(prompt, anthropicKey)
+    const text = await callClaude(prompt, apiKey)
     const result = parseResponse(text)
     if (result && (result.matched.length + result.missing.length) > 0) return result
   } catch (err) {

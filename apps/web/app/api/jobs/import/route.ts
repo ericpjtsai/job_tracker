@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit, extractKeywordsWithGemini, validateKeywords } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsLLM, validateKeywords } from '@job-tracker/scoring'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -330,15 +330,14 @@ export async function POST(req: NextRequest) {
   if (jobsToEnrich.length > 0) {
     after(async () => {
       const supabaseAsync = createServerClient()
-      const geminiKey = process.env.GEMINI_API_KEY
       const anthropicKey = process.env.ANTHROPIC_API_KEY
-      if (!geminiKey && !anthropicKey) return
+      if (!anthropicKey) return
 
       for (const jobId of jobsToEnrich) {
         const { data: job } = await supabaseAsync.from('job_postings').select('page_content, keywords_matched').eq('id', jobId).single()
         if (!job?.page_content || job.page_content.length < 100) continue
 
-        const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+        const rawLlm = await extractKeywordsLLM(job.page_content, resumeKeywords, anthropicKey)
         const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
         if (llmResult) {
           const allKeywords = [...llmResult.matched, ...llmResult.missing]

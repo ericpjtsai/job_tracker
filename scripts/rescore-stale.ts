@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { extractKeywordsWithGemini, validateKeywords } from '../packages/scoring/src/llm-keywords'
+import { extractKeywordsLLM, validateKeywords } from '../packages/scoring/src/llm-keywords'
 
 function stripHtml(html: string): string {
   return html
@@ -16,10 +16,9 @@ function stripHtml(html: string): string {
 
 async function main() {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const geminiKey = process.env.GEMINI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-  if (!geminiKey && !anthropicKey) { console.log('No LLM API keys'); return }
+  if (!anthropicKey) { console.log('No ANTHROPIC_API_KEY set'); return }
 
   const { data: resume } = await supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single()
   const resumeKeywords: string[] = (resume as any)?.keywords_extracted ?? []
@@ -42,7 +41,7 @@ async function main() {
 
     const content = plainText.slice(0, 12000)
     try {
-      const raw = await extractKeywordsWithGemini(content, resumeKeywords, geminiKey, anthropicKey)
+      const raw = await extractKeywordsLLM(content, resumeKeywords, anthropicKey)
       const result = raw ? validateKeywords(raw, content, resumeKeywords) : null
       if (result) {
         const allKw = [...result.matched, ...result.missing]

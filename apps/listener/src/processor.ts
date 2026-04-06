@@ -6,7 +6,7 @@ import {
   scorePosting,
   computeResumeFit,
   isRoleExcluded,
-  extractKeywordsWithGemini,
+  extractKeywordsLLM,
   validateKeywords,
 } from '@job-tracker/scoring'
 
@@ -249,12 +249,11 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
       await supabase.from('job_postings').update(updates).eq('id', titleMatch.id)
       // Re-score via LLM when description was upgraded to a longer version
       if (contentUpgraded && opts.description.length > 100) {
-        const geminiKey = process.env.GEMINI_API_KEY
         const anthropicKey = process.env.ANTHROPIC_API_KEY
-        if (geminiKey || anthropicKey) {
+        if (anthropicKey) {
           const resumeKeywords = await getActiveResumeKeywords(supabase as any)
           console.log(`  🤖 Re-scoring dedup (longer JD): ${opts.title}`)
-          enrichWithLLM(supabase, titleMatch.id, opts.description, resumeKeywords, geminiKey, anthropicKey).catch(() => {})
+          enrichWithLLM(supabase, titleMatch.id, opts.description, resumeKeywords, anthropicKey).catch(() => {})
         }
       }
       return
@@ -366,15 +365,14 @@ export async function insertJobPosting(opts: InsertJobOpts): Promise<void> {
   console.log(`${emoji} [${priority.toUpperCase()} fit:${resumeFit ?? '-'}% score:${result.total}] ${opts.title} — ${opts.company} | ${normalizedUrl}`)
 
   // ── Async LLM enrichment (non-blocking) ─────────────────────────────────
-  const geminiKey = process.env.GEMINI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if ((geminiKey || anthropicKey) && opts.description && opts.description.length > 100) {
-    enrichWithLLM(supabase, normalizedUrl, opts.description, resumeKeywords, geminiKey, anthropicKey).catch(() => {})
+  if (anthropicKey && opts.description && opts.description.length > 100) {
+    enrichWithLLM(supabase, normalizedUrl, opts.description, resumeKeywords, anthropicKey).catch(() => {})
   }
 }
 
-async function enrichWithLLM(supabase: any, matchValue: string, description: string, resumeKeywords: string[], geminiKey?: string, anthropicKey?: string) {
-  const rawResult = await extractKeywordsWithGemini(description, resumeKeywords, geminiKey, anthropicKey)
+async function enrichWithLLM(supabase: any, matchValue: string, description: string, resumeKeywords: string[], anthropicKey?: string) {
+  const rawResult = await extractKeywordsLLM(description, resumeKeywords, anthropicKey)
   const llmResult = rawResult ? validateKeywords(rawResult, description, resumeKeywords) : null
   if (!llmResult) return
 

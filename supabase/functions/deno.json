@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.43.0",
+    "node-html-parser": "npm:node-html-parser@7.1.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns"]
+  }
+}

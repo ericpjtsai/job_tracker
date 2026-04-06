@@ -836,7 +836,7 @@ export default function SourcesPage() {
           <h1 className="text-xl font-semibold text-foreground">Sources</h1>
           <div className="text-xs text-muted-foreground">
             {liveError ? (
-              <span className="text-red-500">Listener offline</span>
+              <span className="text-red-500">Backend unreachable</span>
             ) : lastFetch > 0 ? (
               <span>Live &middot; updated {timeAgo(lastFetch)}</span>
             ) : null}

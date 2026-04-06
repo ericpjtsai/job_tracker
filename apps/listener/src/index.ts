@@ -20,14 +20,13 @@ void serpApiSource; void linkedinDirectSource; void indeedSource; void glassdoor
 void githubSource
 
 import { getSource, getSourcesStatus } from './sources/registry'
-import { extractKeywordsWithGemini, validateKeywords, computeResumeFit } from '@job-tracker/scoring'
+import { extractKeywordsLLM, validateKeywords, computeResumeFit } from '@job-tracker/scoring'
 
 // ─── Rescore state ───────────────────────────────────────────────────────────
 const rescoreState = { running: false, current: 0, total: 0, updated: 0, errors: 0 }
 
 async function runRescore() {
   const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const geminiKey = process.env.GEMINI_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
 
   const { data: resume } = await supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single()
@@ -47,8 +46,8 @@ async function runRescore() {
   for (const job of jobs) {
     rescoreState.current++
     try {
-      if ((geminiKey || anthropicKey) && job.page_content && job.page_content.length > 100) {
-        const rawLlm = await extractKeywordsWithGemini(job.page_content, resumeKeywords, geminiKey, anthropicKey)
+      if (anthropicKey && job.page_content && job.page_content.length > 100) {
+        const rawLlm = await extractKeywordsLLM(job.page_content, resumeKeywords, anthropicKey)
         const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
         if (llmResult) {
           const allKeywords = [...llmResult.matched, ...llmResult.missing]
