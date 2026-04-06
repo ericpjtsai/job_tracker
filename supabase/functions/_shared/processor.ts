@@ -290,11 +290,9 @@ export async function insertJobPosting(
       : result.priority
 
   // ── Insert ───────────────────────────────────────────────────────────────
-  let now = new Date().toISOString()
-  if (opts.publishedAt) {
-    const d = new Date(opts.publishedAt)
-    now = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
-  }
+  // first_seen/last_seen represent when WE saw the row, not when the source
+  // posted it. opts.publishedAt is intentionally ignored here — see plan note.
+  const now = new Date().toISOString()
 
   // enrichment_status: pending only if we have a real description AND an API key
   // (the enrich-batch worker will skip rows where description is too short)

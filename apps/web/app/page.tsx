@@ -263,22 +263,41 @@ export default function DashboardPage() {
   const seenOrder = null
 
   // ── Fetch stats (respects current filters except priority) ─────────────────
+  // AbortController guards against stale-response races: when filters change
+  // mid-flight, the previous request is aborted so its (possibly slower) response
+  // can't clobber the newer one.
+  const statsAbortRef = useRef<AbortController | null>(null)
   const loadStats = useCallback(async () => {
+    statsAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    statsAbortRef.current = ctrl
     const params = new URLSearchParams()
     if (since !== 'all') params.set('since', since)
     if (status !== 'all') params.set('status', status)
     if (search) params.set('search', search)
-    const data = await fetch(`/api/stats?${params}`).then((r) => r.json())
-    setStats({ total: data.total, high: data.high, medium: data.medium, low: data.low, growthHigh: data.growthHigh ?? 0, growthMedium: data.growthMedium ?? 0, growthLow: data.growthLow ?? 0 })
+    try {
+      const data = await fetch(`/api/stats?${params}`, { signal: ctrl.signal }).then((r) => r.json())
+      setStats({ total: data.total, high: data.high, medium: data.medium, low: data.low, growthHigh: data.growthHigh ?? 0, growthMedium: data.growthMedium ?? 0, growthLow: data.growthLow ?? 0 })
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') console.error('loadStats failed:', err)
+    }
   }, [since, status, search])
 
   // ── Fetch jobs ─────────────────────────────────────────────────────────────
   const loadingMore = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const jobsAbortRef = useRef<AbortController | null>(null)
 
   const fetchJobs = useCallback(async (pageNum = 0, append = false) => {
     if (append) loadingMore.current = true
-    else setFetching(true)
+    else {
+      setFetching(true)
+      // Only abort the previous in-flight request when starting a fresh fetch
+      // (not when appending pages — appends should chain, not race).
+      jobsAbortRef.current?.abort()
+    }
+    const ctrl = new AbortController()
+    if (!append) jobsAbortRef.current = ctrl
     try {
       const params = new URLSearchParams({ page: String(pageNum), limit: String(PAGE_SIZE) })
       if (priority !== 'all') params.set('priority', priority)
@@ -289,7 +308,7 @@ export default function DashboardPage() {
       if (seenOrder) params.set('seenOrder', seenOrder)
       if (!fitOrder && !seenOrder) params.set('newFirst', 'true')
 
-      const res = await fetch(`/api/jobs?${params}`)
+      const res = await fetch(`/api/jobs?${params}`, { signal: ctrl.signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const { data, total: t } = await res.json()
       setJobs(prev => {
@@ -301,6 +320,7 @@ export default function DashboardPage() {
       if (!append && data?.length) sessionStorage.setItem('jobIds', JSON.stringify(data.map((j: any) => j.id)))
       if (append && data?.length) sessionStorage.setItem('jobIds', JSON.stringify([...JSON.parse(sessionStorage.getItem('jobIds') ?? '[]'), ...data.map((j: any) => j.id)]))
     } catch (err) {
+      if ((err as Error)?.name === 'AbortError') return
       console.error('fetchJobs failed:', err)
       if (!append) setJobs([])
     } finally {
