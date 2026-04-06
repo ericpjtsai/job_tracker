@@ -220,13 +220,24 @@ export default function DashboardPage() {
   }
 
   // ── Filters ────────────────────────────────────────────────────────────────
-  const [priority, setPriority] = useState('high')
-  const [since, setSince] = useState('24h')
+  const [priority, setPriority] = useState('all')
+  const [since, setSince] = useState('7d')
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const preSearchFilters = useRef<{ priority: string; since: string; status: string } | null>(null)
+
+  // Apply admin defaults once the cookie check resolves isDemo → false.
+  // Demo visitors keep the wider 'all' / '7d' defaults defined above.
+  const adminDefaultsApplied = useRef(false)
+  useEffect(() => {
+    if (!isDemo && !adminDefaultsApplied.current) {
+      adminDefaultsApplied.current = true
+      setPriority('high')
+      setSince('24h')
+    }
+  }, [isDemo])
 
   function toggleSearch() {
     if (!searchOpen) {
@@ -468,6 +479,7 @@ export default function DashboardPage() {
   }
 
   const hasActiveFilters = (status !== 'all' && status !== 'new') || search !== ''
+  const defaultSince = isDemo ? '7d' : '24h'
 
   // ── Scroll tracking — minimize when cards leave viewport ─────────────────
   const [scrolled, setScrolled] = useState(false)
@@ -635,7 +647,7 @@ export default function DashboardPage() {
         {/* Mobile: filter icon + search icon */}
         <div className="flex items-center gap-2 sm:hidden">
           <button type="button" aria-label="Filters" onClick={() => setFiltersOpen(!filtersOpen)}
-            className={`text-xs py-1.5 rounded-md transition-colors ${filtersOpen || since !== '24h' || status !== 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`text-xs py-1.5 rounded-md transition-colors ${filtersOpen || since !== defaultSince || status !== 'all' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
           </button>
