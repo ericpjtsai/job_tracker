@@ -354,7 +354,8 @@ export async function POST(req: NextRequest) {
 
       for (const jobId of jobsToEnrich) {
         const { data: job } = await supabaseAsync.from('job_postings').select('page_content, keywords_matched').eq('id', jobId).single()
-        if (!job?.page_content || job.page_content.length < 100) continue
+        if (!job?.page_content) continue
+        // Manual imports always get LLM — even sparse descriptions benefit from role_fit scoring
 
         const rawLlm = await extractKeywordsLLM(job.page_content, resumeKeywords, anthropicKey)
         const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null

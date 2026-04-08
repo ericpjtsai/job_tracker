@@ -14,6 +14,7 @@ const BATCH_SIZE = 20
 interface PendingJob {
   id: string
   page_content: string | null
+  source_type: string | null
 }
 
 Deno.serve(async (req) => {
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
     // Pick up the oldest pending rows. Use first_seen ordering since job_postings has no created_at.
     const { data: pending, error: selectError } = await supabase
       .from('job_postings')
-      .select('id, page_content')
+      .select('id, page_content, source_type')
       .eq('enrichment_status', 'pending')
       .order('first_seen', { ascending: true })
       .limit(BATCH_SIZE)
@@ -75,8 +76,10 @@ Deno.serve(async (req) => {
 
     for (const job of jobs) {
       const description = job.page_content ?? ''
-      if (description.length < 200) {
-        // Too short — skip permanently
+      const isManual = job.source_type === 'manual'
+
+      // Skip LLM for auto-ingested jobs with sparse descriptions — regex score is sufficient
+      if (!isManual && description.length < 500) {
         await supabase
           .from('job_postings')
           .update({ enrichment_status: 'skipped' })
