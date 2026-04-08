@@ -92,7 +92,7 @@ Complete reference for all data ingestion sources, filtering criteria, scoring l
 
 ### 3.1 Firehose SSE Streams
 
-**Files:** `apps/listener/src/rules.ts`, `apps/listener/src/index.ts`
+> **⚠ Removed:** The Firehose data source was removed in commit `cea798d` (along with all related code). The section below is kept for historical reference only — the files no longer exist.
 
 | Detail | Value |
 |--------|-------|
@@ -120,7 +120,7 @@ See [Section 4](#4-firehose-rules-breakdown) for the full rules breakdown.
 
 ### 3.2 ATS Direct Polling
 
-**Files:** `apps/listener/src/ats-poller.ts`, `apps/listener/src/ats-companies.ts`
+**Files:** `supabase/functions/poll-ats/index.ts`, `supabase/functions/_shared/ats-companies.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -152,7 +152,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.3 Mantiks (LinkedIn)
 
-**File:** `apps/listener/src/linkedin-mantiks.ts`
+**File:** `supabase/functions/poll-mantiks/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -179,7 +179,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.4 LinkedIn Scraper (npm)
 
-**File:** `apps/listener/src/linkedin-scraper.ts`
+**File:** `supabase/functions/poll-linkedin/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -205,7 +205,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.5 LinkedIn Direct (Fallback)
 
-**File:** `apps/listener/src/linkedin-direct.ts`
+**File:** `supabase/functions/poll-linkedin-direct/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -224,7 +224,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.6 SerpApi (Google Jobs)
 
-**File:** `apps/listener/src/serpapi-jobs.ts`
+**File:** `supabase/functions/poll-serpapi/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -249,7 +249,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.7 HasData — Indeed
 
-**File:** `apps/listener/src/hasdata-jobs.ts`
+**File:** `supabase/functions/poll-hasdata/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -273,7 +273,7 @@ Excluded titles: graphic designer, interior designer, fashion designer, instruct
 
 ### 3.8 HasData — Glassdoor
 
-**File:** `apps/listener/src/hasdata-jobs.ts`
+**File:** `supabase/functions/poll-hasdata/index.ts`
 
 | Detail | Value |
 |--------|-------|
@@ -568,16 +568,15 @@ Extracts salary ranges from page text. Supported formats: `$140k–$180k`, `$140
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ INGESTION (apps/listener)                                    │
+│ INGESTION (supabase/functions, cron-driven)                  │
 │                                                              │
-│  Firehose SSE ──► processEvent()                            │
-│                     ├─ isJobBoardUrl() check                │
-│                     ├─ extractCompany() from domain          │
-│                     ├─ extractLocation() from text           │
-│                     └─► insertJobPosting()                  │
+│  pg_cron ──► call_edge('poll-*') ──► source module          │
+│               (poll-ats, poll-linkedin, poll-mantiks,       │
+│                poll-serpapi, poll-hasdata, poll-github,     │
+│                poll-linkedin-direct fallback)                │
 │                                                              │
-│  ATS/Mantiks/Scraper/SerpApi/HasData ──► insertJobPosting() │
-│    (each source extracts title, company, location, desc)     │
+│  Each source module ──► _shared/processor.insertJobPosting  │
+│    (extracts title, company, location, description)         │
 └────────────────────────────┬────────────────────────────────┘
                              │
                              ▼
@@ -601,13 +600,15 @@ Extracts salary ranges from page text. Supported formats: `$140k–$180k`, `$140
 │                                                              │
 │  job_postings: url, url_hash, title, company, company_tier,  │
 │    location, salary_min/max, score, resume_fit,              │
-│    score_breakdown, keywords_matched, firehose_rule,         │
-│    priority, page_content, first_seen, last_seen, status     │
+│    score_breakdown, keywords_matched, firehose_rule (legacy  │
+│    column, used as generic `source` string now),             │
+│    priority, page_content, enrichment_status, first_seen,    │
+│    last_seen, status                                         │
 │                                                              │
 │  resume_versions: filename, is_active, keywords_extracted    │
 │                                                              │
-│  listener_state: key-value pairs for SSE offset persistence  │
-│    (key: "last_event_id:{tap_name}", value: event ID)        │
+│  source_health: status, last_success_at, consecutive_failures │
+│    (replaces the old in-memory listener health)              │
 │                                                              │
 │  Storage bucket "resumes": uploaded PDF files                │
 └────────────────────────────┬────────────────────────────────┘
@@ -618,7 +619,7 @@ Extracts salary ranges from page text. Supported formats: `$140k–$180k`, `$140
 │                                                              │
 │  /api/stats → SELECT count by priority, today's jobs         │
 │  /api/jobs  → SELECT with filters, pagination, sorting       │
-│  /api/poll  → POST to listener control server, GET status    │
+│  /api/poll  → POST invokes supabase.functions.poll-* on demand │
 │                                                              │
 │  Dashboard: stat cards + top urgent jobs + realtime counter  │
 │  Jobs list: filterable/sortable table + realtime counter     │
@@ -635,7 +636,7 @@ Extracts salary ranges from page text. Supported formats: `$140k–$180k`, `$140
 
 ## 9. Fallback Chain
 
-Defined in `apps/listener/src/index.ts` (lines 220–234). Runs every 60 minutes.
+Defined in `supabase/migrations/007_cron_schedule.sql` as the `fallback-check` cron job. Runs at :20 of every hour.
 
 ```
 Check: Is Mantiks dead? (lastPollAt > 8 hours ago)
@@ -659,46 +660,52 @@ If BOTH dead:
 
 ## 10. Environment Variables
 
-### Listener (`apps/listener`)
+### Supabase Edge Functions (Dashboard → Project Settings → Edge Functions → Secrets)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Full write access to database |
-| `FIREHOSE_MANAGEMENT_KEY` | Yes | Account 1 management API key (create/manage taps) |
-| `FIREHOSE_MANAGEMENT_KEY_2` | No | Account 2 management key (Taps 4–5) |
-| `FIREHOSE_MANAGEMENT_KEY_3` | No | Account 3 management key (Taps 6–7) |
-| `FIREHOSE_TAP_TOKEN` | Auto | Tap 1 stream token (created/resolved on startup) |
-| `FIREHOSE_TAP_TOKEN_2`..`_7` | Auto | Tap 2–7 stream tokens |
+| `ANTHROPIC_API_KEY` | Yes | Claude Haiku for `enrich-batch` queue worker |
 | `MANTIKS_API_KEY` | No | Mantiks.io API key for LinkedIn |
 | `SERPAPI_API_KEY` | No | SerpApi key for Google Jobs |
 | `HASDATA_API_KEY` | No | HasData key for Indeed + Glassdoor |
-| `CONTROL_PORT` | No | HTTP control server port (default: 3001) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Auto | Provided by Supabase runtime |
 
-### Frontend (`apps/web`)
+pg_cron also reads two Vault secrets (`project_url`, `service_role_key`) — see [supabase/migrations/007_cron_schedule.sql](../supabase/migrations/007_cron_schedule.sql) header for setup.
+
+### Frontend (`apps/web/.env.local`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase URL (public, safe to expose) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key (public, RLS enforced) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | For API routes only (server-side) |
-| `LISTENER_URL` | No | Listener control server URL (default: `http://localhost:3001`) |
+| `ANTHROPIC_API_KEY` | Recommended | For inline enrichment on JD edit / resume upload |
+| `SECRET_API_TOKEN` | Recommended | API auth gate token |
 
 ---
 
-## 11. Control Server Endpoints
+## 11. Manual Triggers
 
-HTTP server running on the listener process (default port 3001).
+Polling is normally cron-driven. For on-demand runs, use the Supabase CLI or the web app's `/sources` page (which invokes `supabase.functions.invoke()` through [apps/web/app/api/poll/route.ts](../apps/web/app/api/poll/route.ts)).
 
-| Method | Path | Description | Response |
-|--------|------|-------------|----------|
-| GET | `/health` | Health check | `{ ok: true }` |
-| GET | `/status` | ATS poll progress | `{ running, current, total }` |
-| POST | `/poll` | Trigger ATS direct poll (all 236 companies) | `{ ok: true, message }` |
-| POST | `/poll/linkedin` | Trigger LinkedIn npm scraper | `{ ok: true, message }` |
-| POST | `/poll/mantiks` | Trigger Mantiks LinkedIn API poll | `{ ok: true, message }` |
-| POST | `/poll/serpapi` | Trigger SerpApi Google Jobs poll | `{ ok: true, message }` |
-| POST | `/poll/indeed` | Trigger HasData Indeed poll | `{ ok: true, message }` |
-| POST | `/poll/glassdoor` | Trigger HasData Glassdoor poll | `{ ok: true, message }` |
+```bash
+# Invoke a poll function manually
+supabase functions invoke poll-ats --body '{"batch":0}'
+supabase functions invoke poll-linkedin
+supabase functions invoke poll-mantiks
+supabase functions invoke poll-serpapi
+supabase functions invoke poll-hasdata --body '{"platform":"indeed"}'
+supabase functions invoke poll-hasdata --body '{"platform":"glassdoor"}'
+supabase functions invoke poll-github
+supabase functions invoke enrich-batch
+```
+
+Health and last-run metadata are visible via the `source_health` table:
+
+```sql
+SELECT source_id, status, last_success_at, consecutive_failures, last_error
+FROM source_health
+ORDER BY source_id;
+```
 
 All POST endpoints fire-and-forget (return immediately, poll runs in background). The frontend uses `GET /status` to track ATS poll progress (polled every 500ms during active poll).

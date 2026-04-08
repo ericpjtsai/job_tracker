@@ -1,90 +1,84 @@
 # Job Tracker
 
-Real-time B2B Product Design job search agent. Monitors the web via Firehose SSE, polls ATS boards (Greenhouse, Lever, Ashby), scrapes LinkedIn, scores postings with LLM keyword extraction, and surfaces them through a Next.js dashboard.
+Real-time B2B Product Design job search agent. Polls ATS boards (Greenhouse, Lever, Ashby, SmartRecruiters), scrapes LinkedIn, pulls from SerpApi + HasData + GitHub, scores postings with LLM keyword extraction, and surfaces them through a Next.js dashboard.
 
 ## Architecture
 
 ```
-Sources                          Processing                    Frontend
-─────────────────               ──────────────────            ──────────────
-Firehose SSE (real-time)  ─┐
-Greenhouse / Lever / Ashby ─┤    apps/listener               apps/web
-LinkedIn (Mantiks, scraper)─┤    ├─ Filter (title, location,  ├─ Dashboard (/)
-SerpApi, HasData (Indeed,  ─┤    │   seniority, dedup)        ├─ Job detail (/jobs/[id])
-  Glassdoor)               ─┘    ├─ Score (regex keywords)    ├─ Resume (/resume)
-                                  ├─ LLM enrich (Gemini/Claude)└─ Import (/import)
-                                  └─ Upsert → Supabase
-                                                ↕
-                                        Supabase (Postgres + Realtime)
+Sources                           Processing                    Frontend
+─────────────────                ──────────────────             ──────────────
+Greenhouse / Lever / Ashby ─┐
+SmartRecruiters             ─┤    supabase/functions/          apps/web
+LinkedIn (Mantiks, direct)  ─┤    ├─ poll-* (7 sources)        ├─ Dashboard (/)
+SerpApi Google Jobs         ─┤    ├─ _shared/processor         ├─ Job detail (/jobs/[id])
+HasData (Indeed, Glassdoor) ─┤    │   (filter, dedup, score)   ├─ Resume (/resume)
+GitHub Jobright repos       ─┘    ├─ enrich-batch (queue)      ├─ Import (/import)
+                                  └─ rescore (chunked)         └─ Sources (/sources)
+      pg_cron + pg_net                     ↕
+      schedules each fn               Supabase (Postgres + source_health)
 ```
+
+All pollers run as stateless Edge Functions, scheduled by pg_cron. The old Node.js listener daemon at `apps/listener/` was retired in commit `292b499` and removed in commit `<this-commit>`. To restore it for rollback, see [docs/ROLLBACK.md](docs/ROLLBACK.md).
 
 ## Directory Structure
 
 ```
 ├── apps/
-│   ├── web/                    Next.js 15 frontend (Vercel)
-│   │   ├── app/
-│   │   │   ├── api/            API routes (jobs, resume, stats, poll, sources)
-│   │   │   ├── jobs/[id]/      Job detail page
-│   │   │   ├── resume/         Resume upload + keyword management
-│   │   │   ├── import/         Manual job import via JSON
-│   │   │   └── page.tsx        Dashboard homepage
-│   │   ├── components/         Reusable UI components
-│   │   │   ├── ui/             shadcn/ui primitives (Badge, Button, Input, Table)
-│   │   │   ├── status-chip.tsx Status dropdown with color-coded styles
-│   │   │   ├── fit-badge.tsx   Resume fit percentage display
-│   │   │   ├── stat-card.tsx   Priority stat cards (high/medium/low)
-│   │   │   ├── sort-header.tsx Sortable column header with tooltip
-│   │   │   ├── info-tooltip.tsx Positioned tooltip component
-│   │   │   ├── drop-zone.tsx   Drag-and-drop file upload
-│   │   │   └── nav.tsx         Top navigation bar
-│   │   └── lib/
-│   │       ├── supabase.ts     Supabase client, types, shared constants
-│   │       └── utils.ts        Shared utilities (timeAgo, formatDate, cn, etc.)
-│   │
-│   └── listener/               Node.js event processor (Railway)
-│       └── src/
-│           ├── index.ts        SSE connections, control server, rescore, scheduling
-│           ├── processor.ts    Filter → score → dedup → upsert → LLM enrich
-│           ├── rules.ts        Firehose tap/rule sync
-│           ├── ats-poller.ts   Greenhouse/Lever/Ashby API polling
-│           ├── ats-companies.ts Company list for ATS polling
-│           ├── linkedin-*.ts   LinkedIn data sources (Mantiks, scraper, direct)
-│           ├── serpapi-jobs.ts  SerpApi Google Jobs integration
-│           ├── hasdata-jobs.ts  Indeed + Glassdoor via HasData API
-│           └── sources/        Source registry + health tracking
+│   └── web/                    Next.js 15 frontend (Vercel)
+│       ├── app/
+│       │   ├── api/            API routes (jobs, resume, stats, poll, sources)
+│       │   ├── jobs/[id]/      Job detail page
+│       │   ├── resume/         Resume upload + keyword management
+│       │   ├── import/         Manual job import
+│       │   ├── sources/        Source health + config editor
+│       │   └── page.tsx        Dashboard homepage
+│       ├── components/         Reusable UI components
+│       └── lib/
+│           ├── supabase.ts     Supabase client, types, shared constants
+│           └── utils.ts        Shared utilities
 │
 ├── packages/
-│   └── scoring/                Shared scoring engine (used by both web + listener)
+│   └── scoring/                Shared scoring engine (used by apps/web)
 │       └── src/
 │           ├── score.ts        Keyword matching, scoring formula, resume fit
 │           ├── seniority.ts    Role exclusion + seniority filters
-│           ├── keywords.ts     Keyword taxonomy (B2B, AI, design, methods, tools)
-│           ├── llm-keywords.ts LLM keyword extraction (Gemini Flash + Claude Haiku)
+│           ├── keywords.ts     Keyword taxonomy
+│           ├── llm-keywords.ts LLM keyword extraction (Haiku + Opus for resume)
 │           ├── salary.ts       Salary range extraction
-│           └── companies.ts    Company name normalization, domain extraction
+│           └── companies.ts    Company name normalization
 │
 └── supabase/
-    └── migrations/             Database schema + indexes
+    ├── functions/              Edge Functions (Deno, deployed to Supabase)
+    │   ├── _shared/            Shared helpers: handler, auth, llm, health, processor
+    │   ├── poll-ats/           Greenhouse/Lever/Ashby/SmartRecruiters
+    │   ├── poll-linkedin/      LinkedIn jobs (rewritten without npm package)
+    │   ├── poll-linkedin-direct/ Emergency fallback HTML scraper
+    │   ├── poll-mantiks/       Mantiks LinkedIn API
+    │   ├── poll-serpapi/       SerpApi Google Jobs
+    │   ├── poll-hasdata/       HasData Indeed + Glassdoor
+    │   ├── poll-github/        GitHub Jobright repos
+    │   ├── enrich-batch/       LLM enrichment queue worker (every 2 min)
+    │   └── rescore/            Chunked full re-score, self-chains via waitUntil
+    └── migrations/             Database schema + cron schedule
 ```
 
 ## Data Flow: How a Job Gets Processed
 
 ```
-1. Source emits job (Firehose event, ATS poll, LinkedIn scrape)
-2. processor.ts filter chain:
+1. pg_cron triggers a poll-* Edge Function on schedule
+2. Source module yields candidate jobs → _shared/processor.ts filter chain:
    ├─ isRoleExcluded(title)?     → drop (engineer, researcher, intern, etc.)
    ├─ isLocationBlocked(loc)?    → drop (non-US, unless US also listed)
    ├─ isArticleTitle(title)?     → drop (blog posts, guides)
-   ├─ dedup by url_hash?         → update last_seen
+   ├─ dedup by url?              → update last_seen
    ├─ dedup by title+company?    → merge descriptions
    ├─ isSeniorityExcluded()?     → insert with priority=skip
    └─ resume fit = 0%?           → drop (no keyword overlap)
-3. Insert to Supabase with regex score + resume_fit
-4. Async LLM enrichment (Gemini Flash, Claude Haiku fallback):
-   ├─ Extract matched + missing keywords
+3. Insert to Supabase with regex score, enrichment_status='pending'
+4. Every 2 minutes, enrich-batch picks up pending rows:
+   ├─ Call Claude Haiku (extractKeywordsLLM + validateKeywords)
    ├─ Compute role_fit (0-100, contextual assessment)
-   └─ Update resume_fit + priority in DB
+   ├─ Update keywords_matched, resume_fit, priority, enrichment_status='done'
 5. Frontend receives via Supabase Realtime or polling
 ```
 
@@ -105,7 +99,7 @@ SerpApi, HasData (Indeed,  ─┤    │   seniority, dedup)        ├─ Job d
 - 30-44: Weak match (adjacent role)
 - 0-29: Poor/no match
 
-**Priority mapping:** `role_fit ≥ 60` → high, `≥ 30` → medium, `≥ 1` → low, `0` → skip
+**Priority mapping:** `role_fit ≥ 80` → high, `≥ 50` → medium, `≥ 1` → low, `0` → skip
 
 ## Environment Variables
 
@@ -115,22 +109,20 @@ SerpApi, HasData (Indeed,  ─┤    │   seniority, dedup)        ├─ Job d
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key (client-side) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side) |
-| `GEMINI_API_KEY` | No | Gemini API key for LLM enrichment on JD edit |
-| `ANTHROPIC_API_KEY` | No | Claude API key (fallback) |
-| `LISTENER_URL` | No | Listener control server URL (default: http://localhost:3001) |
+| `ANTHROPIC_API_KEY` | Recommended | Claude key for inline enrichment (JD edit, resume upload) |
+| `SECRET_API_TOKEN` | Recommended | API auth gate token |
+| `NEXT_PUBLIC_DEMO_MODE` | No | Set `true` to block write actions |
 
-### Listener (`apps/listener/.env.local`)
+### Supabase Edge Functions (Dashboard → Project Settings → Edge Functions → Secrets)
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
-| `FIREHOSE_MANAGEMENT_KEY` | Yes | Firehose API management key |
-| `FIREHOSE_TAP_TOKEN` | Yes | Firehose tap token for SSE streaming |
-| `GEMINI_API_KEY` | Recommended | Gemini Flash for LLM keyword extraction |
-| `ANTHROPIC_API_KEY` | No | Claude Haiku fallback |
+| `ANTHROPIC_API_KEY` | Yes | Claude Haiku for enrich-batch queue worker |
 | `MANTIKS_API_KEY` | No | Mantiks LinkedIn Jobs API |
 | `SERPAPI_API_KEY` | No | SerpApi Google Jobs |
 | `HASDATA_API_KEY` | No | HasData API (Indeed + Glassdoor) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Auto | Provided by Supabase runtime |
+
+pg_cron also needs Vault secrets `project_url` and `service_role_key` — see [supabase/migrations/007_cron_schedule.sql](supabase/migrations/007_cron_schedule.sql) header for setup commands.
 
 ## Quick Start
 
@@ -139,26 +131,30 @@ SerpApi, HasData (Indeed,  ─┤    │   seniority, dedup)        ├─ Job d
 npm install
 
 # Set up env
-cp .env.example .env.local  # fill in required vars
+cp .env.example apps/web/.env.local  # fill in required vars
 
 # Database
 npx supabase db push  # or run migrations manually
 
-# Run
-cd apps/listener && npm run dev   # Terminal 1
-cd apps/web && npm run dev        # Terminal 2 → http://localhost:3000
+# Run the web app locally
+npm run dev:web       # http://localhost:3000
+
+# Run Edge Functions locally (optional, usually tested in staging)
+npm run functions:serve
 ```
 
 ## Deploy
 
 - **Frontend:** Vercel — root dir `apps/web`, add env vars
-- **Listener:** Railway — root dir `apps/listener`, start cmd `npm start`, restart policy: Always
-- **Database:** Supabase — enable Realtime on `job_postings`, create `resumes` storage bucket
+- **Edge Functions:** `npm run functions:deploy` (or via Supabase Dashboard)
+- **Database:** Supabase — enable Realtime on `job_postings`, create `resumes` storage bucket, run migrations
 
 ## Key Design Decisions
 
-- **LLM over regex:** `resume_fit` uses LLM `role_fit` (contextual) over keyword overlap (mechanical). Resume upload no longer auto-recalculates all scores — use rescore button instead.
+- **Edge Functions over persistent daemon:** Stateless, auto-scaling, no Railway cost, cron-driven. The old listener daemon at `apps/listener/` was retired in commit `292b499`.
+- **Queue-based LLM enrichment:** New rows land with `enrichment_status='pending'`; `enrich-batch` cron worker processes them in batches every 2 minutes. No fire-and-forget inside the polling path.
+- **LLM over regex:** `resume_fit` uses LLM `role_fit` (contextual) over keyword overlap (mechanical). Resume upload uses Claude Opus for extraction, all other enrichment uses Haiku.
 - **Two-tier filtering:** Role exclusion (hard block, never inserted) vs seniority exclusion (soft block, inserted as `priority: skip`). Both consolidated in `packages/scoring/src/seniority.ts`.
 - **Pre-compiled regexes:** All 500+ keyword patterns compiled once at module load, not per-job.
-- **Parallel DB queries:** Stats use 6 parallel HEAD count queries instead of fetching all rows.
-- **Cache strategy:** Stats 120s, job list 60s, job detail 60s. Listener caches resume keywords for 5min with manual invalidation endpoint (`POST /cache/invalidate`).
+- **Parallel DB queries:** Stats use parallel HEAD count queries instead of fetching all rows.
+- **Cache strategy:** API routes use `Cache-Control: private, max-age=5, stale-while-revalidate=15`.
