@@ -246,9 +246,18 @@ export default function JobDetailPage() {
                 <option key={s} value={s}>{capitalize(s)}</option>
               ))}
             </select>
-            {job.applied_at && (
-              <div className="text-[11px] text-muted-foreground mt-1">Applied on {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-            )}
+            {(() => {
+              const dates = job.applied_dates?.length
+                ? job.applied_dates
+                : job.applied_at ? [job.applied_at] : []
+              if (!dates.length) return null
+              const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              return (
+                <div className="text-[11px] text-muted-foreground mt-1">
+                  Applied on {dates.map(fmt).join(', ')}
+                </div>
+              )
+            })()}
           </div>
 
           <div className="flex-1" />

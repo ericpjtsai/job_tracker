@@ -36,10 +36,16 @@ export async function PATCH(
   if (typeof body.title === 'string') updates.title = body.title
   if (typeof body.status === 'string') {
     updates.status = body.status
-    // Track when job was applied — preserve applied_at for post-application states
+    // Track when job was applied — append to applied_dates each time; preserve applied_at for post-application states
     if (body.status === 'applied') {
-      const { data: current } = await supabase.from('job_postings').select('applied_at').eq('id', id).single()
-      if (!current?.applied_at) updates.applied_at = new Date().toISOString()
+      const { data: current } = await supabase.from('job_postings').select('applied_at, applied_dates').eq('id', id).single()
+      const now = new Date().toISOString()
+      if (!current?.applied_at) updates.applied_at = now
+      // Append today's date to applied_dates (avoid exact duplicates within the same second)
+      const existing: string[] = current?.applied_dates ?? []
+      if (!existing.includes(now)) {
+        await supabase.from('job_postings').update({ applied_dates: [...existing, now] }).eq('id', id)
+      }
     } else if (STATUSES_CLEARING_APPLIED_AT.includes(body.status)) {
       updates.applied_at = null
     }
