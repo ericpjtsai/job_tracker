@@ -87,9 +87,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Extract keywords from resume text ────────────────────────────────────
-  // Try Claude Opus for richer keyword extraction, fall back to regex
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-  const llmKeywords = anthropicKey ? await extractResumeKeywordsWithLLM(pdfText, anthropicKey) : null
+  // Try Gemini Flash for richer keyword extraction, fall back to regex
+  const geminiKey = process.env.GEMINI_API_KEY
+  const llmKeywords = geminiKey ? await extractResumeKeywordsWithLLM(pdfText, geminiKey) : null
   const keywords = llmKeywords ?? extractResumeKeywords(pdfText)
 
   // ── Store PDF in Supabase Storage ────────────────────────────────────────

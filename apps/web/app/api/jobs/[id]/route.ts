@@ -85,7 +85,7 @@ export async function PATCH(
 
     if (job) {
       const resumeKeywords = resume?.keywords_extracted ?? []
-      const anthropicKey = process.env.ANTHROPIC_API_KEY
+      const anthropicKey = process.env.GEMINI_API_KEY
 
       // Try LLM extraction first, fall back to regex
       const rawLlm = anthropicKey ? await extractKeywordsLLM(updates.page_content, resumeKeywords, anthropicKey) : null

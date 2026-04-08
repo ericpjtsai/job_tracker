@@ -1,6 +1,5 @@
-// LLM-powered keyword extraction — Claude Haiku via fetch (Deno-compatible).
-// Gemini SDK was removed during the Edge Function migration: SDK has Node-only deps and
-// adds bundle weight; Claude via fetch works in both Node and Deno without changes.
+// LLM-powered keyword extraction — Gemini Flash via fetch (Deno-compatible).
+// Gemini REST API is fetch-based and works in both Node and Deno without any SDK.
 // Designed to match enterprise ATS extraction quality (Workday, Greenhouse, Ashby, Indeed, Glassdoor)
 
 export interface LLMKeywordResult {
@@ -156,27 +155,24 @@ export function validateKeywords(
 }
 
 /**
- * Extract keywords using Claude Haiku via fetch.
+ * Extract keywords using Gemini Flash via fetch.
  */
-async function callClaude(prompt: string, apiKey: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      temperature: 0.1,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`)
+async function callGemini(prompt: string, apiKey: string, maxTokens = 1500): Promise<string> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: maxTokens },
+      }),
+      signal: AbortSignal.timeout(20_000),
+    }
+  )
+  if (!res.ok) throw new Error(`Gemini API ${res.status}: ${await res.text()}`)
   const data = await res.json()
-  return data.content?.[0]?.text ?? ''
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 }
 
 /**
@@ -185,7 +181,7 @@ async function callClaude(prompt: string, apiKey: string): Promise<string> {
  */
 export async function extractResumeKeywordsWithLLM(
   resumeText: string,
-  anthropicKey: string,
+  geminiKey: string,
 ): Promise<string[] | null> {
   if (!resumeText || resumeText.length < 100) return null
 
@@ -227,33 +223,14 @@ Resume:
 ${resumeText.slice(0, 8000)}`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 2000,
-        temperature: 0.1,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    })
-    if (!res.ok) throw new Error(`Claude Opus API ${res.status}: ${await res.text()}`)
-    const data = await res.json()
-    const text = data.content?.[0]?.text ?? ''
-
-    // Parse JSON array from response
+    const text = await callGemini(prompt, geminiKey, 2000)
     const match = text.match(/\[[\s\S]*\]/)
     if (!match) return null
     const keywords: unknown = JSON.parse(match[0])
     if (!Array.isArray(keywords)) return null
     return keywords.filter((k): k is string => typeof k === 'string').map(k => k.toLowerCase().trim()).filter(Boolean)
   } catch (err) {
-    console.error('Claude Opus resume extraction failed:', (err as Error).message)
+    console.error('Gemini resume extraction failed:', (err as Error).message)
     return null
   }
 }
@@ -265,19 +242,19 @@ ${resumeText.slice(0, 8000)}`
 export async function extractKeywordsLLM(
   jobDescription: string,
   resumeKeywords: string[],
-  anthropicKey?: string,
+  geminiKey?: string,
 ): Promise<LLMKeywordResult | null> {
   if (!jobDescription || jobDescription.length < 200) return null
-  if (!anthropicKey) return null
+  if (!geminiKey) return null
 
   const prompt = buildPrompt(jobDescription, resumeKeywords)
 
   try {
-    const text = await callClaude(prompt, anthropicKey)
+    const text = await callGemini(prompt, geminiKey)
     const result = parseResponse(text)
     if (result && (result.matched.length + result.missing.length) > 0) return result
   } catch (err) {
-    console.error('Claude Haiku extraction failed:', (err as Error).message)
+    console.error('Gemini keyword extraction failed:', (err as Error).message)
   }
 
   return null
