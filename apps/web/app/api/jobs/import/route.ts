@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
   if (jobsToEnrich.length > 0) {
     after(async () => {
       const supabaseAsync = createServerClient()
-      const anthropicKey = process.env.GEMINI_API_KEY
+      const anthropicKey = process.env.ANTHROPIC_API_KEY
       if (!anthropicKey) return
 
       for (const jobId of jobsToEnrich) {
