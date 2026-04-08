@@ -7,5 +7,12 @@ export { isRoleExcluded, isSeniorityExcluded, getSeniorityBonus, setSeniorityCon
 export type { SeniorityConfig } from './seniority'
 export { KEYWORD_GROUPS, ALL_TERMS, getKeywordGroups, setKeywordGroups, getActiveTerms, resetKeywordGroups, DEFAULT_KEYWORD_GROUPS } from './keywords'
 export type { KeywordGroup } from './keywords'
-export { extractKeywordsLLM, extractResumeKeywordsWithLLM, validateKeywords } from './llm-keywords'
+export {
+  extractKeywordsLLM,
+  extractResumeKeywordsWithLLM,
+  classifyLLMKeywords,
+  validateKeywords, // deprecated alias — prefer classifyLLMKeywords
+  applyTitleCeilings,
+  buildPrompt,
+} from './llm-keywords'
 export type { LLMKeywordResult } from './llm-keywords'

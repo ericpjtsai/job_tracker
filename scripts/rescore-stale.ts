@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { extractKeywordsLLM, validateKeywords } from '../packages/scoring/src/llm-keywords'
+import { extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings } from '../packages/scoring/src/llm-keywords'
 
 function stripHtml(html: string): string {
   return html
@@ -42,7 +42,8 @@ async function main() {
     const content = plainText.slice(0, 12000)
     try {
       const raw = await extractKeywordsLLM(content, resumeKeywords, anthropicKey)
-      const result = raw ? validateKeywords(raw, content, resumeKeywords) : null
+      const classified = raw ? classifyLLMKeywords(raw, content, resumeKeywords) : null
+      const result = classified ? applyTitleCeilings(job.title ?? '', classified) : null
       if (result) {
         const allKw = [...result.matched, ...result.missing]
         const fit = result.role_fit

@@ -8,66 +8,52 @@ export interface LLMKeywordResult {
   role_fit: number  // 0-100 LLM-assessed fit score
 }
 
-const PROMPT = `You are an AI recruiting agent screening a job description against a candidate's resume. Your job is EXHAUSTIVE keyword extraction followed by classification. You will be graded on thoroughness — returning fewer than 40 keywords is a failure.
+const PROMPT = `You are an AI recruiting agent. Your job is to extract keywords **ACTUALLY PRESENT in the job description below** and classify them against the candidate's resume.
 
-## Step 1 — Extract (target 40-70 keywords, MINIMUM 40)
+## THE MOST IMPORTANT RULE — READ TWICE
+**Every keyword you return MUST appear verbatim in the JD text (or as an obvious morphological variant: "designs" → "design", "prototyping" → "prototype").** You are NOT guessing what keywords a role might need. You are NOT listing industry-standard design terms. You are scanning the JD and extracting what is literally written there.
 
-Read the JD line-by-line and extract EVERY meaningful keyword. Include verbatim phrases from the JD, not just canonical terms. Use these categories as extraction hints (the output is flat, not grouped):
+Forbidden behavior (examples of hallucination):
+- Including "design tokens" because it's a common design concept, when the JD never mentions tokens → WRONG
+- Including "Figma" because it's a standard tool, when the JD never mentions Figma → WRONG
+- Including "B2B SaaS" because the company is a SaaS, when the JD text never uses those words → WRONG (unless you can infer it from a verbatim product description)
+- Including "journey mapping", "personas", "competitive analysis", etc. from a checklist when none appear in the JD → WRONG
 
-### Domain, Industry & Product
-B2B, SaaS, enterprise, fintech, healthtech, ecommerce, marketplace, CRM, dashboard, analytics, workflow automation, developer tools, platform, API, data visualization, internal tools, complex systems, multi-product.
-Extract company-specific product vocab verbatim: "conversational AI platform", "AI-first products", "agent UX", "interaction patterns", "AI-native interactions".
-Infer from company context (Stripe → fintech/payments; Decagon → conversational AI/AI agents; Salesforce → CRM/enterprise).
+If you cannot find a word/phrase in the JD by ctrl-F, DO NOT return it.
 
-### Communication Channels & Modalities
-voice, chat, email, SMS, web, mobile, desktop, in-app, notifications, multimodal, phone, messaging
+## Step 1 — Scan the JD for keywords
 
-### AI & Emerging Technology
-AI-powered, generative AI, LLM, agentic, AI agents, conversational UI, copilot, prompt engineering, RAG, human-in-the-loop, multi-agent, machine learning, AI-native, agent-based systems, automation workflows, AI product design
+Read the JD paragraph by paragraph and extract every meaningful noun phrase, tool name, channel, requirement, culture signal, and role descriptor that actually appears. Use these category HINTS to remind yourself what KINDS of things to look for — these are NOT checklists to copy from:
 
-### Core Design Competencies
-product design, UX design, UI design, interaction design, visual design, design systems, prototyping, wireframing, information architecture, responsive design, accessibility, WCAG, mobile design, design critique, craft, component library, design tokens, high-fidelity, pixel-perfect, 0-to-1, end-to-end design, usability, visual polish, intuitive interfaces, concept to launch
-Deliverables: wireframes, prototypes, mockups, user flows, design specs, style guides
+- **Domain / product**: industry terms, product type, company-specific vocab (copy verbatim phrases like "conversational AI platform", "digital therapy experiences", "rehabilitation care")
+- **Channels**: voice, chat, email, SMS, web, mobile, etc. — only if mentioned
+- **AI / emerging tech**: LLM, agents, conversational UI, etc. — only if mentioned
+- **Design competencies**: product design, UX, interaction design, prototyping, design systems, etc. — only if mentioned
+- **Research / methods**: user research, A/B testing, usability, etc. — only if mentioned
+- **Tools**: Figma, Cursor, Claude, etc. — only if the specific tool is named
+- **Culture / velocity**: fast-paced, ownership, remote, in-office, high-growth, etc. — only if mentioned
+- **Explicit requirements**: years of experience ("4+ years"), portfolio, language requirements (e.g. "C1 English", "B2 German"), degree, etc.
 
-### Research & Methods
-user research, usability testing, A/B testing, design thinking, user interviews, journey mapping, personas, competitive analysis, data-driven design, design sprint, rapid prototyping, heuristic evaluation, lean UX, jobs to be done, live feedback loops, Agile, Scrum, OKRs, DesignOps
+Prefer verbatim phrases over canonical rewrites. If the JD says "digital therapy experiences", return that phrase, not "healthtech UX".
 
-### Tools & Technologies
-Figma, Sketch, Framer, Adobe Creative Cloud, Miro, FigJam, HTML, CSS, React, JavaScript, Git, GitHub, Jira, Notion, Cursor, Claude, Claude Code, Maze, UserTesting, Hotjar, Amplitude, Mixpanel. Include any AI tool or framework mentioned by name.
+## Step 2 — Classify each extracted keyword
 
-### Collaboration, Culture & Velocity Signals
-cross-functional, stakeholder management, mentorship, storytelling, presenting to executives, ambiguity, ambiguous environments, strategic thinking, systems thinking, facilitation, coaching.
-Velocity/culture signals (extract verbatim when present): fast-paced, high-ownership, ownership mindset, ship quickly, iterate often, in-office, hybrid, remote, velocity, high-visibility, just get it done, polymath, high-growth, startup.
-Misfit/seniority signals: people management, team lead, managing designers, hiring, principal, staff, director.
-
-### Explicit Requirements (extract atomically, one keyword each)
-Years of experience: "4+ years", "5+ years", "7+ years" — extract the exact phrase.
-Portfolio: "portfolio", "case studies", "strong portfolio".
-Role-type: "designer who codes", "prototyping with code", "builder mindset".
-Any specific framework, language, platform, or certification mentioned.
-
-## Step 2 — Classify every extracted keyword
-
-For EACH keyword you extracted in Step 1, put it into exactly one of:
-- **"matched"**: keyword is in BOTH the JD AND the candidate's resume keywords. Use SEMANTIC matching — synonyms count:
-  - "user-centered design" ↔ "user-centered" = MATCHED
+For each keyword you found in Step 1, put it into exactly one of:
+- **"matched"**: keyword is in the JD AND semantically present in the candidate's resume keywords. Synonyms count:
   - "UI/UX" ↔ "UX design" = MATCHED
   - "cross-team collaboration" ↔ "cross-functional collaboration" = MATCHED
-  - "data-driven decisions" ↔ "data-driven design" = MATCHED
-- **"missing"**: keyword is in the JD but NOT in the resume (even accounting for synonyms)
-
-Every extracted keyword MUST end up in one of the two lists. Do not drop keywords because you're unsure.
+- **"missing"**: keyword is in the JD but NOT in the resume
 
 ## Hard Rules
-- **MINIMUM 40 keywords total (matched + missing combined). Target 40-70. Fewer than 40 = failure — re-scan the JD for missed channels, culture signals, tools, and verbatim product phrases.**
-- Only extract keywords ACTUALLY PRESENT in the JD (or directly inferable from company context)
-- Lowercase, 1-4 words each, deduplicated
-- Prefer verbatim JD phrases over canonical rewrites when the JD uses specific language
+- **Every keyword MUST come from the JD text.** This overrides any category or example list above.
+- Target: 25-60 total keywords — but **quality over quantity**. A short, thin JD legitimately produces fewer keywords. A rich JD should produce 40+.
+- Lowercase, 1-5 words each, deduplicated
+- Include requirement phrases atomically: "4+ years", "strong portfolio", "C1 English", "B2 German", "remote-first"
 
 ## DO NOT extract
-- Generic filler: "team", "work", "experience" (alone), "role", "opportunity", "responsibilities"
-- Salary/benefits, legal/EEO boilerplate, location names
-- Resume keywords that don't appear in the JD
+- Generic filler: "team", "work", "role", "opportunity", "responsibilities"
+- Salary/benefits, legal/EEO boilerplate, location names (but DO extract language skill requirements)
+- Any keyword that is not literally in the JD
 
 Resume keywords: {RESUME_KEYWORDS}
 
@@ -89,23 +75,49 @@ Scoring rubric (STRICT — most jobs should score 40-70):
 - 15-29: Poor — mostly unrelated (graphic designer, PM, engineer, analyst)
 - 0-14: No match — completely different field
 
-HARD OVERRIDES (these are FLOORS/CEILINGS — apply them after your initial scoring, then use the higher/lower bound):
-- Title contains "engineer"/"developer"/"analyst"/"scientist"/"manager"(non-design)/"coordinator"/"specialist"/"therapist"/"fellowship": score ≤ 15
-- Primarily graphic/brand/print design, no UX/product: score ≤ 30
-- Primarily service design, content design, or research-only: score ≤ 45
-- Requires 7+ years AND lead/principal/staff level: score ≤ 55
-- B2B/enterprise/SaaS company AND core Product/UX Designer role: score ≥ 72
-- Mentions design systems AND (AI/ML OR agentic AI OR conversational UI OR AI agents): score ≥ 82
-- B2B/SaaS + AI product (conversational, agentic, AI-powered, AI-native) + core Product/UX Designer role: score ≥ 88 (this is the Decagon-class profile — near-perfect fit)
-- High-growth AI startup + core Product Designer role: additional +3 boost (cap at 95)
+Scoring notes (post-processing code applies title-based ceilings separately, so focus on the rubric):
+
+FLOORS (apply if NO disqualifying title):
+- B2B/enterprise/SaaS + core Product/UX Designer role → score ≥ 70
+- Above + design systems + (AI/ML OR agentic AI OR conversational UI OR AI agents) → score ≥ 78
+- Above + AI is the core product (conversational AI platform, agentic AI product) → score ≥ 85
+- High-growth B2B AI startup + core Product Designer → additional +3 (cap at 93)
+
+SOFT CEILINGS (non-title-based):
+- Consumer/entertainment/creator-economy (Netflix, Spotify, gaming) → cap at 65
+- Consumer health / B2C healthtech (wellness, fitness, maternity apps) → cap at 70
+- Primarily graphic/brand/print, no UX/product → cap at 30
+- Primarily service/content/research-only → cap at 45
+- Requires 7+ years AND Lead/Principal/Staff/Director title → cap at 55
 
 Respond with ONLY valid JSON, no markdown fences:
 {"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 85}`
 
+/**
+ * Strip HTML tags, inline styles, and entities from a job description so the
+ * LLM sees actual text, not bloated CSS. Critical for JDs posted via Ashby/
+ * Greenhouse where a 34k-char payload can be 90% inline style attributes.
+ */
+function stripHtml(text: string): string {
+  return text
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function buildPrompt(jobDescription: string, resumeKeywords: string[]): string {
+  const cleaned = stripHtml(jobDescription)
   return PROMPT
     .replace('{RESUME_KEYWORDS}', resumeKeywords.join(', '))
-    .replace('{JOB_DESCRIPTION}', jobDescription.slice(0, 12000))
+    .replace('{JOB_DESCRIPTION}', cleaned.slice(0, 12000))
 }
 
 function parseResponse(text: string): LLMKeywordResult | null {
@@ -141,10 +153,17 @@ function keywordExistsInText(keyword: string, textLower: string): boolean {
 }
 
 /**
- * Post-process LLM results: remove hallucinated keywords from both "matched"
- * and "missing" that don't actually appear in the JD text.
+ * Post-process LLM keyword extraction into the final matched/missing lists.
+ *
+ * Does TWO things (neither is pure "validation" — hence the rename from
+ * `validateKeywords`):
+ *   1. Drops hallucinations — a keyword must actually appear in the JD text
+ *   2. Re-classifies matched↔missing based on exact presence in the resume
+ *      set. Example: LLM returns "wireframes" in "matched" but the resume
+ *      only has "wireframing" — we demote to "missing" rather than drop,
+ *      preserving the legitimate JD signal.
  */
-export function validateKeywords(
+export function classifyLLMKeywords(
   result: LLMKeywordResult,
   jobDescription: string,
   resumeKeywords: string[]
@@ -152,20 +171,62 @@ export function validateKeywords(
   const jdLower = jobDescription.toLowerCase()
   const resumeSet = new Set(resumeKeywords.map(k => k.toLowerCase()))
 
-  // Filter matched: keyword must appear in BOTH the JD and the resume
-  const validMatched = result.matched.filter(k => {
-    const inJD = keywordExistsInText(k, jdLower)
-    const inResume = resumeSet.has(k)
-    return inJD && inResume
-  })
+  // Union matched + missing, dedupe, keep only those that actually appear in the JD
+  const allCandidates = [...new Set([...result.matched, ...result.missing])]
+  const presentInJD = allCandidates.filter(k => keywordExistsInText(k, jdLower))
 
-  // Filter missing: keyword must appear in the JD but NOT in the resume
-  const validMissing = result.missing.filter(k => {
-    if (resumeSet.has(k) && !keywordExistsInText(k, jdLower)) return false
-    return keywordExistsInText(k, jdLower)
-  })
+  // Classify by exact presence in resume keyword set
+  const validMatched = presentInJD.filter(k => resumeSet.has(k))
+  const validMissing = presentInJD.filter(k => !resumeSet.has(k))
 
   return { matched: validMatched, missing: validMissing, role_fit: result.role_fit }
+}
+
+/**
+ * Backwards-compat alias. Prefer `classifyLLMKeywords`.
+ * @deprecated — use classifyLLMKeywords instead
+ */
+export const validateKeywords = classifyLLMKeywords
+
+/**
+ * Apply deterministic title-based role_fit ceilings that the LLM prompt
+ * doesn't reliably enforce. This is the post-processing safety net for
+ * categories where Haiku ignores the prompt's HARD CEILING rules.
+ *
+ * Background: the prompt states "Title contains 'design engineer' → score
+ * ≤ 35" but Haiku returns 72-87 anyway (it applies B2B/design-systems floors
+ * on top). Rather than keep iterating on prompt wording, we clamp here.
+ *
+ * Lesson: when an LLM prompt rule doesn't fire reliably, move it to
+ * post-processing code. Deterministic, testable, free.
+ */
+export function applyTitleCeilings(title: string, result: LLMKeywordResult): LLMKeywordResult {
+  const t = (title || '').toLowerCase()
+  let cap = 100
+
+  // Pure engineering roles (non-design)
+  if (/\b(software engineer|backend engineer|frontend engineer|full[- ]?stack engineer|data engineer|ml engineer|machine learning engineer)\b/.test(t)) {
+    cap = Math.min(cap, 15)
+  }
+  // Hybrid design-eng roles — NOT core product design
+  if (/\b(design engineer|product design engineer|ux engineer|ui engineer)\b/.test(t)) {
+    cap = Math.min(cap, 35)
+  }
+  // Junior / learning roles
+  if (/\b(intern|internship|student|apprentice|trainee)\b/.test(t)) {
+    cap = Math.min(cap, 45)
+  }
+  // Other non-design roles — analyst, scientist, coordinator, etc.
+  if (/\b(analyst|data scientist|research scientist|coordinator|therapist|fellowship)\b/.test(t)) {
+    cap = Math.min(cap, 15)
+  }
+  // Associate Product Manager / Product Manager (not a designer)
+  if (/\bassociate product manager\b|\bproduct manager\b/.test(t) && !/\bdesign/.test(t)) {
+    cap = Math.min(cap, 20)
+  }
+
+  if (result.role_fit <= cap) return result
+  return { ...result, role_fit: cap }
 }
 
 /**

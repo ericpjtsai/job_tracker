@@ -22,6 +22,10 @@ out/
 data/firehose_raw.jsonl
 reports/
 
+# Benchmark + debug outputs (scripts/*.json transient dumps)
+scripts/.benchmark-keywords.json
+scripts/.*.json
+
 # OS
 .DS_Store
 Thumbs.db

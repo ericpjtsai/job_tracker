@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
-import { scorePosting, computeResumeFit, extractKeywordsLLM, validateKeywords, setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings, setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,11 +85,12 @@ export async function PATCH(
 
     if (job) {
       const resumeKeywords = resume?.keywords_extracted ?? []
-      const anthropicKey = process.env.GEMINI_API_KEY
+      const anthropicKey = process.env.ANTHROPIC_API_KEY
 
       // Try LLM extraction first, fall back to regex
       const rawLlm = anthropicKey ? await extractKeywordsLLM(updates.page_content, resumeKeywords, anthropicKey) : null
-      const llmResult = rawLlm ? validateKeywords(rawLlm, updates.page_content, resumeKeywords) : null
+      const classified = rawLlm ? classifyLLMKeywords(rawLlm, updates.page_content, resumeKeywords) : null
+      const llmResult = classified ? applyTitleCeilings(job.title ?? '', classified) : null
 
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]

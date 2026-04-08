@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-import { scorePosting, computeResumeFit, extractKeywordsLLM, validateKeywords } from '@job-tracker/scoring'
+import { scorePosting, computeResumeFit, extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings } from '@job-tracker/scoring'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -356,12 +356,13 @@ export async function POST(req: NextRequest) {
       if (!anthropicKey) return
 
       for (const jobId of jobsToEnrich) {
-        const { data: job } = await supabaseAsync.from('job_postings').select('page_content, keywords_matched').eq('id', jobId).single()
+        const { data: job } = await supabaseAsync.from('job_postings').select('title, page_content, keywords_matched').eq('id', jobId).single()
         if (!job?.page_content) continue
         // Manual imports always get LLM — even sparse descriptions benefit from role_fit scoring
 
         const rawLlm = await extractKeywordsLLM(job.page_content, resumeKeywords, anthropicKey)
-        const llmResult = rawLlm ? validateKeywords(rawLlm, job.page_content, resumeKeywords) : null
+        const classified = rawLlm ? classifyLLMKeywords(rawLlm, job.page_content, resumeKeywords) : null
+        const llmResult = classified ? applyTitleCeilings(job.title ?? '', classified) : null
         if (llmResult) {
           const allKeywords = [...llmResult.matched, ...llmResult.missing]
           const fit = llmResult.role_fit

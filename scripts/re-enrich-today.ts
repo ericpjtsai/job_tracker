@@ -2,7 +2,8 @@
 // Usage: npx tsx scripts/re-enrich-today.ts
 
 import { createClient } from '@supabase/supabase-js'
-import { extractKeywordsLLM, validateKeywords } from '../packages/scoring/src/llm-keywords'
+import { extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings } from '../packages/scoring/src/llm-keywords'
+import { getPTMidnightToday } from './_shared/time'
 
 async function main() {
   const supabase = createClient(
@@ -12,20 +13,7 @@ async function main() {
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) { console.log('No ANTHROPIC_API_KEY set'); return }
 
-  // Today midnight in Pacific time
-  const now = new Date()
-  const ptDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(now)
-  const tzName = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? 'GMT-8'
-  const offsetH = parseInt(tzName.match(/GMT([+-]\d+)/)?.[1] ?? '-8')
-  const sign = offsetH < 0 ? '-' : '+'
-  const absH = String(Math.abs(offsetH)).padStart(2, '0')
-  const todayMidnight = new Date(`${ptDate}T00:00:00${sign}${absH}:00`).toISOString()
+  const todayMidnight = getPTMidnightToday()
 
   console.log(`Querying manual jobs since ${todayMidnight}`)
 
@@ -62,7 +50,8 @@ async function main() {
         continue
       }
 
-      const llm = validateKeywords(raw, job.page_content, resumeKeywords)
+      const classified = classifyLLMKeywords(raw, job.page_content, resumeKeywords)
+      const llm = applyTitleCeilings(job.title ?? '', classified)
       const allKeywords = [...llm.matched, ...llm.missing]
       const fit = llm.role_fit
       const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'
