@@ -113,33 +113,33 @@ SELECT cron.schedule('ats-batch-3',  '45 * * * *', $$SELECT call_edge('poll-ats'
 -- ─────────────────────────────────────────────────────
 -- Mantiks — weekly (Monday 6am UTC)
 -- ─────────────────────────────────────────────────────
-SELECT cron.schedule('mantiks-weekly', '0 6 * * 1', $$SELECT call_edge('poll-mantiks')$$);
+SELECT cron.schedule('mantiks-weekly', '0 13 * * 1', $$SELECT call_edge('poll-mantiks')$$);
 
 -- ─────────────────────────────────────────────────────
 -- LinkedIn (rewrite of npm scraper) — 2x daily
 -- ─────────────────────────────────────────────────────
-SELECT cron.schedule('linkedin-am', '0 6 * * *',  $$SELECT call_edge('poll-linkedin')$$);
-SELECT cron.schedule('linkedin-pm', '0 18 * * *', $$SELECT call_edge('poll-linkedin')$$);
+SELECT cron.schedule('linkedin-am', '0 13 * * *', $$SELECT call_edge('poll-linkedin')$$);
+SELECT cron.schedule('linkedin-pm', '0 1 * * *',  $$SELECT call_edge('poll-linkedin')$$);
 
 -- ─────────────────────────────────────────────────────
 -- SerpApi — 2x daily
 -- ─────────────────────────────────────────────────────
-SELECT cron.schedule('serpapi-am', '5 6 * * *',  $$SELECT call_edge('poll-serpapi')$$);
-SELECT cron.schedule('serpapi-pm', '5 18 * * *', $$SELECT call_edge('poll-serpapi')$$);
+SELECT cron.schedule('serpapi-am', '5 13 * * *', $$SELECT call_edge('poll-serpapi')$$);
+SELECT cron.schedule('serpapi-pm', '5 1 * * *',  $$SELECT call_edge('poll-serpapi')$$);
 
 -- ─────────────────────────────────────────────────────
 -- HasData — Indeed + Glassdoor 2x daily, staggered to avoid bursts
 -- ─────────────────────────────────────────────────────
-SELECT cron.schedule('hasdata-indeed-am', '10 6 * * *',  $$SELECT call_edge('poll-hasdata', '{"platform":"indeed"}'::jsonb)$$);
-SELECT cron.schedule('hasdata-indeed-pm', '10 18 * * *', $$SELECT call_edge('poll-hasdata', '{"platform":"indeed"}'::jsonb)$$);
-SELECT cron.schedule('hasdata-glass-am',  '12 6 * * *',  $$SELECT call_edge('poll-hasdata', '{"platform":"glassdoor"}'::jsonb)$$);
-SELECT cron.schedule('hasdata-glass-pm',  '12 18 * * *', $$SELECT call_edge('poll-hasdata', '{"platform":"glassdoor"}'::jsonb)$$);
+SELECT cron.schedule('hasdata-indeed-am', '10 13 * * *', $$SELECT call_edge('poll-hasdata', '{"platform":"indeed"}'::jsonb)$$);
+SELECT cron.schedule('hasdata-indeed-pm', '10 1 * * *',  $$SELECT call_edge('poll-hasdata', '{"platform":"indeed"}'::jsonb)$$);
+SELECT cron.schedule('hasdata-glass-am',  '12 13 * * *', $$SELECT call_edge('poll-hasdata', '{"platform":"glassdoor"}'::jsonb)$$);
+SELECT cron.schedule('hasdata-glass-pm',  '12 1 * * *',  $$SELECT call_edge('poll-hasdata', '{"platform":"glassdoor"}'::jsonb)$$);
 
 -- ─────────────────────────────────────────────────────
 -- GitHub Jobright repos — 2x daily
 -- ─────────────────────────────────────────────────────
-SELECT cron.schedule('github-am', '0 7 * * *',  $$SELECT call_edge('poll-github')$$);
-SELECT cron.schedule('github-pm', '0 19 * * *', $$SELECT call_edge('poll-github')$$);
+SELECT cron.schedule('github-am', '0 14 * * *', $$SELECT call_edge('poll-github')$$);
+SELECT cron.schedule('github-pm', '0 2 * * *',  $$SELECT call_edge('poll-github')$$);
 
 -- ─────────────────────────────────────────────────────
 -- Enrichment queue worker — every 2 minutes

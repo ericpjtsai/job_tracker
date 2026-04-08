@@ -26,7 +26,7 @@ async function main() {
 
   const groupSummary = groups.map((g: any) => `${g.name}: ${g.terms.join(', ')}`).join('\n\n')
 
-  const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' })
   console.log('Calling Gemini 2.5 Pro...')
 
   const result = await model.generateContent(`Here is a Product Designer's resume:

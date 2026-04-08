@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerClient()
   const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
+  const source = req.nextUrl.searchParams.get('source') ?? 'import'
 
   // Today midnight in Pacific time, expressed as UTC ISO.
   // The previous one-liner `new Date(toLocaleDateString(..., { timeZone: 'PT' }))`
@@ -40,11 +41,13 @@ export async function GET(req: NextRequest) {
 
   // Run queries in parallel
   const [listResult, todayResult] = await Promise.all([
-    supabase
-      .from('job_postings')
-      .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
-      .eq('source_type', 'manual')
-      .order('applied_at', { ascending: false, nullsFirst: false })
+    (() => {
+      let q = supabase
+        .from('job_postings')
+        .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
+      if (source === 'import') q = q.eq('source_type', 'manual')
+      return q.order('applied_at', { ascending: false, nullsFirst: false })
+    })()
       .order('resume_fit', { ascending: false, nullsFirst: false })
       .range(page * limit, (page + 1) * limit - 1),
     supabase

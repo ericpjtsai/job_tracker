@@ -79,12 +79,13 @@ export default function ImportPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchOpen, setHistorySearchOpen] = useState(false)
+  const [historySource, setHistorySource] = useState<'import' | 'all'>('import')
   const sentinelRef = useRef<HTMLDivElement>(null)
   const PAGE_SIZE = 30
 
-  const loadHistory = useCallback(async (page = 0, append = false) => {
+  const loadHistory = useCallback(async (page = 0, append = false, source = historySource) => {
     if (page > 0) setLoadingMore(true)
-    const res = await fetch(`/api/jobs/import?page=${page}&limit=${PAGE_SIZE}`)
+    const res = await fetch(`/api/jobs/import?page=${page}&limit=${PAGE_SIZE}&source=${source}`)
     if (res.ok) {
       const data = await res.json()
       setHistory(prev => {
@@ -101,7 +102,7 @@ export default function ImportPage() {
     setHistoryLoading(false)
   }, [])
 
-  useEffect(() => { loadHistory() }, [loadHistory])
+  useEffect(() => { loadHistory(0, false, historySource) }, [loadHistory, historySource])
 
   // Poll for LLM scoring results on recently imported jobs
   const [enriching, setEnriching] = useState(false)
@@ -136,12 +137,12 @@ export default function ImportPage() {
     if (!el) return
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && !loadingMore && !historySearch && history.length < historyTotal) {
-        loadHistory(historyPage + 1, true)
+        loadHistory(historyPage + 1, true, historySource)
       }
     }, { rootMargin: '200px' })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [history.length, historyTotal, historyPage, loadingMore, loadHistory])
+  }, [history.length, historyTotal, historyPage, loadingMore, loadHistory, historySource])
 
   async function handleFiles(files: FileList | File[]) {
     const mdFiles = Array.from(files).filter(f => f.name.endsWith('.md'))
@@ -352,6 +353,14 @@ export default function ImportPage() {
           <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-medium text-muted-foreground">
             <div className="flex items-center gap-2">
               <span>Import history (<span className="tabular-nums">{historyTotal}</span>)</span>
+              <div className="inline-flex items-center bg-muted rounded-full p-[2px] text-[10px]">
+                <button type="button" onClick={() => setHistorySource('import')}
+                  className={`px-2 py-0.5 rounded-full transition-colors ${historySource === 'import' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                >Import</button>
+                <button type="button" onClick={() => setHistorySource('all')}
+                  className={`px-2 py-0.5 rounded-full transition-colors ${historySource === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                >All</button>
+              </div>
               <button type="button" aria-label="Search" onClick={() => { setHistorySearchOpen(!historySearchOpen); if (historySearchOpen) setHistorySearch('') }}
                 className={`transition-colors ${historySearchOpen || historySearch ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               >
