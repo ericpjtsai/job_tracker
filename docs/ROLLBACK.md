@@ -1,5 +1,17 @@
 # Rollback Runbook — Listener → Edge Functions Migration
 
+> **⚠ Historical note:** As of the commit that removed `apps/listener/` (Phase I cleanup, after `292b499`), the listener code no longer exists on `main`. To restore it for rollback, first run:
+>
+> ```bash
+> git checkout 292b499~1 -- apps/listener/
+> # or from a dedicated rollback branch:
+> git checkout -b rollback/restore-listener
+> git checkout 292b499~1 -- apps/listener/
+> git commit -m "Restore listener daemon for rollback"
+> ```
+>
+> Then follow the rest of this runbook. All other steps below remain accurate — the Edge Functions, DB tables, cron schedule, and env var names are unchanged.
+
 This document covers how to safely undo (or partially undo) the listener-to-Supabase Edge Functions migration. Read the **important caveat** at the end before doing anything drastic.
 
 ## TL;DR
