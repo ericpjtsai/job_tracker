@@ -271,7 +271,7 @@ export default function ResumePage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-semibold">Resume</h1>
+      <h1 className="text-xl font-normal tracking-tight">Resume</h1>
 
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">{error}</div>
@@ -282,7 +282,7 @@ export default function ResumePage() {
         <h2 className="text-xs font-medium text-muted-foreground">ATS Resume</h2>
 
         {atsActive ? (
-          <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverAts ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('ats')}>
+          <div className={`bg-card rounded-lg overflow-hidden border relative transition-all shadow-stripe-sm ${dragOverAts ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('ats')}>
             {dragOverAts && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/5 rounded-lg">
                 <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
@@ -399,7 +399,7 @@ export default function ResumePage() {
         <h2 className="text-xs font-medium text-muted-foreground">Hiring Manager Resume</h2>
 
         {hmActive ? (
-          <div className={`bg-card rounded-lg overflow-hidden border relative transition-colors ${dragOverHm ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('hiring_manager')}>
+          <div className={`bg-card rounded-lg overflow-hidden border relative transition-all shadow-stripe-sm ${dragOverHm ? 'border-primary border-dashed border-2' : ''}`} {...dropHandlers('hiring_manager')}>
             {dragOverHm && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/5 rounded-lg">
                 <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
@@ -476,7 +476,7 @@ export default function ResumePage() {
           <h2 className="text-xs font-medium text-muted-foreground mb-3">Upload History</h2>
           <div className="space-y-2">
             {versions.map((v) => (
-              <div key={v.id} className="bg-card rounded-lg border px-4 py-3">
+              <div key={v.id} className="bg-card rounded-lg border px-4 py-3 shadow-stripe-sm">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate text-foreground">{v.filename ?? 'resume.pdf'}</div>

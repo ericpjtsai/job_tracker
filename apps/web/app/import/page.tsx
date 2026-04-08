@@ -177,7 +177,7 @@ export default function ImportPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold">Import</h1>
+        <h1 className="text-xl font-normal tracking-tight">Import</h1>
         <div className="relative inline-flex items-center bg-muted rounded-full p-[3px] text-xs">
           <button type="button" onClick={() => setMode('manual')}
             className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${mode === 'manual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
@@ -189,7 +189,7 @@ export default function ImportPage() {
       </div>
 
       {mode === 'manual' ? (
-        <div className="bg-card rounded-lg border px-4 py-4 space-y-3">
+        <div className="bg-card rounded-lg border px-4 py-4 space-y-3 shadow-stripe-sm">
           <div className="grid sm:grid-cols-3 gap-3">
             <Input placeholder="Job title *" value={manualForm.title} disabled={isDemo} onChange={(e) => setManualForm(f => ({ ...f, title: e.target.value }))} />
             <div className="relative" ref={companyRef}>
@@ -227,7 +227,7 @@ export default function ImportPage() {
                 const visible = filtered.slice(0, companyLimit)
                 const more = filtered.length - visible.length
                 return (
-                  <div id="company-listbox" role="listbox" aria-label="Company suggestions" className="absolute z-50 top-full mt-1 w-full bg-card border rounded-md shadow-md max-h-[220px] overflow-y-auto"
+                  <div id="company-listbox" role="listbox" aria-label="Company suggestions" className="absolute z-50 top-full mt-1 w-full bg-card border rounded-md shadow-stripe-elevated max-h-[220px] overflow-y-auto"
                     onScroll={(e) => {
                       const el = e.currentTarget
                       if (more > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
