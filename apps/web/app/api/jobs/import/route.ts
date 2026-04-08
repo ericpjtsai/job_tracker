@@ -16,8 +16,27 @@ export async function GET(req: NextRequest) {
   const page = parseInt(req.nextUrl.searchParams.get('page') ?? '0')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
 
-  // Today midnight in Pacific time (consistent across local dev and Vercel/UTC)
-  const todayMidnight = new Date(new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })).toISOString()
+  // Today midnight in Pacific time, expressed as UTC ISO.
+  // The previous one-liner `new Date(toLocaleDateString(..., { timeZone: 'PT' }))`
+  // looked correct but parsed the date string in the JS RUNTIME's local timezone,
+  // so on Vercel (UTC) it produced midnight UTC, not midnight PT — a 7-hour-early
+  // window that miscounted yesterday-evening applications as today's.
+  // This version computes the live PT offset and assembles a properly-anchored ISO.
+  const todayMidnight = (() => {
+    const now = new Date()
+    const ptDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(now) // e.g. "2026-04-08"
+    const tzName = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      timeZoneName: 'shortOffset',
+    }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? 'GMT-8'
+    const offsetH = parseInt(tzName.match(/GMT([+-]\d+)/)?.[1] ?? '-8')
+    const sign = offsetH < 0 ? '-' : '+'
+    const absH = String(Math.abs(offsetH)).padStart(2, '0')
+    return new Date(`${ptDate}T00:00:00${sign}${absH}:00`).toISOString()
+  })()
 
   // Run queries in parallel
   const [listResult, todayResult] = await Promise.all([
