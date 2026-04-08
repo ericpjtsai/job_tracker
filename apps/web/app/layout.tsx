@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
-import { Inter, Space_Grotesk } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Nav } from '@/components/nav'
 import { DemoModeProvider } from '@/lib/demo-mode'
 
-const inter = Inter({ subsets: ['latin'] })
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-label' })
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Job Tracker',
@@ -15,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} ${spaceGrotesk.variable}`}>
+      <body className={`${inter.variable} font-sans`}>
         <DemoModeProvider>
           <div className="min-h-screen bg-background">
             <Nav />

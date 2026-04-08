@@ -380,7 +380,7 @@ function Section({ title, badge, defaultOpen = false, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="bg-card rounded-lg overflow-hidden border">
+    <div className="bg-card rounded-lg overflow-hidden border shadow-stripe-sm hover:shadow-stripe transition-shadow">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -476,7 +476,7 @@ function ConfigSection({ id, title, description, children, saving, hasChanges, o
         className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors ${open ? 'bg-muted/50' : 'hover:bg-muted/50'}`}
       >
         <div>
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 className="text-sm font-medium">{title}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
         <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-muted-foreground/50 transition-transform shrink-0 ml-3 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -517,7 +517,7 @@ function SourceCard({ source }: { source: Source }) {
   const [open, setOpen] = useState(false)
   const isAts = source.id === 'ats'
   return (
-    <div className={`bg-card rounded-lg overflow-hidden border ${isAts ? 'md:col-span-2' : ''}`}>
+    <div className={`bg-card rounded-lg overflow-hidden border shadow-stripe-sm hover:shadow-stripe transition-shadow ${isAts ? 'md:col-span-2' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -833,7 +833,7 @@ export default function SourcesPage() {
     <div className="space-y-6">
       <div>
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-foreground">Sources</h1>
+          <h1 className="text-xl font-normal text-foreground tracking-tight">Sources</h1>
           <div className="text-xs text-muted-foreground">
             {liveError ? (
               <span className="text-red-500">Backend unreachable</span>
@@ -1105,7 +1105,7 @@ function LiveSourceCard({ source, onTrigger, dbCount, disabled }: { source: Live
   }
 
   return (
-    <div className="bg-card rounded-lg overflow-hidden border">
+    <div className="bg-card rounded-lg overflow-hidden border shadow-stripe-sm hover:shadow-stripe transition-shadow">
       <button
         type="button"
         onClick={() => setOpen(!open)}

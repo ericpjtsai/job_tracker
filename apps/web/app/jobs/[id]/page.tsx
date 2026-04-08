@@ -202,11 +202,11 @@ export default function JobDetailPage() {
       </div>
 
       {/* ── Header card ──────────────────────────────────────────────────── */}
-      <div className="bg-card rounded-lg p-6 border">
+      <div className="bg-card rounded-lg p-6 border shadow-stripe-sm">
         {/* Title + Fit */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold leading-tight">{job.title ?? 'Untitled'}</h1>
+            <h1 className="text-lg font-normal leading-tight tracking-tight">{job.title ?? 'Untitled'}</h1>
             <div className="text-sm mt-0.5">
               {[
                 job.company && <span key="co" className="font-medium">{job.company}</span>,
@@ -220,7 +220,7 @@ export default function JobDetailPage() {
             </div>
           </div>
           {job.resume_fit !== null && (
-            <span className="text-lg font-semibold tabular-nums text-emerald-700 shrink-0">{job.resume_fit}%</span>
+            <span className="text-lg font-light tabular-nums text-emerald-700 shrink-0">{job.resume_fit}%</span>
           )}
         </div>
 
@@ -283,7 +283,7 @@ export default function JobDetailPage() {
       <div className="space-y-5">
 
           {/* Details — merged description + link with tab switch */}
-          <div className="bg-card rounded-lg border overflow-hidden">
+          <div className="bg-card rounded-lg border overflow-hidden shadow-stripe-sm">
             {/* Header with tab switch */}
             <div className={`px-6 py-4 flex items-center justify-between transition-colors ${descOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`}>
               <div className="flex items-center gap-3">
@@ -452,7 +452,7 @@ export default function JobDetailPage() {
           </div>
 
           {/* Notes — same card pattern as job description */}
-          <div className="bg-card rounded-lg border overflow-hidden">
+          <div className="bg-card rounded-lg border overflow-hidden shadow-stripe-sm">
             <div className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${notesOpen ? 'bg-muted/40' : 'hover:bg-muted/30'}`} onClick={() => !editingNotes && setNotesOpen(!notesOpen)}>
               <div className="text-sm font-semibold">Notes</div>
               <div className="flex items-center gap-2">

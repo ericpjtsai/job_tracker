@@ -44,12 +44,19 @@ const config: Config = {
         },
       },
       fontFamily: {
-        label: ['"Space Grotesk"', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        label: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      boxShadow: {
+        'stripe-sm':       'rgba(23,23,23,0.06) 0px 3px 6px',
+        'stripe':          'rgba(23,23,23,0.08) 0px 15px 35px',
+        'stripe-elevated': 'rgba(50,50,93,0.25) 0px 30px 45px -30px, rgba(0,0,0,0.1) 0px 18px 36px -18px',
+        'stripe-deep':     'rgba(3,3,39,0.25) 0px 14px 21px -14px, rgba(0,0,0,0.1) 0px 8px 17px -8px',
       },
     },
   },

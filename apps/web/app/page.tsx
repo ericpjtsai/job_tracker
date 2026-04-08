@@ -76,8 +76,8 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
 
       {/* Card content */}
       <div
-        className="bg-card border px-4 py-3 rounded-lg relative cursor-pointer"
-        style={{ transform: `translateX(${swipeX}px)`, transition: swiping.current ? 'none' : 'transform 0.2s ease-out' }}
+        className="bg-card border px-4 py-3 rounded-lg relative cursor-pointer shadow-stripe-sm hover:shadow-stripe transition-shadow"
+        style={{ transform: `translateX(${swipeX}px)`, transition: swiping.current ? 'none' : 'transform 0.2s ease-out, box-shadow 0.2s ease-out' }}
         onClick={() => { if (!swiping.current && swipeX === 0) { onNavigate(); router.push(`/jobs/${job.id}`) } }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -560,7 +560,7 @@ export default function DashboardPage() {
               className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
             >
               <div className="text-[10px] text-muted-foreground">{s.label}</div>
-              <div className={`text-2xl font-semibold font-mono tabular-nums ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
+              <div className={`text-2xl font-light tabular-nums tracking-tight ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
                 {s.value}
               </div>
               {growthLabel(s.growth) ? <div className={`text-[10px] tabular-nums ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</div> : <div className="text-[10px]">&nbsp;</div>}
@@ -577,7 +577,7 @@ export default function DashboardPage() {
 
       {/* Pending rejections banner */}
       {!isDemo && pendingRejections.length > 0 && (
-        <div className="bg-card border rounded-lg overflow-hidden">
+        <div className="bg-card border rounded-lg overflow-hidden shadow-stripe-sm">
           <div className="px-4 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             <span className="text-sm font-medium text-rose-800">{pendingRejections.length} potential rejection{pendingRejections.length > 1 ? 's' : ''} detected</span>
             <div className="flex items-center gap-2 shrink-0">
