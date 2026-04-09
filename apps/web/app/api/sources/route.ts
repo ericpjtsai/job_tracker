@@ -172,19 +172,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Supabase env not configured' }, { status: 500 })
   }
   try {
-    const { triggerPath, _debug } = await request.json()
-
-    // Temporary debug mode — POST { "_debug": true } to inspect env config without firing a poll
-    if (_debug) {
-      return NextResponse.json({
-        url: SUPABASE_URL,
-        keyLength: SERVICE_KEY.length,
-        keyStart: SERVICE_KEY.slice(0, 6),
-        keyEnd: SERVICE_KEY.slice(-4),
-        hasNewline: SERVICE_KEY.includes('\n'),
-        startsWithEyJ: SERVICE_KEY.startsWith('eyJ'),
-      })
-    }
+    const { triggerPath } = await request.json()
 
     if (!triggerPath) return NextResponse.json({ error: 'Missing triggerPath' }, { status: 400 })
 
