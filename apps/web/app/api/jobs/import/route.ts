@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { getPTMidnightToday } from '@/lib/time'
 import { scorePosting, computeResumeFit, extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings } from '@job-tracker/scoring'
 import crypto from 'crypto'
 
@@ -17,27 +18,10 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '30')
   const source = req.nextUrl.searchParams.get('source') ?? 'import'
 
-  // Today midnight in Pacific time, expressed as UTC ISO.
-  // The previous one-liner `new Date(toLocaleDateString(..., { timeZone: 'PT' }))`
-  // looked correct but parsed the date string in the JS RUNTIME's local timezone,
-  // so on Vercel (UTC) it produced midnight UTC, not midnight PT — a 7-hour-early
-  // window that miscounted yesterday-evening applications as today's.
-  // This version computes the live PT offset and assembles a properly-anchored ISO.
-  const todayMidnight = (() => {
-    const now = new Date()
-    const ptDate = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Los_Angeles',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(now) // e.g. "2026-04-08"
-    const tzName = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Los_Angeles',
-      timeZoneName: 'shortOffset',
-    }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? 'GMT-8'
-    const offsetH = parseInt(tzName.match(/GMT([+-]\d+)/)?.[1] ?? '-8')
-    const sign = offsetH < 0 ? '-' : '+'
-    const absH = String(Math.abs(offsetH)).padStart(2, '0')
-    return new Date(`${ptDate}T00:00:00${sign}${absH}:00`).toISOString()
-  })()
+  // Today midnight in Pacific time. Extracted to lib/time.ts after this exact
+  // logic was duplicated in 3+ files. The original inline version had a UTC-vs-PT
+  // bug — see lib/time.ts for the fix.
+  const todayMidnight = getPTMidnightToday()
 
   // Run queries in parallel
   const [listResult, todayResult] = await Promise.all([

@@ -154,12 +154,11 @@ export default function DashboardPage() {
   const [polling, setPolling] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<number>(0)
 
-  // Fetch last poll time + today applied count on mount
+  // Fetch last poll time on mount.
+  // (todayApplied is now folded into /api/stats — see loadStats below.)
+  // ?light=1 skips the full table scan in /api/sources getHistoricalCounts().
   useEffect(() => {
-    fetch('/api/jobs/import?page=0&limit=1').then(r => r.json()).then(data => {
-      if (data.todayCount !== undefined) setTodayApplied(data.todayCount)
-    }).catch(() => {})
-    fetch('/api/sources').then(r => r.json()).then(data => {
+    fetch('/api/sources?light=1').then(r => r.json()).then(data => {
       const ats = data.sources?.find((s: any) => s.id === 'ats')
       if (ats?.health?.lastPollAt) setLastUpdated(ats.health.lastPollAt)
     }).catch(() => {})
@@ -187,11 +186,17 @@ export default function DashboardPage() {
   const [expandedRejection, setExpandedRejection] = useState<string | null>(null)
   const [confirmAllPending, setConfirmAllPending] = useState<'confirm' | 'dismiss' | null>(null)
 
+  // Defer the pending-rejections fetch off the critical path: only fire after
+  // the initial jobs list has resolved (loading flips false). The banner is
+  // usually empty and shouldn't block first paint of the stat cards + list.
   useEffect(() => {
+    if (loading) return
     fetch('/api/jobs/detect-rejections').then(r => r.json()).then(data => {
       if (data.pending) setPendingRejections(data.pending)
     }).catch(() => {})
-  }, [])
+    // intentionally only re-run when loading transitions, not on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   async function handleRejection(id: string, action: 'confirm' | 'dismiss') {
     setExpandedRejection(null)
@@ -278,6 +283,8 @@ export default function DashboardPage() {
     try {
       const data = await fetch(`/api/stats?${params}`, { signal: ctrl.signal }).then((r) => r.json())
       setStats({ total: data.total, high: data.high, medium: data.medium, low: data.low, growthHigh: data.growthHigh ?? 0, growthMedium: data.growthMedium ?? 0, growthLow: data.growthLow ?? 0 })
+      // todayApplied is folded into /api/stats — single fetch instead of an extra round trip.
+      if (typeof data.todayApplied === 'number') setTodayApplied(data.todayApplied)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') console.error('loadStats failed:', err)
     }

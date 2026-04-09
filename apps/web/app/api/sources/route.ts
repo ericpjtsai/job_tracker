@@ -6,7 +6,7 @@
 //
 // SECURITY: server-side only. Browser → /api/sources → Edge Function (with service-role key).
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -103,14 +103,19 @@ async function getHistoricalCounts(): Promise<Record<string, number>> {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // ?light=1 — homepage variant. Skips getHistoricalCounts() (a full table
+  // scan of every job_postings row) and only returns the source health array.
+  // The full /sources page omits ?light=1 to get historicalCounts.
+  const light = req.nextUrl.searchParams.get('light') === '1'
+
   try {
     const supabase = createServerClient()
     const [healthRes, historicalCounts] = await Promise.all([
       supabase
         .from('source_health')
         .select('source_id, status, last_poll_at, last_error_at, last_error, consecutive_failures, jobs_found_total, jobs_found_last'),
-      getHistoricalCounts(),
+      light ? Promise.resolve({} as Record<string, number>) : getHistoricalCounts(),
     ])
 
     const healthBySource: Record<string, SourceHealthRow> = {}
@@ -141,9 +146,16 @@ export async function GET() {
       }
     })
 
+    // Light variant changes only when polls run (~hourly) — long cache is safe.
+    // Heavy variant has historicalCounts which can change every minute as new
+    // jobs are ingested, so keep its TTL short.
+    const cacheControl = light
+      ? 'private, max-age=60, stale-while-revalidate=300'
+      : 'private, max-age=5, stale-while-revalidate=15'
+
     return NextResponse.json(
       { sources, historicalCounts },
-      { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=15' } },
+      { headers: { 'Cache-Control': cacheControl } },
     )
   } catch (err) {
     return NextResponse.json(
