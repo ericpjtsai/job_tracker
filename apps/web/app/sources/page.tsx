@@ -1088,19 +1088,28 @@ export default function SourcesPage() {
 function LiveSourceCard({ source, onTrigger, dbCount, disabled }: { source: LiveSource; onTrigger: () => void; dbCount?: number; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [triggering, setTriggering] = useState(false)
+  const [triggerError, setTriggerError] = useState<string | null>(null)
   const h = source.health
 
   async function triggerPoll() {
     if (!source.triggerPath) return
     setTriggering(true)
+    setTriggerError(null)
     try {
-      await fetch('/api/sources', {
+      const res = await fetch('/api/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ triggerPath: source.triggerPath }),
       })
-      setTimeout(onTrigger, 1000)
-    } catch { /* ignore */ }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTriggerError(data.error ?? data.message ?? JSON.stringify(data) ?? `HTTP ${res.status}`)
+      } else {
+        setTimeout(onTrigger, 1000)
+      }
+    } catch (err) {
+      setTriggerError(err instanceof Error ? err.message : 'Network error')
+    }
     setTriggering(false)
   }
 
@@ -1165,14 +1174,19 @@ function LiveSourceCard({ source, onTrigger, dbCount, disabled }: { source: Live
 
           {/* Trigger button */}
           {source.triggerPath && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); triggerPoll() }}
-              disabled={disabled || triggering || h.status === 'polling'}
-              className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {triggering || h.status === 'polling' ? 'Running...' : 'Run Now'}
-            </button>
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); triggerPoll() }}
+                disabled={disabled || triggering || h.status === 'polling'}
+                className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {triggering || h.status === 'polling' ? 'Running...' : 'Run Now'}
+              </button>
+              {triggerError && (
+                <div className="text-red-600 text-[11px] font-mono break-all">Error: {triggerError}</div>
+              )}
+            </div>
           )}
         </div>
       )}
