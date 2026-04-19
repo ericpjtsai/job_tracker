@@ -129,16 +129,24 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
           {job.firehose_rule && <><span className="text-muted-foreground mx-1 hidden sm:inline">·</span><span className="text-muted-foreground hidden sm:inline">{job.firehose_rule}</span></>}
         </div>
         {/* Row 3: Applied / Rejected dates */}
-        {job.status === 'rejected' && job.applied_at ? (
-          <div className="text-xs text-muted-foreground mt-0.5">
-            Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            {job.rejected_at && <> · Rejected {new Date(job.rejected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
-          </div>
-        ) : job.applied_at ? (
-          <div className="text-xs text-muted-foreground mt-0.5">
-            Applied {new Date(job.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-        ) : null}
+        {(() => {
+          const dates = job.applied_dates?.length
+            ? job.applied_dates
+            : job.applied_at ? [job.applied_at] : []
+          if (!dates.length) return null
+          const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          const appliedLabel = dates.length > 1
+            ? `Applied ${dates.map(fmt).join(', ')}`
+            : `Applied ${new Date(dates[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+          return (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {appliedLabel}
+              {job.status === 'rejected' && job.rejected_at && (
+                <> · Rejected {fmt(job.rejected_at)}</>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const seenOrder = searchParams.get('seenOrder')
   const newFirst = searchParams.get('newFirst') === 'true'
 
-  const LIST_COLS = 'id,url,title,company,location,resume_fit,firehose_rule,first_seen,last_seen,status,score,priority,salary_min,salary_max'
+  const LIST_COLS = 'id,url,title,company,location,resume_fit,firehose_rule,first_seen,last_seen,status,score,priority,salary_min,salary_max,applied_at,applied_dates,rejected_at'
 
   // Escape Supabase filter metacharacters from user input
   const safeSearch = search ? search.replace(/[.,()"\\]/g, '') : ''

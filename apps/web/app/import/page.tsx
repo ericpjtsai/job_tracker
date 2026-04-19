@@ -399,7 +399,14 @@ export default function ImportPage() {
                     <span className="text-muted-foreground mx-1">·</span>
                     <span className="text-foreground">{job.company ?? '—'}</span>
                   </span>
-                  {job.applied_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatDate(job.applied_at)}</span>}
+                  {(() => {
+                    const dates = job.applied_dates?.length ? job.applied_dates : job.applied_at ? [job.applied_at] : []
+                    if (!dates.length) return null
+                    const label = dates.length > 1
+                      ? `${formatDate(dates[dates.length - 1])} · ${dates.length}×`
+                      : formatDate(dates[0])
+                    return <span className="text-[10px] text-muted-foreground shrink-0">{label}</span>
+                  })()}
                 </div>
               </div>
             ))}

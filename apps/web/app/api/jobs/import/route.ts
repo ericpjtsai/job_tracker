@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     (() => {
       let q = supabase
         .from('job_postings')
-        .select('id,title,company,status,applied_at,first_seen,resume_fit,source_type', { count: 'estimated' })
+        .select('id,title,company,status,applied_at,applied_dates,first_seen,resume_fit,source_type', { count: 'estimated' })
       if (source === 'import') q = q.eq('source_type', 'manual')
       return q.order('applied_at', { ascending: false, nullsFirst: false })
     })()
@@ -250,11 +250,12 @@ export async function POST(req: NextRequest) {
 
     // Dedup: check by URL first, then title+company (case-insensitive, strip company suffixes)
     let existing: any = null
+    const DEDUP_COLS = 'id, title, company, notes, page_content, applied_at, applied_dates, status'
 
     // 1. Exact URL match
     if (parsed.url) {
       const { data: urlRows } = await supabase.from('job_postings')
-        .select('id, title, company, notes, page_content, applied_at, status')
+        .select(DEDUP_COLS)
         .eq('url', parsed.url).limit(1)
       existing = urlRows?.[0] ?? null
     }
@@ -264,7 +265,7 @@ export async function POST(req: NextRequest) {
       const normalizeCompany = (c: string) => c.replace(/[,.]?\s*(Inc\.?|LLC|Corp\.?|Ltd\.?|Co\.?|Corporation|Incorporated)$/i, '').trim()
       const companyNorm = normalizeCompany(parsed.company || '')
       let dedupQuery = supabase.from('job_postings')
-        .select('id, title, company, notes, page_content, applied_at, status')
+        .select(DEDUP_COLS)
         .ilike('title', parsed.title)
       if (companyNorm) dedupQuery = dedupQuery.ilike('company', `${companyNorm}%`)
       const { data: dedupRows } = await dedupQuery.limit(5)
@@ -276,24 +277,49 @@ export async function POST(req: NextRequest) {
       const newDesc = parsed.description || ''
       const oldDesc = existing.page_content || ''
       const hasMoreContent = newDesc.length > oldDesc.length
-      const notYetApplied = existing.status !== 'applied'
+      const isApplied = mapStatus(parsed.status).isApplied
 
+      // Detect whether this import represents a new application date we haven't seen
+      const existingDates: string[] = Array.isArray(existing.applied_dates) ? existing.applied_dates : []
+      const importedDate = appliedAt ?? (isApplied ? new Date().toISOString() : null)
+      const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString()
+      const isNewApplication = !!(isApplied && importedDate && !existingDates.some(d => sameDay(d, importedDate)))
+
+      const updates: Record<string, any> = {}
+      let changed = false
+
+      if (isNewApplication) {
+        const nextDates = [...existingDates, importedDate!].sort()
+        updates.applied_dates = nextDates
+        // applied_at stays as the latest application date for sort/filter continuity
+        const latest = nextDates[nextDates.length - 1]
+        updates.applied_at = latest
+        updates.status = 'applied'
+        changed = true
+      }
+
+      // Only overwrite description/score if the existing job hasn't been applied yet —
+      // prevents re-imports from clobbering user-edited content on applied jobs.
+      const notYetApplied = existing.status !== 'applied'
       if (hasMoreContent && notYetApplied) {
-        // Richer description + not yet applied → update content and mark as applied
-        const updates: Record<string, any> = {
-          page_content: newDesc,
-          status: 'applied',
-          applied_at: existing.applied_at ?? new Date().toISOString(),
-          source_type: 'manual',
-          last_seen: new Date().toISOString(),
-          score: scoreResult.total,
-          priority: scoreResult.priority,
-          keywords_matched: scoreResult.keywords_matched,
-          resume_fit,
-        }
-        if (parsed.notes) updates.notes = parsed.notes
+        updates.page_content = newDesc
+        updates.score = scoreResult.total
+        updates.priority = scoreResult.priority
+        updates.keywords_matched = scoreResult.keywords_matched
+        updates.resume_fit = resume_fit
+        changed = true
+      }
+
+      if (parsed.notes && parsed.notes !== existing.notes) {
+        updates.notes = parsed.notes
+        changed = true
+      }
+
+      if (changed) {
+        updates.source_type = 'manual'
+        updates.last_seen = new Date().toISOString()
         await supabase.from('job_postings').update(updates).eq('id', existing.id)
-        results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: 'applied', resume_fit })
+        results.push({ title: parsed.title, company: parsed.company, id: existing.id, action: 'updated', jobStatus: updates.status ?? existing.status ?? 'new', resume_fit })
         continue
       }
 
@@ -313,6 +339,7 @@ export async function POST(req: NextRequest) {
         notes: parsed.notes || null,
         status: mapStatus(parsed.status).status,
         applied_at: mapStatus(parsed.status).isApplied ? appliedAt : null,
+        applied_dates: mapStatus(parsed.status).isApplied && appliedAt ? [appliedAt] : [],
         source_type: 'manual',
         firehose_rule: 'manual-import',
         score: scoreResult.total,
