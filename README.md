@@ -120,6 +120,7 @@ All pollers run as stateless Edge Functions, scheduled by pg_cron. The old Node.
 | `MANTIKS_API_KEY` | No | Mantiks LinkedIn Jobs API |
 | `SERPAPI_API_KEY` | No | SerpApi Google Jobs |
 | `HASDATA_API_KEY` | No | HasData API (Indeed + Glassdoor) |
+| `HASDATA_API_KEY_BACKUP` | No | Fallback key used automatically when the primary fails (quota, auth, rate limit) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Auto | Provided by Supabase runtime |
 
 pg_cron also needs Vault secrets `project_url` and `service_role_key` — see [supabase/migrations/007_cron_schedule.sql](supabase/migrations/007_cron_schedule.sql) header for setup commands.

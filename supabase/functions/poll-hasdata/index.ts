@@ -41,22 +41,47 @@ interface HasDataGlassdoorJob {
   description?: string
 }
 
-async function hasDataGet(path: string, apiKey: string): Promise<unknown> {
-  const res = await fetch(`${HASDATA_BASE}${path}`, {
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
-    signal: AbortSignal.timeout(20_000),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`HasData HTTP ${res.status}: ${text}`)
-  }
-  return await res.json()
+// Holds a mutable "which keys to try" list. Once the primary fails in a poll
+// run, we promote the backup so subsequent requests skip the dead primary.
+interface KeyPool {
+  keys: string[]
 }
 
-async function pollIndeed(ctx: ProcessorContext, apiKey: string): Promise<PollResult> {
+async function hasDataGet(path: string, pool: KeyPool): Promise<unknown> {
+  let lastErr: Error | null = null
+  for (let i = 0; i < pool.keys.length; i++) {
+    const apiKey = pool.keys[i]
+    try {
+      const res = await fetch(`${HASDATA_BASE}${path}`, {
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`HasData HTTP ${res.status}: ${text}`)
+      }
+      // Success — demote any preceding dead keys so the next call skips them.
+      if (i > 0) {
+        console.warn(`[HasData] Primary key failed; promoting backup (pos ${i}) for remainder of poll`)
+        pool.keys = pool.keys.slice(i)
+      }
+      return await res.json()
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err))
+      // Only fall through to the next key if we have one left
+      if (i < pool.keys.length - 1) {
+        console.warn(`[HasData] Key ${i + 1}/${pool.keys.length} failed: ${lastErr.message} — trying next`)
+        continue
+      }
+    }
+  }
+  throw lastErr ?? new Error('HasData: no keys available')
+}
+
+async function pollIndeed(ctx: ProcessorContext, pool: KeyPool): Promise<PollResult> {
   const result = emptyResult()
   console.log('[HasData/Indeed] poll starting...')
 
@@ -68,7 +93,7 @@ async function pollIndeed(ctx: ProcessorContext, apiKey: string): Promise<PollRe
         sort: 'date',
         domain: 'www.indeed.com',
       })
-      const data = (await hasDataGet(`/scrape/indeed/listing?${params}`, apiKey)) as {
+      const data = (await hasDataGet(`/scrape/indeed/listing?${params}`, pool)) as {
         jobs?: HasDataIndeedJob[]
         jobResults?: HasDataIndeedJob[]
         results?: HasDataIndeedJob[]
@@ -110,7 +135,7 @@ async function pollIndeed(ctx: ProcessorContext, apiKey: string): Promise<PollRe
   return result
 }
 
-async function pollGlassdoor(ctx: ProcessorContext, apiKey: string): Promise<PollResult> {
+async function pollGlassdoor(ctx: ProcessorContext, pool: KeyPool): Promise<PollResult> {
   const result = emptyResult()
   console.log('[HasData/Glassdoor] poll starting...')
 
@@ -122,7 +147,7 @@ async function pollGlassdoor(ctx: ProcessorContext, apiKey: string): Promise<Pol
         sort: 'recent',
         domain: 'www.glassdoor.com',
       })
-      const data = (await hasDataGet(`/scrape/glassdoor/listing?${params}`, apiKey)) as {
+      const data = (await hasDataGet(`/scrape/glassdoor/listing?${params}`, pool)) as {
         jobs?: HasDataGlassdoorJob[]
         jobListings?: HasDataGlassdoorJob[]
         results?: HasDataGlassdoorJob[]
@@ -165,11 +190,14 @@ async function pollGlassdoor(ctx: ProcessorContext, apiKey: string): Promise<Pol
 }
 
 async function pollHasData(ctx: ProcessorContext, req: Request): Promise<PollResult> {
-  const apiKey = Deno.env.get('HASDATA_API_KEY')
-  if (!apiKey) {
+  const primary = Deno.env.get('HASDATA_API_KEY')
+  const backup = Deno.env.get('HASDATA_API_KEY_BACKUP')
+  const keys = [primary, backup].filter((k): k is string => !!k)
+  if (keys.length === 0) {
     console.log('[HasData] HASDATA_API_KEY not set — skipping')
     return emptyResult()
   }
+  const pool: KeyPool = { keys }
 
   // Read platform from request body or URL query
   let platform: string | null = null
@@ -182,12 +210,13 @@ async function pollHasData(ctx: ProcessorContext, req: Request): Promise<PollRes
     platform = url.searchParams.get('platform')
   }
 
-  if (platform === 'indeed') return await pollIndeed(ctx, apiKey)
-  if (platform === 'glassdoor') return await pollGlassdoor(ctx, apiKey)
+  if (platform === 'indeed') return await pollIndeed(ctx, pool)
+  if (platform === 'glassdoor') return await pollGlassdoor(ctx, pool)
 
-  // No platform specified — run both
-  const indeedResult = await pollIndeed(ctx, apiKey)
-  const glassdoorResult = await pollGlassdoor(ctx, apiKey)
+  // No platform specified — run both (share the same pool so a demoted primary
+  // stays demoted across platforms)
+  const indeedResult = await pollIndeed(ctx, pool)
+  const glassdoorResult = await pollGlassdoor(ctx, pool)
   return {
     inserted: indeedResult.inserted + glassdoorResult.inserted,
     deduped: indeedResult.deduped + glassdoorResult.deduped,

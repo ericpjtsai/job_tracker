@@ -668,6 +668,7 @@ If BOTH dead:
 | `MANTIKS_API_KEY` | No | Mantiks.io API key for LinkedIn |
 | `SERPAPI_API_KEY` | No | SerpApi key for Google Jobs |
 | `HASDATA_API_KEY` | No | HasData key for Indeed + Glassdoor |
+| `HASDATA_API_KEY_BACKUP` | No | Fallback HasData key — used automatically when primary fails |
 | `SUPABASE_SERVICE_ROLE_KEY` | Auto | Provided by Supabase runtime |
 
 pg_cron also reads two Vault secrets (`project_url`, `service_role_key`) — see [supabase/migrations/007_cron_schedule.sql](../supabase/migrations/007_cron_schedule.sql) header for setup.
