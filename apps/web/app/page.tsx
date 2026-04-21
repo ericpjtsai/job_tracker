@@ -256,7 +256,7 @@ export default function DashboardPage() {
     if (!searchOpen) {
       preSearchFilters.current = { priority, since, status }
       setPriority('all')
-      setSince('all')
+      if (!isDemo) setSince('all')
       setStatus('all')
       setSearchOpen(true)
     } else {
@@ -660,8 +660,8 @@ export default function DashboardPage() {
         {/* Desktop: full buttons */}
         <div className="hidden sm:contents">
           {dateTabs.map((tab) => (
-            <button key={tab.value} type="button" onClick={() => setSince(tab.value)}
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            <button key={tab.value} type="button" onClick={() => setSince(tab.value)} disabled={isDemo}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${since === tab.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'} ${isDemo && since !== tab.value ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : ''}`}
             >{tab.label}</button>
           ))}
           <span className="text-muted-foreground/20">|</span>
@@ -731,7 +731,8 @@ export default function DashboardPage() {
                 aria-label="Time range"
                 value={since}
                 onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
-                className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+                disabled={isDemo}
+                className={`text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
               </select>
@@ -769,7 +770,8 @@ export default function DashboardPage() {
               aria-label="Time range"
               value={since}
               onChange={(e) => { setSince(e.target.value); e.currentTarget.blur() }}
-              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+              disabled={isDemo}
+              className={`text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {dateTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
             </select>

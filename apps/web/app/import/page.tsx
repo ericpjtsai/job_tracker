@@ -31,6 +31,15 @@ export default function ImportPage() {
   const [manualForm, setManualForm] = useState({ title: '', company: '', url: '', description: '', notes: '' })
   const [manualSubmitting, setManualSubmitting] = useState(false)
   const [manualResult, setManualResult] = useState<ImportResult | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Set<'title' | 'company' | 'url' | 'description'>>(new Set())
+  const clearFieldError = (field: 'title' | 'company' | 'url' | 'description') => {
+    setFieldErrors(prev => {
+      if (!prev.has(field)) return prev
+      const next = new Set(prev)
+      next.delete(field)
+      return next
+    })
+  }
   const [companies, setCompanies] = useState<string[]>([])
   const [companyOpen, setCompanyOpen] = useState(false)
   const [companyIdx, setCompanyIdx] = useState(-1)
@@ -41,7 +50,16 @@ export default function ImportPage() {
   const notesRef = useRef<HTMLDivElement>(null)
 
   async function handleManualSubmit() {
-    if (!manualForm.title.trim() || !manualForm.company.trim() || !manualForm.url.trim() || !manualForm.description.trim()) return
+    const missing = new Set<'title' | 'company' | 'url' | 'description'>()
+    if (!manualForm.title.trim()) missing.add('title')
+    if (!manualForm.company.trim()) missing.add('company')
+    if (!manualForm.url.trim()) missing.add('url')
+    if (!manualForm.description.trim()) missing.add('description')
+    if (missing.size > 0) {
+      setFieldErrors(missing)
+      return
+    }
+    setFieldErrors(new Set())
     setManualSubmitting(true)
     setManualResult(null)
     const res = await fetch('/api/jobs/import', {
@@ -192,12 +210,15 @@ export default function ImportPage() {
       {mode === 'manual' ? (
         <div className="bg-card rounded-lg border px-4 py-4 space-y-3 shadow-stripe-sm">
           <div className="grid sm:grid-cols-3 gap-3">
-            <Input placeholder="Job title *" value={manualForm.title} disabled={isDemo} onChange={(e) => setManualForm(f => ({ ...f, title: e.target.value }))} />
+            <Input placeholder="Job title *" value={manualForm.title} disabled={isDemo}
+              className={fieldErrors.has('title') ? 'border-destructive' : ''}
+              onChange={(e) => { setManualForm(f => ({ ...f, title: e.target.value })); clearFieldError('title') }} />
             <div className="relative" ref={companyRef}>
               <Input
                 placeholder="Company *"
                 value={manualForm.company}
                 disabled={isDemo}
+                className={fieldErrors.has('company') ? 'border-destructive' : ''}
                 autoComplete="off"
                 role="combobox"
                 aria-expanded={companyOpen}
@@ -209,6 +230,7 @@ export default function ImportPage() {
                   setCompanyOpen(e.target.value.length > 0)
                   setCompanyIdx(-1)
                   setCompanyLimit(8)
+                  clearFieldError('company')
                 }}
                 onFocus={() => { if (manualForm.company) setCompanyOpen(true) }}
                 onKeyDown={(e) => {
@@ -216,7 +238,7 @@ export default function ImportPage() {
                   if (!companyOpen || !filtered.length) return
                   if (e.key === 'ArrowDown') { e.preventDefault(); setCompanyIdx(i => Math.min(i + 1, filtered.length - 1)) }
                   else if (e.key === 'ArrowUp') { e.preventDefault(); setCompanyIdx(i => Math.max(i - 1, 0)) }
-                  else if (e.key === 'Enter' && companyIdx >= 0) { e.preventDefault(); setManualForm(f => ({ ...f, company: filtered[companyIdx] })); setCompanyOpen(false) }
+                  else if (e.key === 'Enter' && companyIdx >= 0) { e.preventDefault(); setManualForm(f => ({ ...f, company: filtered[companyIdx] })); setCompanyOpen(false); clearFieldError('company') }
                   else if (e.key === 'Escape') setCompanyOpen(false)
                 }}
                 onBlur={() => setTimeout(() => setCompanyOpen(false), 150)}
@@ -238,7 +260,7 @@ export default function ImportPage() {
                     {visible.map((c, i) => (
                       <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx ? "true" : "false"}
                         className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === companyIdx ? 'bg-muted' : 'hover:bg-muted/50'}`}
-                        onPointerDown={() => { setManualForm(f => ({ ...f, company: c })); setCompanyOpen(false) }}
+                        onPointerDown={() => { setManualForm(f => ({ ...f, company: c })); setCompanyOpen(false); clearFieldError('company') }}
                       >{c}</button>
                     ))}
                     {more > 0 && <div className="px-3 py-1.5 text-xs text-muted-foreground">{more} more...</div>}
@@ -246,18 +268,20 @@ export default function ImportPage() {
                 )
               })()}
             </div>
-            <Input placeholder="URL *" value={manualForm.url} disabled={isDemo} onChange={(e) => setManualForm(f => ({ ...f, url: e.target.value }))} />
+            <Input placeholder="URL *" value={manualForm.url} disabled={isDemo}
+              className={fieldErrors.has('url') ? 'border-destructive' : ''}
+              onChange={(e) => { setManualForm(f => ({ ...f, url: e.target.value })); clearFieldError('url') }} />
           </div>
           <div
             ref={descRef}
             contentEditable={!isDemo}
             suppressContentEditableWarning
-            onInput={(e) => setManualForm(f => ({ ...f, description: (e.target as HTMLDivElement).innerHTML }))}
+            onInput={(e) => { setManualForm(f => ({ ...f, description: (e.target as HTMLDivElement).innerHTML })); clearFieldError('description') }}
             onKeyDown={(e) => {
               if (e.key === 'b' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); document.execCommand('bold') }
               else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleManualSubmit() }
             }}
-            className={`job-description w-full text-sm px-3 py-2 rounded-md border border-input bg-transparent min-h-[100px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`job-description w-full text-sm px-3 py-2 rounded-md border bg-transparent min-h-[100px] focus-visible:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground ${fieldErrors.has('description') ? 'border-destructive' : 'border-input'} ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
             data-placeholder="Job description *"
           />
           <p className="text-[10px] text-muted-foreground/60 -mt-1.5">⌘B to bold</p>
@@ -277,7 +301,7 @@ export default function ImportPage() {
             </button>
           )}
           <div className="flex justify-end">
-            <Button size="sm" disabled={manualSubmitting || isDemo || !manualForm.title.trim() || !manualForm.company.trim() || !manualForm.url.trim() || !manualForm.description.trim()} onClick={handleManualSubmit}>
+            <Button size="sm" disabled={manualSubmitting || isDemo} onClick={handleManualSubmit}>
               {manualSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
           </div>
