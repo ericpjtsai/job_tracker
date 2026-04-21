@@ -401,3 +401,28 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # declarative_schema_path = "./declarative"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ─── Edge Function gateway ───────────────────────────────────────────────────
+# verify_jwt = false disables the gateway's JWT-shape check on the Authorization
+# bearer. We use Supabase's new `sb_secret_…` service role key format, which is
+# not a JWT and would otherwise be rejected at the door as "Invalid JWT". Each
+# function still calls requireServiceAuth() internally to compare the bearer
+# against SUPABASE_SERVICE_ROLE_KEY — that is the real auth check.
+[functions.poll-ats]
+verify_jwt = false
+[functions.poll-linkedin]
+verify_jwt = false
+[functions.poll-linkedin-direct]
+verify_jwt = false
+[functions.poll-mantiks]
+verify_jwt = false
+[functions.poll-serpapi]
+verify_jwt = false
+[functions.poll-hasdata]
+verify_jwt = false
+[functions.poll-github]
+verify_jwt = false
+[functions.enrich-batch]
+verify_jwt = false
+[functions.rescore]
+verify_jwt = false

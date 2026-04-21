@@ -19,24 +19,19 @@ export function getServiceClient(): SupabaseClient {
  * Edge Functions are public by default; this enforces caller auth so only the
  * web app's server-side routes (and pg_cron via the call_edge SQL helper) can fire them.
  *
- * Accepts the Bearer against either SERVICE_AUTH_TOKEN (preferred — settable via
- * `supabase secrets set`) or the auto-injected SUPABASE_SERVICE_ROLE_KEY. The
- * dual-source check lets us rotate the caller token without Dashboard access
- * while pg_cron/Vault still uses the legacy JWT.
+ * Each function has `verify_jwt = false` in supabase/config.toml, so the gateway
+ * does NOT verify the bearer is a JWT. This check is the real authorization.
  */
 export function requireServiceAuth(req: Request): Response | null {
   const auth = req.headers.get('Authorization') ?? ''
-  const tokens = [
-    Deno.env.get('SERVICE_AUTH_TOKEN'),
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-  ].filter((t): t is string => !!t)
-  if (tokens.length === 0) {
+  const expected = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  if (!expected) {
     return new Response(JSON.stringify({ ok: false, error: 'server misconfigured' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  if (!tokens.some(t => auth === `Bearer ${t}`)) {
+  if (auth !== `Bearer ${expected}`) {
     return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
