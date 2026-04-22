@@ -176,6 +176,9 @@ export function scorePosting(opts: ScoreInput): ScoreResult {
   }
 }
 
+// Recalibrated 2026-04-21 against 315 Haiku samples — old curve undershot
+// Haiku's role_fit by mean +21 points. See packages/scoring/src/score.ts
+// for the target bucket medians.
 export function computeResumeFit(
   postingKeywords: string[],
   resumeKeywords: string[]
@@ -184,9 +187,11 @@ export function computeResumeFit(
   const resumeSet = new Set(resumeKeywords.map((k) => k.toLowerCase()))
   const matched = postingKeywords.filter((k) => resumeSet.has(k.toLowerCase())).length
   if (matched === 0) return 0
-  if (matched < 10) return Math.round(10 + (matched / 9) * 30)
-  if (matched < 20) return Math.round(40 + ((matched - 10) / 10) * 25)
-  return Math.min(85, Math.round(65 + ((matched - 20) / 20) * 20))
+  if (matched <= 3) return 25 + matched                              // 26, 27, 28
+  if (matched <= 6) return Math.round(55 + (matched - 4) * 3.5)      // 55, 58, 62
+  if (matched <= 12) return Math.round(65 + (matched - 7) * 1.5)     // 65-72
+  if (matched <= 18) return Math.round(73 + (matched - 13) * 0.6)    // 73-76
+  return Math.min(80, Math.round(76 + (matched - 18) * 0.3))         // 76-80 cap
 }
 
 export function extractResumeKeywords(resumeText: string): string[] {

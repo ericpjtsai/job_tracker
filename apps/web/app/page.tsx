@@ -89,12 +89,11 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
             {job.title ?? 'Untitled'}
           </Link>
           <div className="shrink-0 flex items-center gap-3 relative z-10">
-            {/* Desktop: interactive status chip */}
-            <div className="hidden sm:block">
+            {/* Status chip — invisible in demo (layout preserved) */}
+            <div className={`hidden sm:block ${isDemo ? 'opacity-0 pointer-events-none' : ''}`}>
               <StatusChip status={job.status} onChange={isDemo ? undefined : onStatusChange} />
             </div>
-            {/* Mobile: read-only status chip */}
-            <div className="sm:hidden">
+            <div className={`sm:hidden ${isDemo ? 'opacity-0 pointer-events-none' : ''}`}>
               <StatusChip status={job.status} />
             </div>
             {/* Desktop delete */}
@@ -128,7 +127,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
           {job.location && <><span className="text-muted-foreground mx-1">·</span><span className="text-foreground">{job.location}</span></>}
           {job.firehose_rule && <><span className="text-muted-foreground mx-1 hidden sm:inline">·</span><span className="text-muted-foreground hidden sm:inline">{job.firehose_rule}</span></>}
         </div>
-        {/* Row 3: Applied / Rejected dates */}
+        {/* Row 3: Applied / Rejected dates — invisible in demo (layout preserved) */}
         {(() => {
           const dates = job.applied_dates?.length
             ? job.applied_dates
@@ -139,7 +138,7 @@ function JobCard({ job, deletingId, confirmDeleteId, onStatusChange, onDeleteReq
             ? `Applied ${dates.map(fmt).join(', ')}`
             : `Applied ${new Date(dates[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
           return (
-            <div className="text-xs text-muted-foreground mt-0.5">
+            <div className={`text-xs text-muted-foreground mt-0.5 ${isDemo ? 'opacity-0' : ''}`}>
               {appliedLabel}
               {job.status === 'rejected' && job.rejected_at && (
                 <> · Rejected {fmt(job.rejected_at)}</>
@@ -510,6 +509,7 @@ export default function DashboardPage() {
   }
 
   function togglePriority(p: string) {
+    if (isDemo && p === 'high') return
     setPriority((prev) => prev === p ? 'all' : p)
   }
 
@@ -570,21 +570,29 @@ export default function DashboardPage() {
             { label: 'High', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
             { label: 'Med', key: 'medium' as const, value: stats.medium, growth: stats.growthMedium },
             { label: 'Low', key: 'low' as const, value: stats.low, growth: stats.growthLow },
-          ].map((s) => (
-            <button key={s.key} type="button" onClick={() => togglePriority(s.key)}
-              className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'}`}
-            >
-              <div className="text-[10px] text-muted-foreground">{s.label}</div>
-              <div className={`text-2xl font-light tabular-nums tracking-tight ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
-                {s.value}
-              </div>
-              {growthLabel(s.growth) ? <div className={`text-[10px] tabular-nums ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</div> : <div className="text-[10px]">&nbsp;</div>}
-            </button>
-          ))}
+          ].map((s) => {
+            const locked = isDemo && s.key === 'high'
+            return (
+              <button key={s.key} type="button" onClick={() => { if (!locked) togglePriority(s.key) }} disabled={locked}
+                className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors ${priority === s.key ? 'border-[1.5px] border-primary bg-card' : 'bg-card'} ${locked ? 'cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] text-muted-foreground">{s.label}</span>
+                  {locked && (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-muted-foreground/60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Locked in demo"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  )}
+                </div>
+                <div className={`text-2xl font-light tabular-nums tracking-tight ${priority === s.key ? 'text-primary' : 'text-foreground'}`}>
+                  {s.value}
+                </div>
+                {growthLabel(s.growth) ? <div className={`text-[10px] tabular-nums ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</div> : <div className="text-[10px]">&nbsp;</div>}
+              </button>
+            )
+          })}
         </div>
         {/* Desktop: full stat cards */}
         <div className="hidden sm:grid grid-cols-3 gap-4">
-          <StatCard label="High Priority" value={stats.high} active={priority === 'high'} change={growthLabel(stats.growthHigh)} changeColor={growthColor(stats.growthHigh)} onClick={() => togglePriority('high')} />
+          <StatCard label="High Priority" value={stats.high} active={priority === 'high'} change={growthLabel(stats.growthHigh)} changeColor={growthColor(stats.growthHigh)} onClick={() => togglePriority('high')} locked={isDemo} />
           <StatCard label="Medium Priority" value={stats.medium} active={priority === 'medium'} change={growthLabel(stats.growthMedium)} changeColor={growthColor(stats.growthMedium)} onClick={() => togglePriority('medium')} />
           <StatCard label="Low Priority" value={stats.low} active={priority === 'low'} change={growthLabel(stats.growthLow)} changeColor={growthColor(stats.growthLow)} onClick={() => togglePriority('low')} />
         </div>
@@ -665,11 +673,11 @@ export default function DashboardPage() {
             >{tab.label}</button>
           ))}
           <span className="text-muted-foreground/20">|</span>
-          <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')}
-            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          <button type="button" onClick={() => setStatus(status === 'new' ? 'all' : 'new')} disabled={isDemo}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'new' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'} ${isDemo ? 'opacity-40 cursor-not-allowed hover:text-muted-foreground' : ''}`}
           >New</button>
-          <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')}
-            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          <button type="button" onClick={() => setStatus(status === 'applied' ? 'all' : 'applied')} disabled={isDemo}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${status === 'applied' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'} ${isDemo ? 'opacity-40 cursor-not-allowed hover:text-muted-foreground' : ''}`}
           >Applied</button>
           <span className="text-muted-foreground/20">|</span>
           <button type="button" aria-label="Search" onClick={toggleSearch}
@@ -696,7 +704,7 @@ export default function DashboardPage() {
         {/* Today count + Update button — far right */}
         <div className="flex items-center gap-2 ml-auto">
           {todayApplied > 0 && (
-            <span className="hidden sm:inline text-xs font-medium text-muted-foreground tabular-nums">{todayApplied} applied today</span>
+            <span className={`hidden sm:inline text-xs font-medium text-muted-foreground tabular-nums ${isDemo ? 'opacity-0' : ''}`}>{todayApplied} applied today</span>
           )}
           {newCount > 0 && (
             <button type="button" onClick={() => { setNewCount(0); loadStats(); fetchJobs(0) }}
@@ -740,7 +748,8 @@ export default function DashboardPage() {
                 aria-label="Status filter"
                 value={status}
                 onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
-                className="text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+                disabled={isDemo}
+                className={`text-xs px-3 pr-7 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <option value="all">All</option>
                 <option value="new">New</option>
@@ -759,11 +768,16 @@ export default function DashboardPage() {
               { label: 'H', key: 'high' as const, value: stats.high, growth: stats.growthHigh },
               { label: 'M', key: 'medium' as const, value: stats.medium, growth: stats.growthMedium },
               { label: 'L', key: 'low' as const, value: stats.low, growth: stats.growthLow },
-            ].map((s) => (
-              <button key={s.key} type="button" onClick={() => togglePriority(s.key)}
-                className={`text-xs px-2 py-1.5 rounded-md transition-colors tabular-nums ${priority === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              >{s.label}:{s.value}{growthLabel(s.growth) && <span className={`ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}</button>
-            ))}
+            ].map((s) => {
+              const locked = isDemo && s.key === 'high'
+              return (
+                <button key={s.key} type="button" onClick={() => { if (!locked) togglePriority(s.key) }} disabled={locked}
+                  className={`text-xs px-2 py-1.5 rounded-md transition-colors tabular-nums inline-flex items-center gap-1 ${priority === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'} ${locked ? 'cursor-not-allowed opacity-60 hover:bg-transparent' : ''}`}
+                >{s.label}:{s.value}{growthLabel(s.growth) && <span className={`ml-0.5 ${growthColor(s.growth)}`}>{growthLabel(s.growth)}</span>}{locked && (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Locked in demo"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                )}</button>
+              )
+            })}
             <span className="text-muted-foreground/20">|</span>
             {/* Date dropdown */}
             <select
@@ -780,7 +794,8 @@ export default function DashboardPage() {
               aria-label="Status filter"
               value={status}
               onChange={(e) => { setStatus(e.target.value); e.currentTarget.blur() }}
-              className="text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none"
+              disabled={isDemo}
+              className={`text-xs px-2 pr-6 py-1.5 rounded-md bg-transparent text-muted-foreground appearance-none bg-no-repeat cursor-pointer border border-border select-chevron focus:outline-none ${isDemo ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <option value="all">All</option>
               <option value="new">New</option>

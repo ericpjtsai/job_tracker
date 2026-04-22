@@ -289,7 +289,7 @@ export default function ResumePage() {
               </div>
             )}
             {/* Header — always visible, entire area toggles collapse */}
-            <div className={`px-4 py-3 cursor-pointer transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setAtsOpen(!atsOpen)}>
+            <div className={`px-4 py-3 transition-colors ${atsOpen ? 'bg-muted' : 'hover:bg-muted'} ${isDemo ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={() => { if (!isDemo) setAtsOpen(!atsOpen) }}>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
                   <div className="min-w-0">
@@ -405,7 +405,7 @@ export default function ResumePage() {
                 <span className="text-sm font-medium text-primary">Drop PDF to upload</span>
               </div>
             )}
-            <div className={`px-4 py-3 cursor-pointer transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'}`} onClick={() => setHmOpen(!hmOpen)}>
+            <div className={`px-4 py-3 transition-colors ${hmOpen ? 'bg-muted' : 'hover:bg-muted'} ${isDemo ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={() => { if (!isDemo) setHmOpen(!hmOpen) }}>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
                   <div className="min-w-0">

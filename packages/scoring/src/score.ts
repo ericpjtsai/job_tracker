@@ -196,12 +196,19 @@ export function scorePosting(opts: ScoreInput): ScoreResult {
 
 /**
  * Quick resume fit score based on matched keyword count.
- * Calibrated against LLM role_fit scores from 672 training samples:
- *   0 matched → 0 (skip)
- *   1-9 matched → scale 10-40 (low, LLM avg ~32)
- *   10-19 matched → scale 40-65 (medium, LLM avg ~66)
- *   20+ matched → scale 65-85 (high, LLM avg ~86)
- * This is a fast pre-filter; LLM enrichment overwrites with accurate role_fit.
+ * Recalibrated 2026-04-21 against 315 Haiku-scored samples — the old curve
+ * systematically undershot Haiku by mean +21 / median +24 points.
+ * The 3→4 match step is real: jobs with 1-3 resume-keyword matches are
+ * usually non-design or sparse JDs, while 4+ matches correlate with
+ * actual Product/UX designer roles.
+ *
+ * Target (Haiku bucket medians on the calibration set):
+ *   int=1   → 28    int=10 → 68
+ *   int=3   → 28    int=15 → 78
+ *   int=5   → 62    int=20+ → ~76
+ *
+ * This is still a fast pre-filter; LLM enrichment overwrites with the
+ * accurate role_fit when available.
  */
 export function computeResumeFit(
   postingKeywords: string[],
@@ -211,9 +218,11 @@ export function computeResumeFit(
   const resumeSet = new Set(resumeKeywords.map((k) => k.toLowerCase()))
   const matched = postingKeywords.filter((k) => resumeSet.has(k.toLowerCase())).length
   if (matched === 0) return 0
-  if (matched < 10) return Math.round(10 + (matched / 9) * 30)  // 10-40
-  if (matched < 20) return Math.round(40 + ((matched - 10) / 10) * 25)  // 40-65
-  return Math.min(85, Math.round(65 + ((matched - 20) / 20) * 20))  // 65-85, cap at 85
+  if (matched <= 3) return 25 + matched                              // 26, 27, 28
+  if (matched <= 6) return Math.round(55 + (matched - 4) * 3.5)      // 55, 58, 62
+  if (matched <= 12) return Math.round(65 + (matched - 7) * 1.5)     // 65-72
+  if (matched <= 18) return Math.round(73 + (matched - 13) * 0.6)    // 73-76
+  return Math.min(80, Math.round(76 + (matched - 18) * 0.3))         // 76-80 cap
 }
 
 /**

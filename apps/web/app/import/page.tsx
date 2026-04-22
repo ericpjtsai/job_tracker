@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { type JobPosting } from '@/lib/supabase'
 import { StatusChip, FitBadge } from '@/components/score-badge'
@@ -121,6 +121,21 @@ export default function ImportPage() {
   }, [])
 
   useEffect(() => { loadHistory(0, false, historySource) }, [loadHistory, historySource])
+
+  // Visible history = current source + search filter. Drives the rendered list
+  // AND seeds sessionStorage.jobIds so /jobs/:id prev/next walks this list
+  // instead of whatever the homepage last wrote.
+  const visibleHistory = useMemo(() => {
+    if (!historySearch) return history
+    const q = historySearch.toLowerCase()
+    return history.filter(j => j.title?.toLowerCase().includes(q) || j.company?.toLowerCase().includes(q))
+  }, [history, historySearch])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (visibleHistory.length === 0) return
+    sessionStorage.setItem('jobIds', JSON.stringify(visibleHistory.map(j => j.id)))
+  }, [visibleHistory])
 
   // Poll for LLM scoring results on recently imported jobs
   const [enriching, setEnriching] = useState(false)
@@ -338,7 +353,7 @@ export default function ImportPage() {
                   ) : (
                     <span className="font-medium text-sm truncate">{r.title || 'Untitled'}</span>
                   )}
-                  <div className="shrink-0">
+                  <div className={`shrink-0 ${isDemo ? 'opacity-0 pointer-events-none' : ''}`}>
                     {r.id ? (
                       <StatusChip status={r.jobStatus} onChange={isDemo ? undefined : async (s) => {
                         await fetch(`/api/jobs/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }) })
@@ -391,7 +406,7 @@ export default function ImportPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
               </button>
             </div>
-            <span className="font-medium text-muted-foreground tabular-nums">{todayCount} applied today</span>
+            <span className={`font-medium text-muted-foreground tabular-nums ${isDemo ? 'opacity-0' : ''}`}>{todayCount} applied today</span>
           </div>
           {historySearchOpen && (
             <Input
@@ -403,17 +418,13 @@ export default function ImportPage() {
             />
           )}
           <div className="space-y-2">
-            {history.filter(j => {
-              if (!historySearch) return true
-              const q = historySearch.toLowerCase()
-              return (j.title?.toLowerCase().includes(q) || j.company?.toLowerCase().includes(q))
-            }).map((job) => (
+            {visibleHistory.map((job) => (
               <div key={job.id} className="bg-card rounded-lg border px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <Link href={`/jobs/${job.id}`} className="hover:underline font-medium text-sm truncate text-foreground">
                     {job.title ?? 'Untitled'}
                   </Link>
-                  <div className="shrink-0">
+                  <div className={`shrink-0 ${isDemo ? 'opacity-0 pointer-events-none' : ''}`}>
                     <StatusChip status={job.status} />
                   </div>
                 </div>
@@ -429,7 +440,7 @@ export default function ImportPage() {
                     const label = dates.length > 1
                       ? `${formatDate(dates[dates.length - 1])} · ${dates.length}×`
                       : formatDate(dates[0])
-                    return <span className="text-[10px] text-muted-foreground shrink-0">{label}</span>
+                    return <span className={`text-[10px] text-muted-foreground shrink-0 ${isDemo ? 'opacity-0' : ''}`}>{label}</span>
                   })()}
                 </div>
               </div>

@@ -238,14 +238,21 @@ export default function JobDetailPage() {
 
         {/* Status + Open posting + Delete */}
         <div className="flex items-start gap-3 mt-5">
-          <a
-            href={openUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center"
-          >{openLabel} ↗</a>
+          {isDemo ? (
+            <span
+              aria-disabled="true"
+              className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground inline-flex items-center opacity-50 cursor-not-allowed"
+            >{openLabel} ↗</span>
+          ) : (
+            <a
+              href={openUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center"
+            >{openLabel} ↗</a>
+          )}
 
-          <div>
+          <div className={isDemo ? 'opacity-0 pointer-events-none' : ''}>
             <select
               aria-label="Job status"
               value={job.status}
@@ -312,8 +319,8 @@ export default function JobDetailPage() {
                   <button type="button" onClick={() => setDetailsTab('description')}
                     className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${detailsTab === 'description' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
                   >Description</button>
-                  <button type="button" onClick={() => setDetailsTab('link')}
-                    className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${detailsTab === 'link' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  <button type="button" onClick={() => { if (!isDemo) setDetailsTab('link') }} disabled={isDemo}
+                    className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${detailsTab === 'link' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'} ${isDemo ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >Link</button>
                 </div>
               </div>
