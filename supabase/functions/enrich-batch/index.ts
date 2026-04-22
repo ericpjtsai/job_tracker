@@ -6,13 +6,14 @@
 // Each invocation pulls up to BATCH_SIZE pending rows, calls Claude Haiku, writes results.
 
 import { getServiceClient, jsonResponse, requireServiceAuth } from '../_shared/supabase.ts'
-import { extractKeywordsLLM, validateKeywords } from '../_shared/llm.ts'
+import { extractKeywordsLLM, validateKeywords, applyTitleCeilings } from '../_shared/llm.ts'
 import { markPolling, markHealthy, markError } from '../_shared/health.ts'
 
 const BATCH_SIZE = 20
 
 interface PendingJob {
   id: string
+  title: string | null
   page_content: string | null
   source_type: string | null
 }
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
     // Pick up the oldest pending rows. Use first_seen ordering since job_postings has no created_at.
     const { data: pending, error: selectError } = await supabase
       .from('job_postings')
-      .select('id, page_content, source_type')
+      .select('id, title, page_content, source_type')
       .eq('enrichment_status', 'pending')
       .order('first_seen', { ascending: true })
       .limit(BATCH_SIZE)
@@ -97,7 +98,8 @@ Deno.serve(async (req) => {
           continue
         }
 
-        const llm = validateKeywords(raw, description, resumeKeywords)
+        const validated = validateKeywords(raw, description, resumeKeywords)
+        const llm = applyTitleCeilings(job.title ?? '', validated)
         const allKeywords = [...llm.matched, ...llm.missing]
         const fit = llm.role_fit
         const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'

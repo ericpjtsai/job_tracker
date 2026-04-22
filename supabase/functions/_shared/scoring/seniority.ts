@@ -2,7 +2,7 @@
 
 const DEFAULT_EXCLUDE = ['staff', 'principal', 'director', 'vp', 'vice president', 'head of', 'manager']
 const DEFAULT_NEWGRAD = ['new grad', 'early career', '2026', 'associate', 'junior', 'entry.?level', 'university', 'recent graduate', 'graduate']
-const DEFAULT_NON_DESIGN = ['lead', 'intern', 'internship', 'scholarship', 'researcher', 'strategist', 'motion designer', 'content designer', 'graphic designer', 'interior designer', 'multimedia designer', 'packaging designer', 'engineer', 'ai trainer', 'job trends', 'salaries', 'data scientist', 'business analyst', 'client associate', 'product specialist', 'professor', 'nurse', 'licensed practical nurse', "founder.s office", 'growth marketing', 'creative producer', 'model kit', 'data entry', 'cybersecurity', 'solutions architect', 'solutions consultant']
+const DEFAULT_NON_DESIGN = ['lead', 'intern', 'internship', 'scholarship', 'researcher', 'strategist', 'motion designer', 'content designer', 'graphic designer', 'interior designer', 'multimedia designer', 'packaging designer', 'engineer', 'ai trainer', 'job trends', 'salaries', 'data scientist', 'business analyst', 'client associate', 'product specialist', 'professor', 'nurse', 'licensed practical nurse', "founder.s office", 'growth marketing', 'creative producer', 'model kit', 'data entry', 'cybersecurity', 'solutions architect', 'solutions consultant', 'civil designer', 'mechanical designer', 'structural designer', 'landscape designer', 'cad designer', 'cad drafter', 'drafter', 'architectural designer', 'electrical designer']
 
 let excludePatterns: RegExp[] = compilePatterns(DEFAULT_EXCLUDE)
 let newgradPatterns: RegExp[] = compilePatterns(DEFAULT_NEWGRAD)

@@ -66,32 +66,56 @@ Job description:
 - Target: Product Designer, UX Designer at B2B/enterprise/SaaS companies
 - NOT targeting: management/lead, visual-only, service design, content design, engineering, research-only
 
-Scoring rubric (STRICT — most jobs should score 40-70):
-- 90-100: Perfect — B2B/enterprise Product Designer + AI + design systems. VERY rare.
-- 75-89: Strong — Product/UX Designer at B2B/SaaS with meaningful domain overlap
-- 60-74: Good — Product/UX design role, some domain overlap
-- 45-59: Partial — related but different specialty or level mismatch
-- 30-44: Weak — adjacent role (design engineer, content designer, UX researcher)
-- 15-29: Poor — mostly unrelated (graphic designer, PM, engineer, analyst)
-- 0-14: No match — completely different field
+### Method — compute additively, don't cluster
 
-Scoring notes (post-processing code applies title-based ceilings separately, so focus on the rubric):
+Start at 50. Adjust with the deltas below based on CONCRETE evidence literally present in the JD.
+Final score must be a specific number — avoid round LLM-cluster numbers (80, 82, 85). If your math lands on one of those, shift ±1-3 based on the single strongest signal that tipped the score.
 
-FLOORS (apply if NO disqualifying title):
-- B2B/enterprise/SaaS + core Product/UX Designer role → score ≥ 70
-- Above + design systems + (AI/ML OR agentic AI OR conversational UI OR AI agents) → score ≥ 78
-- Above + AI is the core product (conversational AI platform, agentic AI product) → score ≥ 85
-- High-growth B2B AI startup + core Product Designer → additional +3 (cap at 93)
+ROLE TYPE (largest lever — pick exactly one)
+  +28 core "Product Designer" / "UX Designer" / "Interaction Designer" at B2B/enterprise/SaaS
+  +20 core design role at consumer SaaS / productivity / developer platform
+  +12 core design role at consumer/creator/entertainment / B2C company
+  +6  design-adjacent role (design technologist, UX engineer, UI engineer) at decent company
+  -15 content designer / service designer / UX researcher (research-only)
+  -20 intern / junior / associate / new-grad-only posting
+  -25 lead / principal / staff / director / manager / head-of (management)
+  -40 primarily graphic / brand / print / motion / packaging / interior / game / industrial
 
-SOFT CEILINGS (non-title-based):
-- Consumer/entertainment/creator-economy (Netflix, Spotify, gaming) → cap at 65
-- Consumer health / B2C healthtech (wellness, fitness, maternity apps) → cap at 70
-- Primarily graphic/brand/print, no UX/product → cap at 30
-- Primarily service/content/research-only → cap at 45
-- Requires 7+ years AND Lead/Principal/Staff/Director title → cap at 55
+DOMAIN / COMPANY FIT (add only if literally supported by the JD)
+  +10 B2B SaaS with enterprise customers (CRM, ERP, analytics, dev tools, API-first, internal tools)
+  +5  design-forward consumer tech (Stripe, Linear, Figma, Descript, Vercel, Notion tier)
+  -5  unclear / generic / copy-paste boilerplate JD
+  -10 requires deep domain expertise candidate lacks (medical, legal, defense, gaming)
+
+AI / EMERGING TECH (count CONCRETE evidence, not buzzwords)
+  +12 AI is the core product (agentic AI platform, conversational AI, AI copilot product)
+  +6  JD names LLM / RAG / prompt engineering / multi-agent as design surfaces
+  +3  vague "AI-powered features" mention
+   0  no AI signal in JD
+
+CRAFT SIGNALS (each requires a verbatim mention)
+  +5 design systems / component library as core responsibility
+  +4 0-to-1 / greenfield / founding product work
+  +4 prototyping with code / Framer / Cursor / React named as tools
+  +2 "high-fidelity" / "pixel-perfect" / "craft-driven"
+
+MISFIT PENALTIES
+  -10 requires 7+ years AND Lead/Staff/Principal
+  -8  requires skill candidate lacks (C1 Mandarin, Spanish, specific clearance/certification)
+  -5  5-day in-office requirement in a non-target city
+
+Sum all applicable deltas. Clamp final score to [5, 95].
+
+### Sanity bands (what each range looks like)
+- 85-94: B2B Product Designer at AI-first company with strong craft signals. Rare.
+- 70-84: Strong Product/UX Designer at B2B/SaaS, partial craft or AI signals.
+- 55-69: Adjacent role or partial domain fit with mismatches.
+- 40-54: Design-adjacent (design engineer, content, research) or heavily consumer.
+- 20-39: Graphic/brand, PM, weak fit.
+- 5-19: Engineering, management, or unrelated field.
 
 Respond with ONLY valid JSON, no markdown fences:
-{"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 85}`
+{"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 83}`
 
 /**
  * Strip HTML tags, inline styles, and entities from a job description so the
@@ -264,7 +288,7 @@ async function callClaudeHaiku(prompt: string, apiKey: string): Promise<string> 
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2500,
-      temperature: 0.1,
+      temperature: 0.2,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(20_000),

@@ -65,8 +65,9 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Re-score if page_content changed
-  if (updates.page_content) {
+  // Re-score when content or title changes — title drives applyTitleCeilings,
+  // so editing it must re-run the LLM+ceiling pipeline, not just the description.
+  if (updates.page_content || updates.title) {
     // Load dynamic scoring config from DB so web re-scoring matches listener
     const { data: configRows } = await supabase.from('scoring_config').select('key, value')
     if (configRows) {
@@ -79,32 +80,36 @@ export async function PATCH(
     }
 
     const [{ data: job }, { data: resume }] = await Promise.all([
-      supabase.from('job_postings').select('title, company, location, url').eq('id', id).single(),
+      supabase.from('job_postings').select('title, company, location, url, page_content').eq('id', id).single(),
       supabase.from('resume_versions').select('keywords_extracted').eq('is_active', true).eq('resume_type', 'ats').single(),
     ])
 
     if (job) {
       const resumeKeywords = resume?.keywords_extracted ?? []
       const anthropicKey = process.env.ANTHROPIC_API_KEY
+      const title = (updates.title as string | undefined) ?? job.title ?? ''
+      const content = (updates.page_content as string | undefined) ?? job.page_content ?? ''
 
       // Try LLM extraction first, fall back to regex
-      const rawLlm = anthropicKey ? await extractKeywordsLLM(updates.page_content, resumeKeywords, anthropicKey) : null
-      const classified = rawLlm ? classifyLLMKeywords(rawLlm, updates.page_content, resumeKeywords) : null
-      const llmResult = classified ? applyTitleCeilings(job.title ?? '', classified) : null
+      const rawLlm = anthropicKey && content ? await extractKeywordsLLM(content, resumeKeywords, anthropicKey) : null
+      const classified = rawLlm ? classifyLLMKeywords(rawLlm, content, resumeKeywords) : null
+      const llmResult = classified ? applyTitleCeilings(title, classified) : null
 
       if (llmResult) {
         const allKeywords = [...llmResult.matched, ...llmResult.missing]
         const resume_fit = llmResult.role_fit
         const priority = resume_fit >= 80 ? 'high' : resume_fit >= 50 ? 'medium' : resume_fit >= 1 ? 'low' : 'skip'
-        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, priority }).eq('id', id)
+        await supabase.from('job_postings').update({ keywords_matched: allKeywords, resume_fit, priority, enrichment_status: 'done' }).eq('id', id)
         return NextResponse.json({ ok: true, resume_fit, keywords_matched: allKeywords, matched: llmResult.matched, missing: llmResult.missing })
       }
 
-      // Fallback: regex scoring
-      const result = scorePosting({ text: updates.page_content, title: job.title ?? '', company: job.company ?? '', location: job.location ?? '', url: job.url })
-      const resume_fit = computeResumeFit(result.keywords_matched, resumeKeywords)
-      await supabase.from('job_postings').update({ score: result.total, priority: result.priority, keywords_matched: result.keywords_matched, resume_fit }).eq('id', id)
-      return NextResponse.json({ ok: true, score: result.total, priority: result.priority, resume_fit, keywords_matched: result.keywords_matched })
+      // Fallback: regex scoring (no LLM available or JD too sparse)
+      if (content) {
+        const result = scorePosting({ text: content, title, company: job.company ?? '', location: job.location ?? '', url: job.url })
+        const resume_fit = computeResumeFit(result.keywords_matched, resumeKeywords)
+        await supabase.from('job_postings').update({ score: result.total, priority: result.priority, keywords_matched: result.keywords_matched, resume_fit }).eq('id', id)
+        return NextResponse.json({ ok: true, score: result.total, priority: result.priority, resume_fit, keywords_matched: result.keywords_matched })
+      }
     }
   }
 

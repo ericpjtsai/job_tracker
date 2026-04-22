@@ -224,7 +224,7 @@ export const ATS_COMPANIES: AtsCompany[] = [
   { name: 'Chili Piper', ats: 'lever', slug: 'chilipiper' },
   { name: 'Clay', ats: 'lever', slug: 'clay' },
   { name: 'Coda', ats: 'lever', slug: 'coda' },
-  { name: 'Descript', ats: 'lever', slug: 'descript' },
+  { name: 'Descript', ats: 'greenhouse', slug: 'descript' },
   { name: 'Framer', ats: 'lever', slug: 'framer' },
   { name: 'Gamma', ats: 'lever', slug: 'gamma' },
   { name: 'Gem', ats: 'lever', slug: 'gem' },

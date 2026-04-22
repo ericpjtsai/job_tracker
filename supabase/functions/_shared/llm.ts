@@ -1,6 +1,5 @@
-// LLM-powered keyword extraction — Gemini Flash via fetch.
-// VENDORED from packages/scoring/src/llm-keywords.ts.
-// Gemini REST API is fetch-based and Deno-compatible without any SDK.
+// LLM-powered keyword extraction — Claude Haiku 4.5 via fetch.
+// VENDORED from packages/scoring/src/llm-keywords.ts — keep in sync.
 
 export interface LLMKeywordResult {
   matched: string[]
@@ -8,90 +7,135 @@ export interface LLMKeywordResult {
   role_fit: number
 }
 
-const PROMPT = `You are an AI recruiting agent that screens job descriptions against a candidate's resume using a structured rubric. Analyze this job description and classify every requirement against the candidate's resume keywords.
+const PROMPT = `You are an AI recruiting agent. Your job is to extract keywords **ACTUALLY PRESENT in the job description below** and classify them against the candidate's resume.
 
-## Rubric — extract keywords under each category (ordered by importance for matching)
+## THE MOST IMPORTANT RULE — READ TWICE
+**Every keyword you return MUST appear verbatim in the JD text (or as an obvious morphological variant: "designs" → "design", "prototyping" → "prototype").** You are NOT guessing what keywords a role might need. You are NOT listing industry-standard design terms. You are scanning the JD and extracting what is literally written there.
 
-### 1. Domain & Industry Signals (highest weight)
-Extract keywords showing what industry/domain this role operates in.
-Look for: B2B, SaaS, enterprise, fintech, healthtech, ecommerce, marketplace, CRM, dashboard, analytics, workflow automation, developer tools, platform, API, data visualization, internal tools, complex systems.
-INFER domain from company context (e.g. Stripe → "fintech", "payments", "B2B"; Salesforce → "CRM", "enterprise", "B2B SaaS").
-Also extract: onboarding, retention, conversion, growth, revenue, go-to-market, product strategy, business impact.
+Forbidden behavior (examples of hallucination):
+- Including "design tokens" because it's a common design concept, when the JD never mentions tokens → WRONG
+- Including "Figma" because it's a standard tool, when the JD never mentions Figma → WRONG
+- Including "B2B SaaS" because the company is a SaaS, when the JD text never uses those words → WRONG (unless you can infer it from a verbatim product description)
+- Including "journey mapping", "personas", "competitive analysis", etc. from a checklist when none appear in the JD → WRONG
 
-### 2. AI & Emerging Technology
-Extract: AI-powered, generative AI, LLM, agentic, conversational UI, copilot, prompt engineering, RAG, human-in-the-loop, multi-agent, machine learning.
-Infer from context (e.g. "design for our AI assistant" → "conversational UI", "AI-powered").
+If you cannot find a word/phrase in the JD by ctrl-F, DO NOT return it.
 
-### 3. Core Design Competencies
-Extract: product design, UX design, interaction design, visual design, design systems, prototyping, wireframing, information architecture, responsive design, accessibility, WCAG, mobile design, design critique, craft, component library, design tokens, high-fidelity, pixel-perfect, 0-to-1, end-to-end design.
-Extract deliverables: wireframes, prototypes, mockups, user flows, design specs, style guides.
+## Step 1 — Scan the JD for keywords
 
-### 4. Research & Methods
-Extract: user research, usability testing, A/B testing, design thinking, user interviews, journey mapping, personas, competitive analysis, data-driven design, design sprint, rapid prototyping, heuristic evaluation, lean UX, jobs to be done, card sorting.
-Also: Agile, Scrum, OKRs, DesignOps.
+Read the JD paragraph by paragraph and extract every meaningful noun phrase, tool name, channel, requirement, culture signal, and role descriptor that actually appears. Use these category HINTS to remind yourself what KINDS of things to look for — these are NOT checklists to copy from:
 
-### 5. Soft Skills & Leadership Signals
-Extract from context: cross-functional collaboration, stakeholder management, mentorship, storytelling, presenting to executives, ambiguity, strategic thinking, systems thinking, facilitation, coaching.
-Also extract misfit signals: people management, team lead, managing designers, hiring (these indicate senior/management roles).
+- **Domain / product**: industry terms, product type, company-specific vocab (copy verbatim phrases like "conversational AI platform", "digital therapy experiences", "rehabilitation care")
+- **Channels**: voice, chat, email, SMS, web, mobile, etc. — only if mentioned
+- **AI / emerging tech**: LLM, agents, conversational UI, etc. — only if mentioned
+- **Design competencies**: product design, UX, interaction design, prototyping, design systems, etc. — only if mentioned
+- **Research / methods**: user research, A/B testing, usability, etc. — only if mentioned
+- **Tools**: Figma, Cursor, Claude, etc. — only if the specific tool is named
+- **Culture / velocity**: fast-paced, ownership, remote, in-office, high-growth, etc. — only if mentioned
+- **Explicit requirements**: years of experience ("4+ years"), portfolio, language requirements (e.g. "C1 English", "B2 German"), degree, etc.
 
-### 6. Tools & Technologies
-Extract explicit mentions: Figma, Sketch, Framer, Adobe Creative Cloud, Miro, FigJam, HTML, CSS, React, JavaScript, Git, GitHub, Jira, Notion, Cursor, Claude Code, Maze, UserTesting, Hotjar, Amplitude, Mixpanel.
+Prefer verbatim phrases over canonical rewrites. If the JD says "digital therapy experiences", return that phrase, not "healthtech UX".
 
-## Classification Rules
-- **"matched"**: Keyword in BOTH the JD AND the candidate's resume. Use SEMANTIC matching — synonyms count:
-  - "user-centered design" ↔ "user-centered" = MATCHED
+## Step 2 — Classify each extracted keyword
+
+For each keyword you found in Step 1, put it into exactly one of:
+- **"matched"**: keyword is in the JD AND semantically present in the candidate's resume keywords. Synonyms count:
   - "UI/UX" ↔ "UX design" = MATCHED
   - "cross-team collaboration" ↔ "cross-functional collaboration" = MATCHED
-  - "data-driven decisions" ↔ "data-driven design" = MATCHED
-- **"missing"**: Keyword in the JD but NOT in the resume (even accounting for synonyms)
-- Only extract keywords ACTUALLY PRESENT in the job description
-- "missing" must contain ALL skills/tools/qualifications the JD asks for that aren't in the resume — be EXHAUSTIVE
-- Include misfit signals: years of experience, management duties, specific technical requirements
-- Aim for 30-60 total keywords. Be thorough.
+- **"missing"**: keyword is in the JD but NOT in the resume
+
+## Hard Rules
+- **Every keyword MUST come from the JD text.** This overrides any category or example list above.
+- Target: 25-60 total keywords — but **quality over quantity**. A short, thin JD legitimately produces fewer keywords. A rich JD should produce 40+.
+- Lowercase, 1-5 words each, deduplicated
+- Include requirement phrases atomically: "4+ years", "strong portfolio", "C1 English", "B2 German", "remote-first"
 
 ## DO NOT extract
-- Generic filler: "team", "work", "experience", "role", "opportunity", "responsibilities"
-- Salary/benefits, legal/EEO boilerplate, location names
-- Resume keywords that don't appear in the JD
-
-## Format
-- Lowercase, 1-3 words each, deduplicated
+- Generic filler: "team", "work", "role", "opportunity", "responsibilities"
+- Salary/benefits, legal/EEO boilerplate, location names (but DO extract language skill requirements)
+- Any keyword that is not literally in the JD
 
 Resume keywords: {RESUME_KEYWORDS}
 
 Job description:
 {JOB_DESCRIPTION}
 
-Also provide a role_fit score (0-100) for this SPECIFIC candidate:
+## Step 3 — Score role_fit (0-100) for this SPECIFIC candidate
 - B2B Product Designer (mid-level, 3-5 years), ex-Salesforce
 - Strengths: enterprise SaaS, design systems, interaction design, AI/emerging tech, prototyping with code
 - Target: Product Designer, UX Designer at B2B/enterprise/SaaS companies
 - NOT targeting: management/lead, visual-only, service design, content design, engineering, research-only
 
-Scoring rubric (STRICT — most jobs should score 40-70):
-- 90-100: Perfect — B2B/enterprise Product Designer + AI + design systems. VERY rare.
-- 75-89: Strong — Product/UX Designer at B2B/SaaS with meaningful domain overlap
-- 60-74: Good — Product/UX design role, some domain overlap
-- 45-59: Partial — related but different specialty or level mismatch
-- 30-44: Weak — adjacent role (design engineer, content designer, UX researcher)
-- 15-29: Poor — mostly unrelated (graphic designer, PM, engineer, analyst)
-- 0-14: No match — completely different field
+### Method — compute additively, don't cluster
 
-HARD OVERRIDES:
-- Title contains "engineer"/"developer"/"analyst"/"scientist"/"manager"(non-design)/"coordinator"/"specialist"/"therapist"/"fellowship": score ≤ 15
-- Primarily graphic/brand/print design, no UX/product: score ≤ 30
-- Primarily service design, content design, or research-only: score ≤ 45
-- Requires 7+ years AND lead/principal/staff level: score ≤ 55
-- B2B/enterprise/SaaS company AND core Product/UX Designer role: score ≥ 70
-- Mentions design systems, AI/ML, complex workflows, agentic AI: boost +5-10
+Start at 50. Adjust with the deltas below based on CONCRETE evidence literally present in the JD.
+Final score must be a specific number — avoid round LLM-cluster numbers (80, 82, 85). If your math lands on one of those, shift ±1-3 based on the single strongest signal that tipped the score.
+
+ROLE TYPE (largest lever — pick exactly one)
+  +28 core "Product Designer" / "UX Designer" / "Interaction Designer" at B2B/enterprise/SaaS
+  +20 core design role at consumer SaaS / productivity / developer platform
+  +12 core design role at consumer/creator/entertainment / B2C company
+  +6  design-adjacent role (design technologist, UX engineer, UI engineer) at decent company
+  -15 content designer / service designer / UX researcher (research-only)
+  -20 intern / junior / associate / new-grad-only posting
+  -25 lead / principal / staff / director / manager / head-of (management)
+  -40 primarily graphic / brand / print / motion / packaging / interior / game / industrial
+
+DOMAIN / COMPANY FIT (add only if literally supported by the JD)
+  +10 B2B SaaS with enterprise customers (CRM, ERP, analytics, dev tools, API-first, internal tools)
+  +5  design-forward consumer tech (Stripe, Linear, Figma, Descript, Vercel, Notion tier)
+  -5  unclear / generic / copy-paste boilerplate JD
+  -10 requires deep domain expertise candidate lacks (medical, legal, defense, gaming)
+
+AI / EMERGING TECH (count CONCRETE evidence, not buzzwords)
+  +12 AI is the core product (agentic AI platform, conversational AI, AI copilot product)
+  +6  JD names LLM / RAG / prompt engineering / multi-agent as design surfaces
+  +3  vague "AI-powered features" mention
+   0  no AI signal in JD
+
+CRAFT SIGNALS (each requires a verbatim mention)
+  +5 design systems / component library as core responsibility
+  +4 0-to-1 / greenfield / founding product work
+  +4 prototyping with code / Framer / Cursor / React named as tools
+  +2 "high-fidelity" / "pixel-perfect" / "craft-driven"
+
+MISFIT PENALTIES
+  -10 requires 7+ years AND Lead/Staff/Principal
+  -8  requires skill candidate lacks (C1 Mandarin, Spanish, specific clearance/certification)
+  -5  5-day in-office requirement in a non-target city
+
+Sum all applicable deltas. Clamp final score to [5, 95].
+
+### Sanity bands (what each range looks like)
+- 85-94: B2B Product Designer at AI-first company with strong craft signals. Rare.
+- 70-84: Strong Product/UX Designer at B2B/SaaS, partial craft or AI signals.
+- 55-69: Adjacent role or partial domain fit with mismatches.
+- 40-54: Design-adjacent (design engineer, content, research) or heavily consumer.
+- 20-39: Graphic/brand, PM, weak fit.
+- 5-19: Engineering, management, or unrelated field.
 
 Respond with ONLY valid JSON, no markdown fences:
-{"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 85}`
+{"matched": ["keyword1", "keyword2"], "missing": ["keyword3", "keyword4"], "role_fit": 83}`
+
+function stripHtml(text: string): string {
+  return text
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 function buildPrompt(jobDescription: string, resumeKeywords: string[]): string {
+  const cleaned = stripHtml(jobDescription)
   return PROMPT
     .replace('{RESUME_KEYWORDS}', resumeKeywords.join(', '))
-    .replace('{JOB_DESCRIPTION}', jobDescription.slice(0, 12000))
+    .replace('{JOB_DESCRIPTION}', cleaned.slice(0, 12000))
 }
 
 function parseResponse(text: string): LLMKeywordResult | null {
@@ -134,36 +178,62 @@ export function validateKeywords(
   const jdLower = jobDescription.toLowerCase()
   const resumeSet = new Set(resumeKeywords.map((k) => k.toLowerCase()))
 
-  const validMatched = result.matched.filter((k) => {
-    const inJD = keywordExistsInText(k, jdLower)
-    const inResume = resumeSet.has(k)
-    return inJD && inResume
-  })
+  const allCandidates = [...new Set([...result.matched, ...result.missing])]
+  const presentInJD = allCandidates.filter((k) => keywordExistsInText(k, jdLower))
 
-  const validMissing = result.missing.filter((k) => {
-    if (resumeSet.has(k) && !keywordExistsInText(k, jdLower)) return false
-    return keywordExistsInText(k, jdLower)
-  })
+  const validMatched = presentInJD.filter((k) => resumeSet.has(k))
+  const validMissing = presentInJD.filter((k) => !resumeSet.has(k))
 
   return { matched: validMatched, missing: validMissing, role_fit: result.role_fit }
 }
 
-async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1500 },
-      }),
-      signal: AbortSignal.timeout(20_000),
-    }
-  )
-  if (!res.ok) throw new Error(`Gemini API ${res.status}: ${await res.text()}`)
+/**
+ * Deterministic title-based role_fit ceilings — safety net for when the LLM
+ * prompt doesn't reliably clamp edge-case titles.
+ */
+export function applyTitleCeilings(title: string, result: LLMKeywordResult): LLMKeywordResult {
+  const t = (title || '').toLowerCase()
+  let cap = 100
+
+  if (/\b(software engineer|backend engineer|frontend engineer|full[- ]?stack engineer|data engineer|ml engineer|machine learning engineer)\b/.test(t)) {
+    cap = Math.min(cap, 15)
+  }
+  if (/\b(design engineer|product design engineer|ux engineer|ui engineer)\b/.test(t)) {
+    cap = Math.min(cap, 35)
+  }
+  if (/\b(intern|internship|student|apprentice|trainee)\b/.test(t)) {
+    cap = Math.min(cap, 45)
+  }
+  if (/\b(analyst|data scientist|research scientist|coordinator|therapist|fellowship)\b/.test(t)) {
+    cap = Math.min(cap, 15)
+  }
+  if (/\bassociate product manager\b|\bproduct manager\b/.test(t) && !/\bdesign/.test(t)) {
+    cap = Math.min(cap, 20)
+  }
+
+  if (result.role_fit <= cap) return result
+  return { ...result, role_fit: cap }
+}
+
+async function callClaudeHaiku(prompt: string, apiKey: string): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2500,
+      temperature: 0.2,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    signal: AbortSignal.timeout(20_000),
+  })
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`)
   const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  return data.content?.[0]?.text ?? ''
 }
 
 /**
@@ -176,17 +246,17 @@ export async function extractKeywordsLLM(
 ): Promise<LLMKeywordResult | null> {
   if (!jobDescription || jobDescription.length < 200) return null
 
-  const apiKey = Deno.env.get('GEMINI_API_KEY')
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!apiKey) return null
 
   const prompt = buildPrompt(jobDescription, resumeKeywords)
 
   try {
-    const text = await callGemini(prompt, apiKey)
+    const text = await callClaudeHaiku(prompt, apiKey)
     const result = parseResponse(text)
     if (result && (result.matched.length + result.missing.length) > 0) return result
   } catch (err) {
-    console.error('Gemini keyword extraction failed:', (err as Error).message)
+    console.error('Claude Haiku keyword extraction failed:', (err as Error).message)
   }
 
   return null

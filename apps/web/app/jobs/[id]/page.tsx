@@ -90,7 +90,19 @@ export default function JobDetailPage() {
         fetch(`/api/jobs/${id}`),
         fetch('/api/resume'),
       ])
-      if (jobRes.ok) setJob(await jobRes.json())
+      if (jobRes.ok) {
+        const fetched = await jobRes.json()
+        if (fetched.status === 'new' && !isDemo) {
+          setJob({ ...fetched, status: 'reviewed' })
+          fetch(`/api/jobs/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'reviewed' }),
+          })
+        } else {
+          setJob(fetched)
+        }
+      }
       if (resumeRes.ok) {
         const { versions } = await resumeRes.json()
         const atsActive = versions?.find((v: any) => v.is_active && v.resume_type === 'ats')
@@ -99,7 +111,7 @@ export default function JobDetailPage() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, isDemo])
 
   // Poll for LLM keyword results after saving description
   useEffect(() => {
