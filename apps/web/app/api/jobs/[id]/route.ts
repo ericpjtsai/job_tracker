@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { STATUSES_CLEARING_APPLIED_AT } from '@/lib/utils'
 import { scorePosting, computeResumeFit, extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings, setKeywordGroups, setSeniorityConfig, recompileKeywords } from '@job-tracker/scoring'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { checkBudget, recordLlmCalls } from '@/lib/llm-budget'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const limited = enforceRateLimit(req, 'job-get', 120, 60 * 1000)
+  if (limited) return limited
+
   const { id } = await params
   const supabase = createServerClient()
   const { data, error } = await supabase
@@ -27,6 +32,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const limited = enforceRateLimit(req, 'job-patch', 30, 60 * 60 * 1000)
+  if (limited) return limited
+
   const { id } = await params
   const supabase = createServerClient()
   const body = await req.json()
@@ -90,8 +98,10 @@ export async function PATCH(
       const title = (updates.title as string | undefined) ?? job.title ?? ''
       const content = (updates.page_content as string | undefined) ?? job.page_content ?? ''
 
-      // Try LLM extraction first, fall back to regex
-      const rawLlm = anthropicKey && content ? await extractKeywordsLLM(content, resumeKeywords, anthropicKey) : null
+      // Budget gate — fall back to regex if over daily LLM cap
+      const budget = anthropicKey && content ? await checkBudget(supabase, 'haiku', 1) : { allowed: false }
+      const rawLlm = budget.allowed ? await extractKeywordsLLM(content, resumeKeywords, anthropicKey!) : null
+      if (rawLlm) await recordLlmCalls(supabase, 'haiku', 1)
       const classified = rawLlm ? classifyLLMKeywords(rawLlm, content, resumeKeywords) : null
       const llmResult = classified ? applyTitleCeilings(title, classified) : null
 

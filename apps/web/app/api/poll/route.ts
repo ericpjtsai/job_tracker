@@ -8,8 +8,9 @@
 // DELETE → flips source_health.abort_requested for 'ats' (Stop button)
 // POST   → fires all sources in parallel (ATS batch 0 + mantiks/indeed/glassdoor/serpapi/github)
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,10 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'poll-abort', 30, 60 * 60 * 1000)
+  if (limited) return limited
+
   try {
     const supabase = createServerClient()
     await supabase
@@ -74,7 +78,10 @@ export async function DELETE() {
   }
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'poll-trigger', 10, 60 * 60 * 1000)
+  if (limited) return limited
+
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: 'Supabase env not configured' }, { status: 500 })
   }

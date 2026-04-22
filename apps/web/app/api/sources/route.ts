@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -168,6 +169,9 @@ export async function GET(req: NextRequest) {
 // ─── POST ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, 'sources-trigger', 20, 60 * 60 * 1000)
+  if (limited) return limited
+
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: 'Supabase env not configured' }, { status: 500 })
   }

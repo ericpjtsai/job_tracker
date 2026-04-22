@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'resume-download', 20, 60 * 1000)
+  if (limited) return limited
+
   const path = req.nextUrl.searchParams.get('path')
   if (!path) return NextResponse.json({ error: 'Missing path' }, { status: 400 })
 

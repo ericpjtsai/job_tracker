@@ -3,6 +3,8 @@ import { after } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { getPTMidnightToday } from '@/lib/time'
 import { scorePosting, computeResumeFit, extractKeywordsLLM, classifyLLMKeywords, applyTitleCeilings } from '@job-tracker/scoring'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { checkBudget, recordLlmCalls, costPerCall } from '@/lib/llm-budget'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -192,6 +194,9 @@ function mapStatus(notionStatus: string): { status: string; isApplied: boolean }
 
 // POST: import one or more jobs from Notion markdown
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'jobs-import', 5, 60 * 60 * 1000)
+  if (limited) return limited
+
   const supabase = createServerClient()
   const body = await req.json()
   const entries: string[] = Array.isArray(body.entries) ? body.entries : [body.markdown]
@@ -366,20 +371,50 @@ export async function POST(req: NextRequest) {
       const anthropicKey = process.env.ANTHROPIC_API_KEY
       if (!anthropicKey) return
 
-      for (const jobId of jobsToEnrich) {
+      // Read budget once up front, then project spend in-memory across the loop
+      // to avoid N+1 DB roundtrips (and to sidestep the intra-loop check-then-
+      // write race in checkBudget). Flush once at the end.
+      const initial = await checkBudget(supabaseAsync, 'haiku', 0)
+      let projectedSpent = initial.spent
+      let callsMade = 0
+      const perCall = costPerCall('haiku')
+
+      for (let i = 0; i < jobsToEnrich.length; i++) {
+        const jobId = jobsToEnrich[i]
+        if (projectedSpent + perCall > initial.cap) {
+          console.warn(`[import] daily LLM budget exceeded ($${projectedSpent.toFixed(2)}/$${initial.cap}); skipping enrichment for ${jobsToEnrich.length - i} remaining jobs`)
+          break
+        }
         const { data: job } = await supabaseAsync.from('job_postings').select('title, page_content, keywords_matched').eq('id', jobId).single()
         if (!job?.page_content) continue
         // Manual imports always get LLM — even sparse descriptions benefit from role_fit scoring
 
         const rawLlm = await extractKeywordsLLM(job.page_content, resumeKeywords, anthropicKey)
+        projectedSpent += perCall
+        callsMade++
         const classified = rawLlm ? classifyLLMKeywords(rawLlm, job.page_content, resumeKeywords) : null
         const llmResult = classified ? applyTitleCeilings(job.title ?? '', classified) : null
         if (llmResult) {
           const allKeywords = [...llmResult.matched, ...llmResult.missing]
           const fit = llmResult.role_fit
           const priority = fit >= 80 ? 'high' : fit >= 50 ? 'medium' : fit >= 1 ? 'low' : 'skip'
-          await supabaseAsync.from('job_postings').update({ keywords_matched: allKeywords, resume_fit: fit, priority }).eq('id', jobId)
+          // Mark enrichment_status='done' so the every-2-min enrich-batch cron
+          // doesn't pick this row up again and double-bill Haiku.
+          await supabaseAsync.from('job_postings')
+            .update({ keywords_matched: allKeywords, resume_fit: fit, priority, enrichment_status: 'done' })
+            .eq('id', jobId)
+        } else {
+          // LLM failed or returned nothing — mark as 'error' so cron doesn't retry
+          // the same broken JD forever. Regex score from the insert stays.
+          await supabaseAsync.from('job_postings')
+            .update({ enrichment_status: 'error' })
+            .eq('id', jobId)
         }
+      }
+
+      // Single DB write to record today's spend delta.
+      if (callsMade > 0) {
+        await recordLlmCalls(supabaseAsync, 'haiku', callsMade)
       }
     })
   }

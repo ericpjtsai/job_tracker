@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit, blockBotUA } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const bot = blockBotUA(req)
+  if (bot) return bot
+  const limited = enforceRateLimit(req, 'jobs-list', 120, 60 * 1000)
+  if (limited) return limited
+
   const supabase = createServerClient()
   const { searchParams } = req.nextUrl
 

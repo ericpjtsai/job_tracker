@@ -4,18 +4,36 @@
 //
 // SECURITY: server-side only. Browser → /api/jobs/rescore → Edge Function (with service-role key).
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { checkBudget } from '@/lib/llm-budget'
 
 export const dynamic = 'force-dynamic'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'jobs-rescore', 2, 60 * 60 * 1000)
+  if (limited) return limited
+
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: 'Supabase env not configured' }, { status: 500 })
   }
+
+  // Rescore can cost tens of dollars; refuse if the daily LLM cap is already
+  // consumed. The Edge Function itself rescores in chunks; this is a best-
+  // effort pre-check at the Next.js level.
+  const supabase = createServerClient()
+  const budget = await checkBudget(supabase, 'haiku', 50) // assume at least 50 calls
+  if (!budget.allowed) {
+    return NextResponse.json(
+      { error: `Daily LLM budget exceeded ($${budget.spent.toFixed(2)}/$${budget.cap}). Try again tomorrow.` },
+      { status: 429 },
+    )
+  }
+
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/rescore`, {
       method: 'POST',

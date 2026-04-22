@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/lib/admin-auth'
 
 /**
  * API auth + cookie injection middleware.
@@ -6,12 +7,17 @@ import { NextRequest, NextResponse } from 'next/server'
  * - /api/* routes: require SECRET_API_TOKEN via header, query param, or cookie
  * - Page routes: set the api-token cookie so client-side fetches pass auth
  * - If SECRET_API_TOKEN is not set (local dev), everything passes through
+ *
+ * Admin session: verified via HMAC signature (see lib/admin-auth.ts) — the
+ * cookie value cannot be forged client-side because the ADMIN_SECRET never
+ * leaves the server.
  */
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const secret = process.env.SECRET_API_TOKEN
   if (!secret) return NextResponse.next()
 
-  const isApi = req.nextUrl.pathname.startsWith('/api/')
+  const pathname = req.nextUrl.pathname
+  const isApi = pathname.startsWith('/api/')
 
   const bearerToken = req.headers.get('authorization')?.replace('Bearer ', '')
   const queryToken = req.nextUrl.searchParams.get('token')
@@ -22,11 +28,17 @@ export function middleware(req: NextRequest) {
   if (isApi) {
     if (!hasToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Demo mode: block write operations unless admin session cookie is present
     const isWrite = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS'
-    const hasAdminSession = req.cookies.get('admin-session')?.value === 'true'
-    if (isWrite && !hasAdminSession && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-      return NextResponse.json({ error: 'Demo mode: write operations disabled' }, { status: 403 })
+    // Auth endpoints are writes but must be reachable by demo users to log in
+    // (and to log out).
+    const isAuthEndpoint = pathname.startsWith('/api/auth/')
+
+    if (isWrite && !isAuthEndpoint && process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+      const sessionValue = req.cookies.get(ADMIN_COOKIE_NAME)?.value
+      const isAdmin = await verifyAdminCookieValue(sessionValue)
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Demo mode: write operations disabled' }, { status: 403 })
+      }
     }
 
     return NextResponse.next()

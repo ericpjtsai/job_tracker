@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { enforceRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,9 @@ export async function GET() {
 
 // PATCH: update one config row { key, value }
 export async function PATCH(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'scoring-patch', 20, 60 * 60 * 1000)
+  if (limited) return limited
+
   const supabase = createServerClient()
   const { key, value } = await req.json()
 

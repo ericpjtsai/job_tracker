@@ -4,55 +4,53 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 
 interface DemoModeContextType {
   isDemo: boolean
-  login: (password: string) => boolean
-  logout: () => void
+  login: (password: string) => Promise<boolean>
+  logout: () => Promise<void>
 }
 
 const DemoModeContext = createContext<DemoModeContextType>({
   isDemo: true,
-  login: () => false,
-  logout: () => {},
+  login: async () => false,
+  logout: async () => {},
 })
 
-const COOKIE_NAME = 'admin-session'
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'ericpjT'
+// UI-only flag. The real auth check is server-side via an HMAC-signed
+// httpOnly cookie (see lib/admin-auth.ts + middleware.ts). Forging
+// admin-flag=1 does not grant any write access.
+const FLAG_COOKIE = 'admin-flag'
 
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
-}
-
-function setCookie(name: string, value: string, days: number) {
-  const expires = new Date(Date.now() + days * 864e5).toUTCString()
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`
-}
-
-function deleteCookie(name: string) {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
+function hasFlag(): boolean {
+  return document.cookie.split('; ').some(c => c.startsWith(`${FLAG_COOKIE}=1`))
 }
 
 export function DemoModeProvider({ children }: { children: ReactNode }) {
   const [isDemo, setIsDemo] = useState(true)
 
-  // Restore admin session from cookie on mount
   useEffect(() => {
-    if (getCookie(COOKIE_NAME) === 'true') {
-      setIsDemo(false)
-    }
+    // Optimistic: if the (forgeable) flag is set, render as admin immediately.
+    // Then verify against the server — which HMAC-checks the httpOnly session
+    // cookie — and correct if the flag was forged or expired.
+    if (hasFlag()) setIsDemo(false)
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { admin: false })
+      .then(({ admin }) => setIsDemo(!admin))
+      .catch(() => { /* keep optimistic state on network error */ })
   }, [])
 
-  function login(password: string): boolean {
-    if (password === ADMIN_PASSWORD) {
-      setIsDemo(false)
-      setCookie(COOKIE_NAME, 'true', 7)
-      return true
-    }
-    return false
+  async function login(password: string): Promise<boolean> {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    if (!res.ok) return false
+    setIsDemo(false)
+    return true
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
+    await fetch('/api/auth/logout', { method: 'POST' })
     setIsDemo(true)
-    deleteCookie(COOKIE_NAME)
   }
 
   return (

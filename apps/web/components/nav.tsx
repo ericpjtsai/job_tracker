@@ -21,8 +21,8 @@ export function Nav() {
   const [error, setError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  function handleLogin() {
-    if (login(password)) {
+  async function handleLogin() {
+    if (await login(password)) {
       setShowPasswordInput(false)
       setPassword('')
       setError(false)
@@ -32,9 +32,9 @@ export function Nav() {
     }
   }
 
-  function handleToggleClick() {
+  async function handleToggleClick() {
     if (!isDemo) {
-      logout()
+      await logout()
     } else {
       setShowPasswordInput(true)
       setPassword('')

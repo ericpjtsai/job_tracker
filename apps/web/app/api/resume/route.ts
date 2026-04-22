@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { extractResumeKeywords, extractResumeKeywordsWithLLM } from '@job-tracker/scoring'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import { checkBudget, recordLlmCalls } from '@/lib/llm-budget'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +59,9 @@ export async function PATCH(req: NextRequest) {
 // ── POST: upload new resume ───────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, 'resume-upload', 5, 60 * 60 * 1000)
+  if (limited) return limited
+
   const supabase = createServerClient()
 
   // Parse multipart form
@@ -87,9 +92,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Extract keywords from resume text ────────────────────────────────────
-  // Try Gemini Flash for richer keyword extraction, fall back to regex
+  // Try Gemini Flash for richer keyword extraction, fall back to regex.
+  // Respect the daily LLM budget cap.
   const geminiKey = process.env.GEMINI_API_KEY
-  const llmKeywords = geminiKey ? await extractResumeKeywordsWithLLM(pdfText, geminiKey) : null
+  const budget = geminiKey ? await checkBudget(supabase, 'gemini', 1) : { allowed: false }
+  const llmKeywords = budget.allowed ? await extractResumeKeywordsWithLLM(pdfText, geminiKey!) : null
+  if (llmKeywords) await recordLlmCalls(supabase, 'gemini', 1)
   const keywords = llmKeywords ?? extractResumeKeywords(pdfText)
 
   // ── Store PDF in Supabase Storage ────────────────────────────────────────
