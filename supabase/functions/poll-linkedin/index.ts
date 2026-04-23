@@ -13,13 +13,17 @@ import { runPollHandler, emptyResult, tally, tallyError, type PollResult } from 
 import { insertJobPosting, canonicalLinkedInUrl, type ProcessorContext } from '../_shared/processor.ts'
 
 const QUERIES = [
-  'product designer B2B',
-  'UX designer enterprise',
-  'product designer AI',
-  'interaction designer SaaS',
+  'product designer',
+  'UX designer',
+  'interaction designer',
+  'design engineer',
 ]
 
 const LOCATIONS = ['San Francisco', 'Seattle', 'New York', 'Remote']
+
+// LinkedIn guest API returns ~25 jobs per page. Fetch two pages per query/location
+// to catch postings that rank below the first page.
+const PAGE_STARTS = [0, 25]
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -47,14 +51,13 @@ interface ScrapedJob {
  * Build the LinkedIn public guest API URL.
  * Same endpoint the linkedin-jobs-api package hits internally.
  */
-function buildSearchUrl(keyword: string, location: string, dateFilter: string): string {
+function buildSearchUrl(keyword: string, location: string, dateFilter: string, start: number): string {
   // f_TPR=r604800 = posted in the last week (matches dateSincePosted='past Week')
   const params = new URLSearchParams({
     keywords: keyword,
     location,
     f_TPR: dateFilter,
-    position: '1',
-    pageNum: '0',
+    start: String(start),
   })
   if (location === 'Remote') {
     params.set('f_WT', '2') // remote work-type filter
@@ -113,40 +116,51 @@ async function pollLinkedIn(ctx: ProcessorContext): Promise<PollResult> {
 
   for (const query of QUERIES) {
     for (const location of LOCATIONS) {
-      const url = buildSearchUrl(query, location, 'r604800')
+      let lastPageJobCount = Infinity
 
-      try {
-        const jobs = await fetchSearchResults(url)
-        console.log(`[LinkedIn] ${query} @ ${location}: ${jobs.length} cards`)
-        consecutiveBlocks = 0
+      for (const start of PAGE_STARTS) {
+        // Skip deeper pages once LinkedIn stops returning a full page — avoids burning
+        // the rate-limit budget on queries that have no more results.
+        if (start > 0 && lastPageJobCount < 15) break
 
-        for (const job of jobs) {
-          const r = await insertJobPosting(ctx, {
-            url: canonicalLinkedInUrl(job.url),
-            title: job.title,
-            company: job.company,
-            location: job.location || location,
-            description: `${job.title} at ${job.company}. ${job.location || location}`,
-            source: 'linkedin-scraper',
-          })
-          tally(result, r.status)
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.warn(`[LinkedIn] Failed for "${query}" @ ${location}: ${msg}`)
-        tallyError(result, err)
-        if (msg.includes('Rate limited') || msg.includes('429')) {
-          consecutiveBlocks++
-          // Bail out completely if LinkedIn is actively blocking us
-          if (consecutiveBlocks >= 3) {
-            console.error('[LinkedIn] Multiple rate limits — aborting')
-            return result
+        const url = buildSearchUrl(query, location, 'r604800', start)
+
+        try {
+          const jobs = await fetchSearchResults(url)
+          console.log(`[LinkedIn] ${query} @ ${location} (start=${start}): ${jobs.length} cards`)
+          consecutiveBlocks = 0
+          lastPageJobCount = jobs.length
+
+          for (const job of jobs) {
+            const r = await insertJobPosting(ctx, {
+              url: canonicalLinkedInUrl(job.url),
+              title: job.title,
+              company: job.company,
+              location: job.location || location,
+              description: `${job.title} at ${job.company}. ${job.location || location}`,
+              source: 'linkedin-scraper',
+            })
+            tally(result, r.status)
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          console.warn(`[LinkedIn] Failed for "${query}" @ ${location} (start=${start}): ${msg}`)
+          tallyError(result, err)
+          lastPageJobCount = 0
+          if (msg.includes('Rate limited') || msg.includes('429')) {
+            consecutiveBlocks++
+            // Bail out completely if LinkedIn is actively blocking us
+            if (consecutiveBlocks >= 3) {
+              console.error('[LinkedIn] Multiple rate limits — aborting')
+              return result
+            }
           }
         }
-      }
 
-      // Small delay between requests to avoid hammering — Edge Function budget allows ~16 reqs × 2s
-      await sleep(2_000)
+        // Small delay between requests to avoid hammering. With pagination the
+        // per-request budget is tighter — up to 32 requests × 1.5s = ~48s.
+        await sleep(1_500)
+      }
     }
   }
 

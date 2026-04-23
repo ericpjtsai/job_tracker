@@ -6,8 +6,8 @@ import { runPollHandler, emptyResult, tally, tallyError, type PollResult } from 
 import { insertJobPosting, canonicalLinkedInUrl, normalizeUrl, type ProcessorContext } from '../_shared/processor.ts'
 
 const SERPAPI_QUERIES = [
-  '"product designer" site:greenhouse.io OR site:lever.co OR site:ashbyhq.com "B2B" OR "enterprise"',
-  '"UX designer" site:greenhouse.io OR site:lever.co OR site:ashbyhq.com "B2B" OR "SaaS"',
+  '"product designer" site:greenhouse.io OR site:lever.co OR site:ashbyhq.com',
+  '"UX designer" site:greenhouse.io OR site:lever.co OR site:ashbyhq.com',
   '"interaction designer" site:greenhouse.io OR site:lever.co OR site:ashbyhq.com',
   '"design engineer" site:greenhouse.io OR site:ashbyhq.com OR site:lever.co',
 ]

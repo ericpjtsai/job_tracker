@@ -10,6 +10,11 @@ const HASDATA_BASE = 'https://api.hasdata.com'
 
 const JOB_KEYWORDS = ['product designer', 'UX designer', 'interaction designer']
 
+// Fetch two pages of Indeed results per keyword (offset 0 and 10) so postings ranked
+// below the first page aren't silently missed. Glassdoor stays single-page to keep
+// credit burn in check (each request is 5 credits).
+const INDEED_PAGE_STARTS = [0, 10]
+
 const DESIGN_TITLE = /\b(designer|design|UX|UI|interaction|visual|product)\b/i
 
 interface HasDataIndeedJob {
@@ -86,49 +91,61 @@ async function pollIndeed(ctx: ProcessorContext, pool: KeyPool): Promise<PollRes
   console.log('[HasData/Indeed] poll starting...')
 
   for (const keyword of JOB_KEYWORDS) {
-    try {
-      const params = new URLSearchParams({
-        keyword,
-        location: 'United States',
-        sort: 'date',
-        domain: 'www.indeed.com',
-      })
-      const data = (await hasDataGet(`/scrape/indeed/listing?${params}`, pool)) as {
-        jobs?: HasDataIndeedJob[]
-        jobResults?: HasDataIndeedJob[]
-        results?: HasDataIndeedJob[]
-        error?: string
-      }
+    let lastPageJobCount = Infinity
 
-      if (data.error) {
-        console.warn(`[HasData/Indeed] API error for "${keyword}": ${data.error}`)
-        tallyError(result, new Error(data.error))
-        continue
-      }
+    for (const start of INDEED_PAGE_STARTS) {
+      // If the previous page came back short, skip the next one — avoids spending
+      // HasData credits on empty pages.
+      if (start > 0 && lastPageJobCount < 10) break
 
-      const jobs = data.jobs ?? data.jobResults ?? data.results ?? []
-
-      for (const job of jobs) {
-        const title = job.title ?? job.jobTitle ?? ''
-        if (!DESIGN_TITLE.test(title)) continue
-
-        const rawUrl = job.url ?? job.jobUrl ?? job.link ?? ''
-        if (!rawUrl) continue
-
-        const r = await insertJobPosting(ctx, {
-          url: normalizeUrl(rawUrl),
-          title,
-          company: job.company ?? job.companyName ?? '',
-          location: job.location ?? '',
-          description: [keyword, job.description ?? job.snippet].filter(Boolean).join(' '),
-          source: 'indeed-hasdata',
-          publishedAt: job.datePosted ?? job.date,
+      try {
+        const params = new URLSearchParams({
+          keyword,
+          location: 'United States',
+          sort: 'date',
+          domain: 'www.indeed.com',
+          start: String(start),
         })
-        tally(result, r.status)
+        const data = (await hasDataGet(`/scrape/indeed/listing?${params}`, pool)) as {
+          jobs?: HasDataIndeedJob[]
+          jobResults?: HasDataIndeedJob[]
+          results?: HasDataIndeedJob[]
+          error?: string
+        }
+
+        if (data.error) {
+          console.warn(`[HasData/Indeed] API error for "${keyword}" (start=${start}): ${data.error}`)
+          tallyError(result, new Error(data.error))
+          lastPageJobCount = 0
+          continue
+        }
+
+        const jobs = data.jobs ?? data.jobResults ?? data.results ?? []
+        lastPageJobCount = jobs.length
+
+        for (const job of jobs) {
+          const title = job.title ?? job.jobTitle ?? ''
+          if (!DESIGN_TITLE.test(title)) continue
+
+          const rawUrl = job.url ?? job.jobUrl ?? job.link ?? ''
+          if (!rawUrl) continue
+
+          const r = await insertJobPosting(ctx, {
+            url: normalizeUrl(rawUrl),
+            title,
+            company: job.company ?? job.companyName ?? '',
+            location: job.location ?? '',
+            description: [keyword, job.description ?? job.snippet].filter(Boolean).join(' '),
+            source: 'indeed-hasdata',
+            publishedAt: job.datePosted ?? job.date,
+          })
+          tally(result, r.status)
+        }
+      } catch (err) {
+        console.error(`[HasData/Indeed] Error for "${keyword}" (start=${start}):`, err instanceof Error ? err.message : err)
+        tallyError(result, err)
+        lastPageJobCount = 0
       }
-    } catch (err) {
-      console.error(`[HasData/Indeed] Error for "${keyword}":`, err instanceof Error ? err.message : err)
-      tallyError(result, err)
     }
   }
 

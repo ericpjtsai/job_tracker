@@ -9,7 +9,7 @@ import { insertJobPosting, canonicalLinkedInUrl, type ProcessorContext } from '.
 const MANTIKS_BASE = 'https://api.mantiks.io'
 
 const JOB_TITLE_KEYWORDS = ['product designer', 'UX designer', 'interaction designer']
-const JOB_TITLE_EXCLUDED = ['senior', 'lead', 'principal', 'staff', 'manager', 'director', 'head of', 'vp']
+const JOB_TITLE_EXCLUDED = ['lead', 'principal', 'staff', 'manager', 'director', 'head of', 'vp']
 const LOCATION_NAMES = ['United States']
 
 interface MantikJob {

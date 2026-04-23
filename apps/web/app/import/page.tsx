@@ -54,6 +54,17 @@ export default function ImportPage() {
   const [notesOpen, setNotesOpen] = useState(false)
   const descRef = useRef<HTMLDivElement>(null)
   const notesRef = useRef<HTMLDivElement>(null)
+  const pendingDescRef = useRef<string | null>(null)
+
+  // After switching to manual mode the descRef div mounts — inject the pending description.
+  useEffect(() => {
+    if (mode === 'manual' && pendingDescRef.current !== null && descRef.current) {
+      const desc = pendingDescRef.current
+      pendingDescRef.current = null
+      const esc = desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
+    }
+  }, [mode])
 
   async function handleFetchUrl() {
     const url = fetchUrl.trim()
@@ -81,17 +92,8 @@ export default function ImportPage() {
       })
       if (data.warning) setFetchWarning(data.warning)
       setFieldErrors(new Set())
-      // Switch to manual mode first so the descRef div mounts, then populate it.
+      pendingDescRef.current = data.description ?? ''
       setMode('manual')
-      const desc = data.description ?? ''
-      if (desc) {
-        setTimeout(() => {
-          if (descRef.current) {
-            const esc = desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
-          }
-        }, 0)
-      }
     } catch (e) {
       setFetchError(e instanceof Error ? e.message : 'Fetch failed')
     } finally {

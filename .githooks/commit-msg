@@ -1,0 +1,14 @@
+#!/bin/sh
+# Strip any Claude/Anthropic co-author trailer from the commit message.
+# Covers "Co-Authored-By: Claude ... <noreply@anthropic.com>" (any casing).
+python3 - "$1" <<'PY'
+import sys, re
+path = sys.argv[1]
+with open(path, "r") as f:
+    msg = f.read()
+msg = re.sub(r"(?im)^co-authored-by:\s*claude[^\n]*@anthropic\.com>\s*\n?", "", msg)
+msg = re.sub(r"(?im)^\s*🤖\s*Generated with\s*\[?Claude Code\]?[^\n]*\n?", "", msg)
+msg = msg.rstrip() + "\n"
+with open(path, "w") as f:
+    f.write(msg)
+PY

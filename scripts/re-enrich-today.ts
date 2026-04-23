@@ -15,7 +15,7 @@ async function main() {
 
   const todayMidnight = getPTMidnightToday()
 
-  console.log(`Querying manual jobs since ${todayMidnight}`)
+  console.log(`Querying all jobs since ${todayMidnight}`)
 
   const { data: resume } = await supabase
     .from('resume_versions')
@@ -29,7 +29,6 @@ async function main() {
   const { data: jobs, error } = await supabase
     .from('job_postings')
     .select('id, title, company, page_content')
-    .eq('source_type', 'manual')
     .gte('first_seen', todayMidnight)
     .not('page_content', 'is', null)
 
