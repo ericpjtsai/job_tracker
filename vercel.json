@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "apps/web/app/api/jobs/import/from-url/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

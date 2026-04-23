@@ -285,17 +285,32 @@ const CHROME_PATHS = [
   '/usr/bin/chromium',
 ]
 
-async function findChrome(): Promise<string | null> {
+async function findChrome(): Promise<{ executablePath: string; args: string[]; headless: boolean | 'shell' } | null> {
   const { existsSync } = await import('node:fs')
   for (const p of CHROME_PATHS) {
-    if (existsSync(p)) return p
+    if (existsSync(p)) return {
+      executablePath: p,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      headless: true,
+    }
   }
-  return null
+  // Serverless fallback — @sparticuz/chromium works on Vercel/Lambda
+  try {
+    const chromium = await import('@sparticuz/chromium')
+    const executablePath = await chromium.default.executablePath()
+    return {
+      executablePath,
+      args: chromium.default.args,
+      headless: chromium.default.headless as boolean,
+    }
+  } catch {
+    return null
+  }
 }
 
 async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null> {
-  const executablePath = await findChrome()
-  if (!executablePath) return null
+  const chrome = await findChrome()
+  if (!chrome) return null
 
   let launch: typeof import('puppeteer-core')['launch'] | null = null
   try {
@@ -307,9 +322,9 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
   if (!launch) return null
 
   const browser = await launch({
-    executablePath,
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    executablePath: chrome.executablePath,
+    headless: chrome.headless,
+    args: chrome.args,
   })
   try {
     const page = await browser.newPage()
