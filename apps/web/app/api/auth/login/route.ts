@@ -57,10 +57,11 @@ export async function POST(req: NextRequest) {
 
   const value = await createAdminCookieValue()
   const res = NextResponse.json({ ok: true })
+  const secure = process.env.NODE_ENV === 'production'
   res.cookies.set(ADMIN_COOKIE_NAME, value, {
     httpOnly: true,
     sameSite: 'strict',
-    secure: true,
+    secure,
     path: '/',
     maxAge: ADMIN_COOKIE_MAX_AGE_SECONDS,
   })
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set('admin-flag', '1', {
     httpOnly: false,
     sameSite: 'strict',
-    secure: true,
+    secure,
     path: '/',
     maxAge: ADMIN_COOKIE_MAX_AGE_SECONDS,
   })
