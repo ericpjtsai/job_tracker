@@ -354,6 +354,7 @@ export async function POST(req: NextRequest) {
         salary_min: parsed.salary_min,
         salary_max: parsed.salary_max,
         is_job_posting: true,
+        posted_at: firstSeen,
         first_seen: firstSeen,
         last_seen: firstSeen,
       })

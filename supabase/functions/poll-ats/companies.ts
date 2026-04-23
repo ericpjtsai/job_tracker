@@ -1,12 +1,23 @@
 // Registry of target companies and their ATS platform + slug
 
-export type AtsType = 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'icims'
+export type AtsType = 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'icims' | 'workday'
 
-export interface AtsCompany {
+export interface StandardAtsCompany {
   name: string   // display name — must match companies.ts for tier lookup
-  ats: AtsType
+  ats: Exclude<AtsType, 'workday'>
   slug: string   // slug used in ATS API URL
 }
+
+export interface WorkdayCompany {
+  name: string
+  ats: 'workday'
+  host: string        // e.g. "nvidia.wd5.myworkdayjobs.com" — the tenant host
+  site: string        // e.g. "NVIDIAExternalCareerSite" — the external career site name
+  locale?: string     // e.g. "en-US" — omitted if the board has no locale segment
+  boardUrl?: string   // optional override for the Referer header; defaults to `https://{host}/`
+}
+
+export type AtsCompany = StandardAtsCompany | WorkdayCompany
 
 export const ATS_COMPANIES: AtsCompany[] = [
   // ── Greenhouse ────────────────────────────────────────────────────────────
@@ -215,6 +226,22 @@ export const ATS_COMPANIES: AtsCompany[] = [
   { name: 'Wiz', ats: 'greenhouse', slug: 'wiz' },
   { name: 'Workato', ats: 'greenhouse', slug: 'workato' },
   { name: 'Zuora', ats: 'greenhouse', slug: 'zuora' },
+  // Additions from audit-filters.ts (companies seen in manual imports)
+  { name: 'Baton', ats: 'greenhouse', slug: 'baton' },
+  { name: 'BillionToOne', ats: 'greenhouse', slug: 'billiontoone' },
+  { name: 'Chalk', ats: 'greenhouse', slug: 'chalkinc' },
+  { name: 'Check', ats: 'greenhouse', slug: 'check' },
+  { name: 'Extend', ats: 'greenhouse', slug: 'extend' },
+  { name: 'Gap International', ats: 'greenhouse', slug: 'gapinternational' },
+  { name: 'ID.me', ats: 'greenhouse', slug: 'idme' },
+  { name: 'Maven Clinic', ats: 'greenhouse', slug: 'mavenclinic' },
+  { name: 'Oldcastle BuildingEnvelope', ats: 'greenhouse', slug: 'oldcastlebuildingenvelope' },
+  { name: 'Oura', ats: 'greenhouse', slug: 'oura' },
+  { name: 'Rhombus Power', ats: 'greenhouse', slug: 'rhombuspower' },
+  { name: 'Roo', ats: 'greenhouse', slug: 'roo' },
+  { name: 'Tatari', ats: 'greenhouse', slug: 'tatari' },
+  { name: 'Technical Assent', ats: 'greenhouse', slug: 'technicalassent' },
+  { name: 'xAI', ats: 'greenhouse', slug: 'xai' },
   // ── iCIMS ────────────────────────────────────────────────────────────────
   { name: 'AMD', ats: 'icims', slug: 'amd' },
   // ── Lever ─────────────────────────────────────────────────────────────────
@@ -248,4 +275,37 @@ export const ATS_COMPANIES: AtsCompany[] = [
   { name: 'Weights & Biases', ats: 'lever', slug: 'wandb' },
   { name: 'Whimsical', ats: 'lever', slug: 'whimsical' },
   { name: 'Writer', ats: 'lever', slug: 'writerai' },
+  // Additions from audit-filters.ts (companies seen in manual imports)
+  { name: 'BHHC', ats: 'lever', slug: 'bhhc' },
+  { name: 'Bumble', ats: 'lever', slug: 'bumbleinc' },
+  { name: 'Complex NTWRK', ats: 'lever', slug: 'Complex' },
+  { name: 'Lumin Digital', ats: 'lever', slug: 'LuminDigital' },
+  { name: 'WHOOP', ats: 'lever', slug: 'whoop' },
+  // ── Ashby ─────────────────────────────────────────────────────────────────
+  { name: 'Ashby', ats: 'ashby', slug: 'Ashby' },
+  { name: 'Circleback', ats: 'ashby', slug: 'circleback' },
+  { name: 'Console', ats: 'ashby', slug: 'console' },
+  { name: 'Creatify', ats: 'ashby', slug: 'creatify' },
+  { name: 'Harvey', ats: 'ashby', slug: 'harvey' },
+  { name: 'Hinge Health', ats: 'ashby', slug: 'hinge-health' },
+  { name: 'Homebase', ats: 'ashby', slug: 'homebase' },
+  { name: 'Koah Labs', ats: 'ashby', slug: 'koahlabs' },
+  { name: 'Lindy', ats: 'ashby', slug: 'lindy' },
+  { name: 'Luminai', ats: 'ashby', slug: 'luminai' },
+  { name: 'Matic Robots', ats: 'ashby', slug: 'Maticrobots' },
+  { name: 'P-1 AI', ats: 'ashby', slug: 'P-1 AI' },
+  { name: 'Retell AI', ats: 'ashby', slug: 'retell-ai' },
+  { name: 'Rogo', ats: 'ashby', slug: 'Rogo' },
+  { name: 'Rowspace', ats: 'ashby', slug: 'rowspace' },
+  { name: 'Serval', ats: 'ashby', slug: 'Serval' },
+  { name: 'Sift', ats: 'ashby', slug: 'siftstack' },
+  { name: 'Sleeper', ats: 'ashby', slug: 'sleeper' },
+  { name: 'Solace', ats: 'ashby', slug: 'solace' },
+  { name: 'Span', ats: 'ashby', slug: 'Span.app' },
+  { name: 'Triumph Arcade', ats: 'ashby', slug: 'triumph-arcade' },
+  { name: 'Valon', ats: 'ashby', slug: 'Valon' },
+  { name: 'Vizcom', ats: 'ashby', slug: 'vizcom' },
+  { name: 'Wand', ats: 'ashby', slug: 'wand' },
+  // ── SmartRecruiters ───────────────────────────────────────────────────────
+  { name: 'Collabera', ats: 'smartrecruiters', slug: 'Collabera2' },
 ]

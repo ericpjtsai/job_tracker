@@ -10,9 +10,9 @@
 import { runPollHandler, emptyResult, tally, tallyError, type PollResult } from '../_shared/handler.ts'
 import { insertJobPosting, extractLocation, type ProcessorContext } from '../_shared/processor.ts'
 import { isAbortRequested, updateProgress } from '../_shared/health.ts'
-import { ATS_COMPANIES, type AtsCompany } from './companies.ts'
+import { ATS_COMPANIES, type AtsCompany, type StandardAtsCompany, type WorkdayCompany } from './companies.ts'
 
-const NUM_BATCHES = 4
+const NUM_BATCHES = 8
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -55,8 +55,8 @@ function isDesignRole(title: string): boolean {
 
 // ─── Per-ATS handlers ─────────────────────────────────────────────────────────
 
-async function pollGreenhouse(ctx: ProcessorContext, company: AtsCompany, result: PollResult): Promise<void> {
-  const url = `https://boards-api.greenhouse.io/v1/boards/${company.slug}/jobs?content=true`
+async function pollGreenhouse(ctx: ProcessorContext, company: StandardAtsCompany, result: PollResult): Promise<void> {
+  const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(company.slug)}/jobs?content=true`
   const data = (await fetchJson(url)) as {
     jobs: Array<{
       id: number
@@ -65,6 +65,7 @@ async function pollGreenhouse(ctx: ProcessorContext, company: AtsCompany, result
       content: string
       absolute_url: string
       updated_at: string
+      first_published?: string
     }>
   }
 
@@ -80,14 +81,14 @@ async function pollGreenhouse(ctx: ProcessorContext, company: AtsCompany, result
       location,
       description: rawHtml,
       source: 'greenhouse',
-      publishedAt: job.updated_at,
+      publishedAt: job.first_published ?? job.updated_at,
     })
     tally(result, r.status)
   }
 }
 
-async function pollLever(ctx: ProcessorContext, company: AtsCompany, result: PollResult): Promise<void> {
-  const url = `https://api.lever.co/v0/postings/${company.slug}?mode=json`
+async function pollLever(ctx: ProcessorContext, company: StandardAtsCompany, result: PollResult): Promise<void> {
+  const url = `https://api.lever.co/v0/postings/${encodeURIComponent(company.slug)}?mode=json`
   const postings = (await fetchJson(url)) as Array<{
     id: string
     text: string
@@ -116,8 +117,8 @@ async function pollLever(ctx: ProcessorContext, company: AtsCompany, result: Pol
   }
 }
 
-async function pollAshby(ctx: ProcessorContext, company: AtsCompany, result: PollResult): Promise<void> {
-  const url = `https://api.ashbyhq.com/posting-api/job-board/${company.slug}`
+async function pollAshby(ctx: ProcessorContext, company: StandardAtsCompany, result: PollResult): Promise<void> {
+  const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(company.slug)}`
   const data = (await fetchJson(url)) as {
     jobPostings: Array<{
       id: string
@@ -146,8 +147,8 @@ async function pollAshby(ctx: ProcessorContext, company: AtsCompany, result: Pol
   }
 }
 
-async function pollSmartRecruiters(ctx: ProcessorContext, company: AtsCompany, result: PollResult): Promise<void> {
-  const url = `https://api.smartrecruiters.com/v1/companies/${company.slug}/postings?status=PUBLIC&limit=100`
+async function pollSmartRecruiters(ctx: ProcessorContext, company: StandardAtsCompany, result: PollResult): Promise<void> {
+  const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company.slug)}/postings?status=PUBLIC&limit=100`
   const data = (await fetchJson(url)) as {
     content: Array<{
       id: string
@@ -167,7 +168,7 @@ async function pollSmartRecruiters(ctx: ProcessorContext, company: AtsCompany, r
     let description = ''
     try {
       const detail = (await fetchJson(
-        `https://api.smartrecruiters.com/v1/companies/${company.slug}/postings/${p.id}`,
+        `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company.slug)}/postings/${encodeURIComponent(p.id)}`,
       )) as { jobAd?: { sections?: { jobDescription?: { text?: string } } } }
       description = detail.jobAd?.sections?.jobDescription?.text ?? ''
     } catch { /* skip description */ }
@@ -185,12 +186,107 @@ async function pollSmartRecruiters(ctx: ProcessorContext, company: AtsCompany, r
   }
 }
 
+// ─── Workday ──────────────────────────────────────────────────────────────────
+// Workday exposes its public career-site JSON at /wday/cxs/[locale/]{site}.
+// No API key — just POST /jobs with a search body and spoofed Origin/Referer headers.
+
+function workdayBases(company: WorkdayCompany): string[] {
+  const bases: string[] = []
+  if (company.locale) bases.push(`https://${company.host}/wday/cxs/${company.locale}/${company.site}`)
+  bases.push(`https://${company.host}/wday/cxs/${company.site}`)
+  return Array.from(new Set(bases))
+}
+
+function workdayHeaders(company: WorkdayCompany): Record<string, string> {
+  const boardUrl = company.boardUrl ?? `https://${company.host}/`
+  return {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0',
+    'Origin': `https://${company.host}`,
+    'Referer': boardUrl,
+  }
+}
+
+function workdayApplyUrl(company: WorkdayCompany, externalPath: string): string {
+  if (company.locale) return `https://${company.host}/${company.locale}/${company.site}/job/${externalPath}`
+  return `https://${company.host}/${company.site}/job/${externalPath}`
+}
+
+async function pollWorkday(ctx: ProcessorContext, company: WorkdayCompany, result: PollResult): Promise<void> {
+  const headers = workdayHeaders(company)
+  const limit = 20
+  let lastError: unknown = null
+
+  for (const base of workdayBases(company)) {
+    try {
+      const postings: Array<{ externalPath: string; title: string; locationsText?: string }> = []
+      let offset = 0
+      while (true) {
+        const res = await fetch(`${base}/jobs`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ limit, offset, searchText: '', appliedFacets: {} }),
+          signal: AbortSignal.timeout(30_000),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status} for ${base}/jobs`)
+        const data = (await res.json()) as {
+          jobPostings?: Array<{ externalPath: string; title: string; locationsText?: string }>
+          total?: number
+        }
+        const page = data.jobPostings ?? []
+        postings.push(...page)
+        offset += page.length
+        if (page.length === 0 || offset >= (data.total ?? 0)) break
+      }
+
+      for (const p of postings) {
+        if (!isDesignRole(p.title)) continue
+        // Workday list endpoint omits the description — fetch it from the detail endpoint.
+        let description = ''
+        try {
+          const detailRes = await fetch(`${base}/job/${p.externalPath}`, {
+            headers,
+            signal: AbortSignal.timeout(15_000),
+          })
+          if (detailRes.ok) {
+            const detail = (await detailRes.json()) as {
+              jobPostingInfo?: { jobDescription?: string; title?: string }
+            }
+            description = detail.jobPostingInfo?.jobDescription ?? ''
+          }
+        } catch { /* skip description; proceed with title+location */ }
+
+        const plainText = stripHtml(description)
+        const r = await insertJobPosting(ctx, {
+          url: workdayApplyUrl(company, p.externalPath),
+          title: p.title,
+          company: company.name,
+          location: p.locationsText ?? extractLocation(plainText),
+          description,
+          source: 'workday',
+          // Workday's postedOn is relative text ("Posted 3 Days Ago") — leave undefined
+          // so insertJobPosting falls back to now() per CLAUDE.md guidance.
+          publishedAt: undefined,
+        })
+        tally(result, r.status)
+      }
+      return // first base that worked — stop probing
+    } catch (e) {
+      lastError = e
+      continue
+    }
+  }
+  throw lastError ?? new Error(`Workday fetch failed for ${company.name}`)
+}
+
 async function pollCompany(ctx: ProcessorContext, company: AtsCompany, result: PollResult): Promise<void> {
   switch (company.ats) {
     case 'greenhouse':      await pollGreenhouse(ctx, company, result); break
     case 'lever':           await pollLever(ctx, company, result); break
     case 'ashby':           await pollAshby(ctx, company, result); break
     case 'smartrecruiters': await pollSmartRecruiters(ctx, company, result); break
+    case 'workday':         await pollWorkday(ctx, company, result); break
   }
 }
 

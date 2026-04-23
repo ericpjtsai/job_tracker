@@ -40,6 +40,14 @@ export function sha256(str: string): string {
   return createHash('sha256').update(str).digest('hex')
 }
 
+// Return a parseable ISO string, or null if the input is missing / unparseable.
+// Callers fall back to now() to avoid inserting jobs with invalid dates (CLAUDE.md rule).
+export function parsePublishedAt(v: string | undefined | null): string | null {
+  if (!v) return null
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 // ─── Location extraction ──────────────────────────────────────────────────────
 
 const LOCATION_PATTERNS = [
@@ -290,9 +298,11 @@ export async function insertJobPosting(
       : result.priority
 
   // ── Insert ───────────────────────────────────────────────────────────────
-  // first_seen/last_seen represent when WE saw the row, not when the source
-  // posted it. opts.publishedAt is intentionally ignored here — see plan note.
+  // first_seen/last_seen track when WE saw the row. posted_at tracks when the
+  // source originally posted it (Greenhouse first_published, Ashby publishedAt,
+  // etc.); if unparseable or missing, we fall back to now() per CLAUDE.md.
   const now = new Date().toISOString()
+  const postedAt = parsePublishedAt(opts.publishedAt) ?? now
 
   // enrichment_status: pending only if we have a real description AND an API key
   // (the enrich-batch worker will skip rows where description is too short)
@@ -315,6 +325,7 @@ export async function insertJobPosting(
     priority,
     is_job_posting: true,
     page_content: opts.description,
+    posted_at: postedAt,
     first_seen: now,
     last_seen: now,
     status: 'new',

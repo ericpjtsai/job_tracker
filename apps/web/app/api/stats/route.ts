@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   if (since && since !== 'all') {
     const hours = since === '24h' ? 24 : 7 * 24
     const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-    mainQuery = mainQuery.gte('first_seen', cutoff)
+    mainQuery = mainQuery.gte('posted_at', cutoff)
   }
   mainQuery = applySharedFilters(mainQuery)
 

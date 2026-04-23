@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const seenOrder = searchParams.get('seenOrder')
   const newFirst = searchParams.get('newFirst') === 'true'
 
-  const LIST_COLS = 'id,url,title,company,location,resume_fit,firehose_rule,first_seen,last_seen,status,score,priority,salary_min,salary_max,applied_at,applied_dates,rejected_at'
+  const LIST_COLS = 'id,url,title,company,location,resume_fit,firehose_rule,posted_at,first_seen,last_seen,status,score,priority,salary_min,salary_max,applied_at,applied_dates,rejected_at'
 
   // Escape Supabase filter metacharacters from user input
   const safeSearch = search ? search.replace(/[.,()"\\]/g, '') : ''
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     if (since && since !== 'all') {
       const hours = since === '24h' ? 24 : 7 * 24
       const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-      q = q.gte('first_seen', cutoff)
+      q = q.gte('posted_at', cutoff)
     }
     if (safeSearch) q = q.or(`title.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`)
     return q
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     .range(page * limit, (page + 1) * limit - 1)
 
   if (fitOrder) query = query.order('resume_fit', { ascending: fitOrder === 'asc', nullsFirst: false })
-  if (seenOrder) query = query.order('first_seen', { ascending: seenOrder === 'asc', nullsFirst: false })
+  if (seenOrder) query = query.order('posted_at', { ascending: seenOrder === 'asc', nullsFirst: false })
   if (!fitOrder && !seenOrder) query = query.order('resume_fit', { ascending: false, nullsFirst: false })
 
   query = applyFilters(query)
