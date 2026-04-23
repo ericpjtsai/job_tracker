@@ -32,6 +32,12 @@ const SENIOR_OVERQUALIFIED_PATTERNS = [
   /\b(7|8)\+\s*years?\b/i,
 ]
 
+// Overrides DEFAULT_NON_DESIGN for design-inclusive engineering titles.
+// Without this, "Design Engineer" matches \bengineer\b and gets blocked before scoring.
+const DESIGN_ROLE_ALLOWLIST = [
+  /\b(design engineer|ux engineer|product design engineer|design technologist)\b/i,
+]
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function compilePatterns(patterns: string[]): RegExp[] {
@@ -90,6 +96,7 @@ export function resetSeniorityConfig(): void {
 // ─── Public API (same signatures as before) ──────────────────────────────────
 
 export function isRoleExcluded(title: string): boolean {
+  if (DESIGN_ROLE_ALLOWLIST.some((p) => p.test(title))) return false
   return nonDesignRegex.test(title)
 }
 
