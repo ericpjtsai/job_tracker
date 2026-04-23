@@ -52,17 +52,30 @@ export default function ImportPage() {
   const [companyLimit, setCompanyLimit] = useState(8)
   const companyRef = useRef<HTMLDivElement>(null)
   const [notesOpen, setNotesOpen] = useState(false)
-  const descRef = useRef<HTMLDivElement>(null)
+  const descRef = useRef<HTMLDivElement | null>(null)
   const notesRef = useRef<HTMLDivElement>(null)
   const pendingDescRef = useRef<string | null>(null)
 
-  // After switching to manual mode the descRef div mounts — inject sanitized HTML directly.
-  useEffect(() => {
-    if (mode === 'manual' && pendingDescRef.current !== null && descRef.current) {
-      descRef.current.innerHTML = pendingDescRef.current
+  // Ref callback: fires synchronously when the div mounts, injecting any pending HTML
+  // before React paints. Avoids useEffect timing races with conditional rendering.
+  const descRefCallback = useCallback((el: HTMLDivElement | null) => {
+    descRef.current = el
+    if (el && pendingDescRef.current !== null) {
+      el.innerHTML = pendingDescRef.current
       pendingDescRef.current = null
     }
-  }, [mode])
+  }, [])
+
+  function handleClear() {
+    setManualForm({ title: '', company: '', url: '', description: '', notes: '' })
+    if (descRef.current) descRef.current.innerHTML = ''
+    if (notesRef.current) notesRef.current.innerHTML = ''
+    setNotesOpen(false)
+    setFetchWarning(null)
+    setFieldErrors(new Set())
+  }
+
+  const hasFormContent = !!(manualForm.title || manualForm.company || manualForm.url || manualForm.description)
 
   async function handleFetchUrl() {
     const url = fetchUrl.trim()
@@ -371,7 +384,7 @@ export default function ImportPage() {
               onChange={(e) => { setManualForm(f => ({ ...f, url: e.target.value })); clearFieldError('url') }} />
           </div>
           <div
-            ref={descRef}
+            ref={descRefCallback}
             contentEditable={!isDemo}
             suppressContentEditableWarning
             onInput={(e) => { setManualForm(f => ({ ...f, description: (e.target as HTMLDivElement).innerHTML })); clearFieldError('description') }}
@@ -398,7 +411,12 @@ export default function ImportPage() {
               + Notes
             </button>
           )}
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            {hasFormContent && (
+              <button type="button" onClick={handleClear} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Clear
+              </button>
+            )}
             <Button size="sm" disabled={manualSubmitting || isDemo} onClick={handleManualSubmit}>
               {manualSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
