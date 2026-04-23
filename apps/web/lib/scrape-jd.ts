@@ -425,6 +425,24 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
   }
 }
 
+// ── URL-based company hint ────────────────────────────────────────────────
+// Extracts a company name directly from the URL for known ATS hostnames
+// where the subdomain encodes the employer (e.g. Workday).
+
+function titleCase(s: string): string {
+  return s.split(/[-_\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+function extractCompanyFromUrl(urlStr: string): string {
+  try {
+    const host = new URL(urlStr).hostname.toLowerCase()
+    // Workday: {company}.wd{N}.myworkdayjobs.com
+    const workday = host.match(/^([a-z0-9][a-z0-9-]*)\.wd\d+\.myworkdayjobs\.com$/)
+    if (workday) return titleCase(workday[1])
+  } catch {}
+  return ''
+}
+
 // ── Public entrypoint ─────────────────────────────────────────────────────
 
 export async function scrapeJD(url: string): Promise<ScrapedJD> {
@@ -437,8 +455,10 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
   const jsonLd = extractJsonLdJobPosting(root)
   const meta = extractFromMeta(root)
 
+  const urlCompanyHint = extractCompanyFromUrl(url)
+
   let title = jsonLd?.title || meta.title || ''
-  let company = jsonLd?.company || meta.company || ''
+  let company = jsonLd?.company || meta.company || urlCompanyHint
   let location = jsonLd?.location || ''
   let description = jsonLd?.description || ''
 
