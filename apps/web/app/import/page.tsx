@@ -56,13 +56,11 @@ export default function ImportPage() {
   const notesRef = useRef<HTMLDivElement>(null)
   const pendingDescRef = useRef<string | null>(null)
 
-  // After switching to manual mode the descRef div mounts — inject the pending description.
+  // After switching to manual mode the descRef div mounts — inject sanitized HTML directly.
   useEffect(() => {
     if (mode === 'manual' && pendingDescRef.current !== null && descRef.current) {
-      const desc = pendingDescRef.current
+      descRef.current.innerHTML = pendingDescRef.current
       pendingDescRef.current = null
-      const esc = desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
     }
   }, [mode])
 
@@ -358,7 +356,7 @@ export default function ImportPage() {
                       }
                     }}>
                     {visible.map((c, i) => (
-                      <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx ? "true" : "false"}
+                      <button key={c} id={`company-option-${i}`} type="button" role="option" aria-selected={i === companyIdx}
                         className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === companyIdx ? 'bg-muted' : 'hover:bg-muted/50'}`}
                         onPointerDown={() => { setManualForm(f => ({ ...f, company: c })); setCompanyOpen(false); clearFieldError('company') }}
                       >{c}</button>

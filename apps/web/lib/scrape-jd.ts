@@ -131,6 +131,47 @@ async function fetchCapped(urlStr: string): Promise<string> {
 
 // ── Parsing ───────────────────────────────────────────────────────────────
 
+const ALLOWED_HTML_TAGS = new Set([
+  'h1','h2','h3','h4','h5','h6',
+  'p','br','hr',
+  'ul','ol','li',
+  'strong','b','em','i','u',
+  'blockquote','pre','code',
+  'a','span','div','section','article',
+])
+
+// Keeps structural tags, strips everything else. Safe to inject as innerHTML.
+function sanitizeHtml(input: string): string {
+  return input
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<(\/?)(\w[\w-]*)([^>]*)>/g, (_, slash, rawTag, attrs) => {
+      const tag = rawTag.toLowerCase()
+      if (!ALLOWED_HTML_TAGS.has(tag)) return ''
+      if (tag === 'a' && !slash) {
+        const hrefMatch = attrs.match(/href=["']([^"']*)["']/)
+        const href = hrefMatch?.[1] ?? ''
+        if (href && /^https?:\/\//i.test(href)) {
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer">`
+        }
+        return ''
+      }
+      return `<${slash}${tag}>`
+    })
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x2019;/gi, "'")
+    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+    .trim()
+}
+
+// Strips all tags to plain text — used only for length/thinness checks.
 function stripHtml(input: string): string {
   return input
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -139,16 +180,20 @@ function stripHtml(input: string): string {
     .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x2019;/gi, "'")
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
+}
+
+// Converts plain text (e.g. puppeteer innerText) to basic HTML paragraphs.
+function plainTextToHtml(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((para) => para.trim().replace(/\n/g, '<br>'))
+    .filter(Boolean)
+    .map((para) => `<p>${para}</p>`)
+    .join('')
 }
 
 function firstText(v: unknown): string {
@@ -187,7 +232,7 @@ function extractJsonLdJobPosting(root: HTMLElement): Partial<ScrapedJD> | null {
 
   const title = firstText(job.title).trim()
   const descRaw = firstText(job.description)
-  const description = stripHtml(descRaw)
+  const description = sanitizeHtml(descRaw)
   const org = job.hiringOrganization
   const company = typeof org === 'string' ? org : firstText(org?.name).trim()
 
@@ -253,14 +298,14 @@ function extractDescriptionDom(root: HTMLElement): string {
   for (const sel of selectors) {
     const el = root.querySelector(sel)
     if (!el) continue
-    const text = stripHtml(el.innerHTML)
-    if (text.length >= 400) return text
+    const html = sanitizeHtml(el.innerHTML)
+    if (stripHtml(html).length >= 400) return html
   }
   // Last resort: whole body
   const body = root.querySelector('body')
   if (body) {
-    const text = stripHtml(body.innerHTML)
-    if (text.length >= 400) return text
+    const html = sanitizeHtml(body.innerHTML)
+    if (stripHtml(html).length >= 400) return html
   }
   return ''
 }
@@ -342,7 +387,7 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
     const root = parse(html)
 
     const jsonLd = extractJsonLdJobPosting(root)
-    if (jsonLd?.description && jsonLd.description.length >= MIN_DESCRIPTION_CHARS) {
+    if (jsonLd?.description && stripHtml(jsonLd.description).length >= MIN_DESCRIPTION_CHARS) {
       return jsonLd
     }
 
@@ -374,7 +419,7 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
     const meta = extractFromMeta(root)
     const title = extracted.ogTitle || extracted.h1 || extracted.titleEl || meta.title || ''
     const company = extracted.ogSite || meta.company || ''
-    return { title, company, description: extracted.description }
+    return { title, company, description: plainTextToHtml(extracted.description) }
   } finally {
     await browser.close()
   }
@@ -397,15 +442,15 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
   let location = jsonLd?.location || ''
   let description = jsonLd?.description || ''
 
-  if (!description || description.length < MIN_DESCRIPTION_CHARS) {
+  if (!description || stripHtml(description).length < MIN_DESCRIPTION_CHARS) {
     const fromDom = extractDescriptionDom(root)
-    if (fromDom.length > description.length) description = fromDom
+    if (stripHtml(fromDom).length > stripHtml(description).length) description = fromDom
   }
   if (!description) description = meta.description || ''
 
   title = cleanTitle(title, company)
 
-  const isThin = !title || description.length < MIN_DESCRIPTION_CHARS
+  const isThin = !title || stripHtml(description).length < MIN_DESCRIPTION_CHARS
   if (isThin) {
     // JS-rendered page — try headless Chrome
     const browser = await scrapeWithBrowser(url)
@@ -413,14 +458,14 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
       if (browser.title) title = cleanTitle(browser.title, browser.company ?? company)
       if (browser.company) company = browser.company
       if (browser.location) location = browser.location
-      if (browser.description && browser.description.length > description.length) {
+      if (browser.description && stripHtml(browser.description).length > stripHtml(description).length) {
         description = browser.description
       }
     }
   }
 
   const result: ScrapedJD = { title, company, location, description }
-  if (!title || description.length < MIN_DESCRIPTION_CHARS) {
+  if (!title || stripHtml(description).length < MIN_DESCRIPTION_CHARS) {
     result.warning = 'Could not confidently extract the job description. Please review and paste it manually if needed.'
   }
   return result
