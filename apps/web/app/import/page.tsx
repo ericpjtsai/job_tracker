@@ -79,14 +79,19 @@ export default function ImportPage() {
         description: data.description ?? '',
         notes: '',
       })
-      if (descRef.current) {
-        // Render as plaintext with line breaks — escape HTML, then swap \n → <br>.
-        const esc = (data.description ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
-      }
       if (data.warning) setFetchWarning(data.warning)
       setFieldErrors(new Set())
+      // Switch to manual mode first so the descRef div mounts, then populate it.
       setMode('manual')
+      const desc = data.description ?? ''
+      if (desc) {
+        setTimeout(() => {
+          if (descRef.current) {
+            const esc = desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
+          }
+        }, 0)
+      }
     } catch (e) {
       setFetchError(e instanceof Error ? e.message : 'Fetch failed')
     } finally {
