@@ -24,8 +24,14 @@ export default function ImportPage() {
   const isDemo = useIsDemo()
 
   // ── Import mode toggle ─────────────────────────────────────────────────────
-  const [mode, setMode] = useState<'manual' | 'file'>('manual')
+  const [mode, setMode] = useState<'manual' | 'url' | 'file'>('manual')
   const [todayCount, setTodayCount] = useState(0)
+
+  // ── URL fetch (pre-fills manual form) ──────────────────────────────────────
+  const [fetchUrl, setFetchUrl] = useState('')
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [fetchWarning, setFetchWarning] = useState<string | null>(null)
 
   // ── Manual form ────────────────────────────────────────────────────────────
   const [manualForm, setManualForm] = useState({ title: '', company: '', url: '', description: '', notes: '' })
@@ -48,6 +54,45 @@ export default function ImportPage() {
   const [notesOpen, setNotesOpen] = useState(false)
   const descRef = useRef<HTMLDivElement>(null)
   const notesRef = useRef<HTMLDivElement>(null)
+
+  async function handleFetchUrl() {
+    const url = fetchUrl.trim()
+    if (!url) return
+    setFetching(true)
+    setFetchError(null)
+    setFetchWarning(null)
+    try {
+      const res = await fetch('/api/jobs/import/from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFetchError(data.error ?? `Request failed (${res.status})`)
+        return
+      }
+      setManualForm({
+        title: data.title ?? '',
+        company: data.company ?? '',
+        url,
+        description: data.description ?? '',
+        notes: '',
+      })
+      if (descRef.current) {
+        // Render as plaintext with line breaks — escape HTML, then swap \n → <br>.
+        const esc = (data.description ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        descRef.current.innerHTML = esc.replace(/\n/g, '<br>')
+      }
+      if (data.warning) setFetchWarning(data.warning)
+      setFieldErrors(new Set())
+      setMode('manual')
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : 'Fetch failed')
+    } finally {
+      setFetching(false)
+    }
+  }
 
   async function handleManualSubmit() {
     const missing = new Set<'title' | 'company' | 'url' | 'description'>()
@@ -216,14 +261,47 @@ export default function ImportPage() {
           <button type="button" onClick={() => setMode('manual')}
             className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${mode === 'manual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
           >Manual</button>
+          <button type="button" onClick={() => setMode('url')}
+            className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${mode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+          >URL</button>
           <button type="button" onClick={() => setMode('file')}
             className={`relative z-10 px-3 py-1 rounded-full transition-colors duration-200 ${mode === 'file' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
           >File</button>
         </div>
       </div>
 
-      {mode === 'manual' ? (
+      {mode === 'url' ? (
         <div className="bg-card rounded-lg border px-4 py-4 space-y-3 shadow-stripe-sm">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Paste a job posting URL"
+              value={fetchUrl}
+              disabled={isDemo || fetching}
+              autoFocus
+              onChange={(e) => { setFetchUrl(e.target.value); setFetchError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFetchUrl() } }}
+            />
+            <Button size="sm" disabled={fetching || isDemo || !fetchUrl.trim()} onClick={handleFetchUrl}>
+              {fetching ? 'Fetching...' : 'Fetch'}
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            We'll pull the title, company, location, and description, then drop you into the Manual form to review.
+          </p>
+          {fetchError && (
+            <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              {fetchError}
+            </div>
+          )}
+        </div>
+      ) : mode === 'manual' ? (
+        <div className="bg-card rounded-lg border px-4 py-4 space-y-3 shadow-stripe-sm">
+          {fetchWarning && (
+            <div className="text-xs text-amber-900 dark:text-amber-100 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 rounded-md px-3 py-2 flex items-start justify-between gap-2">
+              <span>{fetchWarning}</span>
+              <button type="button" className="text-amber-900/60 dark:text-amber-100/60 hover:text-amber-900 dark:hover:text-amber-100 shrink-0" onClick={() => setFetchWarning(null)} aria-label="Dismiss">×</button>
+            </div>
+          )}
           <div className="grid sm:grid-cols-3 gap-3">
             <Input placeholder="Job title *" value={manualForm.title} disabled={isDemo}
               className={fieldErrors.has('title') ? 'border-destructive' : ''}
