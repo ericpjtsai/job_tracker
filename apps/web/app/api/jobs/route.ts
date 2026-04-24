@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     if (since && since !== 'all') {
       const hours = since === '24h' ? 24 : 7 * 24
       const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-      q = q.gte('posted_at', cutoff)
+      const timeCol = status === 'applied' ? 'applied_at' : 'posted_at'
+      q = q.gte(timeCol, cutoff)
     }
     if (safeSearch) q = q.or(`title.ilike.%${safeSearch}%,company.ilike.%${safeSearch}%`)
     return q

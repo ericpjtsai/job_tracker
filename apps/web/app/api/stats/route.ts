@@ -29,11 +29,14 @@ export async function GET(req: NextRequest) {
   }
 
   // Main query: fetch resume_fit + status for the filtered window, aggregate in JS.
+  // When filtering by applied status, use applied_at for the time window so "Today + Applied"
+  // matches the "32 applied today" counter rather than "posted today + applied".
   let mainQuery = supabase.from('job_postings').select('resume_fit, status')
   if (since && since !== 'all') {
     const hours = since === '24h' ? 24 : 7 * 24
     const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString()
-    mainQuery = mainQuery.gte('posted_at', cutoff)
+    const timeCol = status === 'applied' ? 'applied_at' : 'posted_at'
+    mainQuery = mainQuery.gte(timeCol, cutoff)
   }
   mainQuery = applySharedFilters(mainQuery)
 
