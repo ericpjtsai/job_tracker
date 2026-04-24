@@ -340,7 +340,12 @@ function cleanTitle(title: string, company: string): string {
 // ── Headless browser fallback (local dev / server with Chrome) ────────────
 
 const CHROME_PATHS = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
+  // macOS — common installs
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  // Linux
   '/usr/bin/google-chrome',
   '/usr/bin/chromium-browser',
   '/usr/bin/chromium',
@@ -355,7 +360,8 @@ async function findChrome(): Promise<{ executablePath: string; args: string[]; h
       headless: true,
     }
   }
-  // Serverless fallback — @sparticuz/chromium works on Vercel/Lambda
+  // @sparticuz/chromium is compiled for Amazon Linux (Vercel/Lambda). Never try it on macOS/Windows.
+  if (process.platform !== 'linux') return null
   try {
     const chromium = await import('@sparticuz/chromium')
     const executablePath = await chromium.default.executablePath()
@@ -485,6 +491,12 @@ function extractHintsFromUrl(urlStr: string): { title: string; company: string }
     // Workable: apply.workable.com/{company-slug}/j/{job-id}
     if (host === 'apply.workable.com') {
       const m = u.pathname.match(/^\/([^/]+)\/j\//)
+      if (m) return { title: '', company: titleCase(m[1]) }
+    }
+
+    // Gem.com: jobs.gem.com/{company-slug}/{job-id}
+    if (host === 'jobs.gem.com') {
+      const m = u.pathname.match(/^\/([^/]+)\//)
       if (m) return { title: '', company: titleCase(m[1]) }
     }
   } catch {}
