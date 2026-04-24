@@ -101,8 +101,12 @@ export default function ImportPage() {
         description: data.description ?? '',
         notes: '',
       })
-      if (data.warning) setFetchWarning(data.warning)
+      if (data.warning) {
+        setFetchWarning(data.warning)
+        setTimeout(() => setFetchWarning(null), 10_000)
+      }
       setFieldErrors(new Set())
+      setFetchUrl('')
       pendingDescRef.current = data.description ?? ''
       setMode('manual')
     } catch (e) {
