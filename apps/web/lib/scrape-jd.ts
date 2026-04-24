@@ -250,6 +250,11 @@ function extractJsonLdJobPosting(root: HTMLElement): Partial<ScrapedJD> | null {
   return { title, company, location, description }
 }
 
+// Job-board/platform site names that should never be used as company names.
+const PLATFORM_SITE_NAMES = new Set([
+  'linkedin', 'indeed', 'glassdoor', 'ziprecruiter', 'monster', 'dice', 'simplyhired',
+])
+
 function extractFromMeta(root: HTMLElement): Partial<ScrapedJD> {
   const meta = (selectors: string[]): string => {
     for (const sel of selectors) {
@@ -261,7 +266,7 @@ function extractFromMeta(root: HTMLElement): Partial<ScrapedJD> {
   }
   const titleTag = root.querySelector('title')?.text.trim() ?? ''
   // Title-tag patterns used by Greenhouse ("Job Application for X at Y"),
-  // LinkedIn ("X - Y - Z"), and most careers pages ("X at Y" / "X | Y").
+  // LinkedIn ("X - Company | LinkedIn"), and most careers pages ("X at Y" / "X | Y").
   let titleFromTag = ''
   let companyFromTag = ''
   if (titleTag) {
@@ -273,14 +278,23 @@ function extractFromMeta(root: HTMLElement): Partial<ScrapedJD> {
       companyFromTag = m[2].trim()
     }
   }
+
+  const ogTitle = meta(['meta[property="og:title"]', 'meta[name="twitter:title"]'])
+
+  // LinkedIn og:title is "Title at Company" — extract company as extra fallback.
+  let companyFromOgTitle = ''
+  if (ogTitle && !companyFromTag) {
+    const m = ogTitle.match(/\bat\s+(.+)$/i)
+    if (m) companyFromOgTitle = m[1].trim()
+  }
+
+  // Filter out platform names (e.g. "LinkedIn") from og:site_name.
+  const rawSiteName = meta(['meta[property="og:site_name"]'])
+  const siteName = PLATFORM_SITE_NAMES.has(rawSiteName.toLowerCase()) ? '' : rawSiteName
+
   return {
-    title:
-      meta(['meta[property="og:title"]', 'meta[name="twitter:title"]']) ||
-      titleFromTag ||
-      titleTag ||
-      root.querySelector('h1')?.text.trim() ||
-      '',
-    company: meta(['meta[property="og:site_name"]']) || companyFromTag,
+    title: ogTitle || titleFromTag || titleTag || root.querySelector('h1')?.text.trim() || '',
+    company: siteName || companyFromTag || companyFromOgTitle,
     description: meta(['meta[property="og:description"]', 'meta[name="description"]']),
   }
 }
@@ -490,8 +504,13 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
 
   title = cleanTitle(title, company)
 
+  // Platforms that detect/block headless browsers — headless Chrome makes things worse
+  // (returns login-wall titles that overwrite correctly scraped meta data).
+  const host = new URL(url).hostname.toLowerCase()
+  const skipBrowser = host === 'www.linkedin.com' || host === 'linkedin.com'
+
   const isThin = !title || stripHtml(description).length < MIN_DESCRIPTION_CHARS
-  if (isThin) {
+  if (isThin && !skipBrowser) {
     // JS-rendered page — try headless Chrome
     const browser = await scrapeWithBrowser(url)
     if (browser) {
