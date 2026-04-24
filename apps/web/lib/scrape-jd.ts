@@ -425,22 +425,42 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
   }
 }
 
-// ── URL-based company hint ────────────────────────────────────────────────
-// Extracts a company name directly from the URL for known ATS hostnames
-// where the subdomain encodes the employer (e.g. Workday).
+// ── URL-based field hints ─────────────────────────────────────────────────
+// Extracts title/company from the URL itself for platforms that encode them
+// in the slug (LinkedIn) or subdomain (Workday). Used as last-resort fallback
+// when scraping returns nothing — keeps at least the key fields pre-filled.
 
 function titleCase(s: string): string {
   return s.split(/[-_\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
-function extractCompanyFromUrl(urlStr: string): string {
+function extractHintsFromUrl(urlStr: string): { title: string; company: string } {
+  const empty = { title: '', company: '' }
   try {
-    const host = new URL(urlStr).hostname.toLowerCase()
+    const u = new URL(urlStr)
+    const host = u.hostname.toLowerCase()
+
     // Workday: {company}.wd{N}.myworkdayjobs.com
     const workday = host.match(/^([a-z0-9][a-z0-9-]*)\.wd\d+\.myworkdayjobs\.com$/)
-    if (workday) return titleCase(workday[1])
+    if (workday) return { title: '', company: titleCase(workday[1]) }
+
+    // LinkedIn: /jobs/view/{title-slug}-at-{company-slug}-{numeric-id}[/]
+    if (host === 'www.linkedin.com' || host === 'linkedin.com') {
+      const m = u.pathname.match(/\/jobs\/view\/(.+?)\/?$/)
+      if (m) {
+        // Remove trailing numeric job-id, then split on last "-at-"
+        const slug = m[1].replace(/-\d+$/, '')
+        const atIdx = slug.lastIndexOf('-at-')
+        if (atIdx > 0) {
+          return {
+            title: titleCase(slug.slice(0, atIdx)),
+            company: titleCase(slug.slice(atIdx + 4)),
+          }
+        }
+      }
+    }
   } catch {}
-  return ''
+  return empty
 }
 
 // ── Public entrypoint ─────────────────────────────────────────────────────
@@ -455,10 +475,10 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
   const jsonLd = extractJsonLdJobPosting(root)
   const meta = extractFromMeta(root)
 
-  const urlCompanyHint = extractCompanyFromUrl(url)
+  const urlHints = extractHintsFromUrl(url)
 
-  let title = jsonLd?.title || meta.title || ''
-  let company = jsonLd?.company || meta.company || urlCompanyHint
+  let title = jsonLd?.title || meta.title || urlHints.title
+  let company = jsonLd?.company || meta.company || urlHints.company
   let location = jsonLd?.location || ''
   let description = jsonLd?.description || ''
 
@@ -482,6 +502,9 @@ export async function scrapeJD(url: string): Promise<ScrapedJD> {
         description = browser.description
       }
     }
+    // Re-apply URL hints if the browser/scraping path cleared them
+    if (!title && urlHints.title) title = urlHints.title
+    if (!company && urlHints.company) company = urlHints.company
   }
 
   const result: ScrapedJD = { title, company, location, description }
