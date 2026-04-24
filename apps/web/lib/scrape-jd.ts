@@ -380,11 +380,17 @@ async function scrapeWithBrowser(url: string): Promise<Partial<ScrapedJD> | null
   }
   if (!launch) return null
 
-  const browser = await launch({
-    executablePath: chrome.executablePath,
-    headless: chrome.headless,
-    args: chrome.args,
-  })
+  let browser: import('puppeteer-core').Browser
+  try {
+    browser = await launch({
+      executablePath: chrome.executablePath,
+      headless: chrome.headless,
+      args: chrome.args,
+    })
+  } catch {
+    // Browser failed to start (missing system libs, bad binary, etc.) — degrade gracefully.
+    return null
+  }
   try {
     const page = await browser.newPage()
     await page.setUserAgent(USER_AGENT)
