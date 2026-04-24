@@ -305,6 +305,8 @@ function extractDescriptionDom(root: HTMLElement): string {
     '[class*="posting-description"]',
     '[class*="jobDescription"]',
     '[class*="description"][class*="job"]',
+    '[data-ui="job-description"]',   // Workable
+    '[class*="styles--description"]', // Workable
     '#content',
     'main',
     'article',
@@ -478,6 +480,12 @@ function extractHintsFromUrl(urlStr: string): { title: string; company: string }
           }
         }
       }
+    }
+
+    // Workable: apply.workable.com/{company-slug}/j/{job-id}
+    if (host === 'apply.workable.com') {
+      const m = u.pathname.match(/^\/([^/]+)\/j\//)
+      if (m) return { title: '', company: titleCase(m[1]) }
     }
   } catch {}
   return empty
